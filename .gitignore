@@ -1,0 +1,28 @@
+# ZOdyssey run artifacts — these are personal/local, never commit them.
+# They are created at runtime under <repo>/.zcode/ during /orchestrate runs.
+.zcode/state/
+.zcode/plans/
+.zcode/notepads/
+.zcode/memory/
+.zcode/teams/
+.zcode/reviews/
+.zcode/capabilities.lock.json
+
+# The cross-run eval ledger (optional, local-only). Seeds ship in the repo.
+.zcode/orchestration/eval/results.jsonl
+.zcode/orchestration/eval/judged.jsonl
+.zcode/orchestration/eval/runs/
+.zcode/orchestration/memory.json
+
+# Node
+node_modules/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp

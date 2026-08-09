@@ -1,0 +1,26 @@
+{
+  "name": "zodyssey",
+  "displayName": "ZOdyssey",
+  "version": "0.1.0",
+  "description": "A hybrid-enforced multi-agent orchestration pipeline for ZCode: prime, triage, consult, plan, review (gated), execute, verify, final-wave. Code-enforces the invariants omo leaves to convention.",
+  "author": {
+    "name": "amartinawi",
+    "url": "https://github.com/amartinawi"
+  },
+  "homepage": "https://github.com/amartinawi/zodyssey",
+  "repository": "https://github.com/amartinawi/zodyssey",
+  "license": "MIT",
+  "keywords": [
+    "orchestration",
+    "multi-agent",
+    "planning",
+    "code-review",
+    "enforcement",
+    "hooks",
+    "zcode",
+    "pipeline"
+  ],
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "commands": "./commands/"
+}
