@@ -4,6 +4,13 @@
 // to be drafted. Mirrors omo's scaffold-plan.mjs (canonical section order) but adapted
 // to ZCode conventions (.zcode/plans, .zcode/state) and our state schema (DESIGN.md §5).
 //
+// Resume-format borrow (prime-agent primitive #1, SEC-7 candidate): the scaffolded state
+// includes `acceptance` (per-todo verify results) and `notepad_pointers` (per-todo notepad
+// path) so `/orchestrate resume <slug>` can re-enter with structured per-todo progress
+// instead of just phase + locks. This is the persistence-FORMAT extension only — NO daemon,
+// NO scheduler, NO new invocation surface. The fields are OPTIONAL: existing runs that lack
+// them load unchanged (consumers access them via `(state.acceptance || {})[id]`).
+//
 // Usage:
 //   scaffold.mjs <repo-root> <slug> <title> <intent>
 //     repo-root : absolute path to the repo the work happens in
@@ -192,6 +199,14 @@ const state = {
   review: makeReviewDefault(),
   consult: { rounds: 0, verdict: null, history: [], last_gaps: [] },
   checkpoints: [{ at: now, phase: "plan", note: "plan scaffolded" }],
+  // Resume-format borrow (prime-agent #1, SEC-7 candidate): optional per-todo structured
+  // progress populated by record-verify.mjs so /orchestrate resume <slug> re-enters with
+  // acceptance results + notepad pointers. Consumers MUST treat them as optional
+  // (`(state.acceptance || {})[id]`) — older runs lack these keys entirely.
+  //   acceptance       : { [todoId]: { pass: bool, at: iso, evidence?: string } }
+  //   notepad_pointers : { [todoId]: "/abs/path/to/.zcode/notepads/<slug>/<id>.md" }
+  acceptance: {},
+  notepad_pointers: {},
 };
 writeFileSync(statePath, JSON.stringify(state, null, 2) + "\n");
 

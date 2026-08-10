@@ -9,6 +9,13 @@
 // tracks pass/fail counts. A todo cannot reach `done` without verify evidence (enforced by
 // record-todo.mjs's transition guard, added alongside this).
 //
+// Resume-format borrow (prime-agent primitive #1, SEC-7 candidate): on each verify record this
+// script also populates state.acceptance[todoId] = { pass, at, evidence } and, if a notepad file
+// exists at .zcode/notepads/<slug>/<todoId>.md, state.notepad_pointers[todoId] = <abs path>.
+// This lets `/orchestrate resume <slug>` re-enter with structured per-todo progress instead of
+// just phase + locks. Persistence-FORMAT extension only — no daemon, no scheduler. The state
+// fields are OPTIONAL: read/written via `|| {}` so older runs lacking them are not crashed.
+//
 // Usage:
 //   record-verify.mjs <repo> <slug> <todo-id> --criterion <cmd> [--exit-code <N> --trust-argv] [--output <file>] [--n <idx>] [--flake-check [--exit-code-2 <N>]]
 //   exit: 0 ok · 2 bad args · 3 no state file · 6 verification FAILED (exit-code != 0) · 7 FLAKY (flake-check runs disagree)
@@ -191,6 +198,28 @@ function apply(st) {
   // failure). failed = total - passed - flaky.
   st.verify.flaky = st.verify.history.filter((h) => h.flaky).length;
   st.verify.failed = st.verify.total - st.verify.passed - st.verify.flaky;
+
+  // Resume-format borrow (prime-agent #1, SEC-7 candidate): populate optional per-todo
+  // acceptance + notepad pointers so /orchestrate resume <slug> re-enters with structured
+  // progress. The `pass` here rolls up across this todo's criteria: any non-passing
+  // (failed/flaky) criterion marks the todo's acceptance as not-passed. Fields are accessed
+  // via `|| {}` so older state without them does not crash this writer.
+  st.acceptance = st.acceptance || {};
+  // a todo's acceptance.pass is true only if the todo is DONE AND EVERY recorded criterion
+  // for it has passed. The status gate closes the mid-verify race (audit advisory #1): without it,
+  // pass would flip true after criterion N while criteria N+1..M are still unrun, and a resuming
+  // orchestrator reading SKILL.md's skip-on-pass guidance would prematurely skip the todo.
+  const allForTodo = st.verify.history.filter((h) => h.todo_id === todoId);
+  const todoStatus = (st.todos && st.todos[todoId] && st.todos[todoId].status) || null;
+  const allPass = todoStatus === 'done' && allForTodo.length > 0 && allForTodo.every((h) => h.passed);
+  st.acceptance[todoId] = { pass: allPass, at: evidence.recorded_at, evidence: artifactPath };
+
+  st.notepad_pointers = st.notepad_pointers || {};
+  const notepadPath = join(repoAbs, ".zcode", "notepads", slug, `${todoId}.md`);
+  if (existsSync(notepadPath)) {
+    st.notepad_pointers[todoId] = notepadPath;
+  }
+
   st.updated_at = evidence.recorded_at;
   return st;
 }

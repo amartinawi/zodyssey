@@ -19,7 +19,7 @@ You are the **orchestrator** of a hybrid-enforced multi-agent pipeline. You dire
 
 ## Capability routing — ALWAYS use the best tool for the activity
 
-This is the orchestrator's core promise. Your machine has its own mix of plugins, skills, sub-agents, MCPs, and tools (codegraph if installed). Before doing any activity the generic way, consult `references/capabilities.md` and use the best-fit capability. The headline routing table below is illustrative — edit it to match what's actually installed on your machine:
+This is the orchestrator's core promise. This machine has 8 plugins, ~50 skills, 8 sub-agents, 20 MCPs, and codegraph. Before doing any activity the generic way, consult `references/capabilities.md` and use the best-fit capability. The headline routing:
 
 | Activity | Use |
 |---|---|
@@ -123,6 +123,13 @@ The table is the summary; `capabilities.md` is the authoritative detail. **Tell 
         │    against the full diff. F1 plan-compliance, F2 code│
         │    quality, F3 manual QA checklist (you produce it), │
         │    F4 scope fidelity. All must pass before "done".   │
+        │    OPTIONAL COMPACTION (before F1-F4 dispatch): you  │
+        │    MAY run `scripts/compact.mjs <repo> <slug>` to    │
+        │    derive `_compact-brief.md` from the run's notepads│
+        │    and point F1-F4 at the brief instead of the full  │
+        │    plan+notepad set. Deterministic, $0, additive     │
+        │    (never modifies source notepads). Opt-in; skip if │
+        │    the run is small. (Borrows prime-agent #8.)       │
         │    MEMORY RULE: delegate any step that must READ the  │
         │    todos' notepad/fragment outputs to a sub-agent —  │
         │    do NOT read those fragments back into your own     │
@@ -158,6 +165,26 @@ Three rules, in priority order:
 
 These rules compose with (but do not replace) the anti-duplication rule: once you delegate,
 don't re-research — and once you delegate, don't re-read.
+
+### Notepads are load-bearing working memory (not optional scratch)
+
+`.zcode/notepads/<slug>/<todo-id>.md` is the **load-bearing cross-todo working-memory surface** of a
+run. Treat notepads as *state read by downstream waves*, never as optional scratch an executor may
+or may not write. Concretely:
+
+- Every dispatched `sisyphus-junior` writes a notepad at the path its dispatch names — what it
+  changed, decisions made, gotchas, and the acceptance-command output (evidence). This is
+  "inherited wisdom" for the next todo and the raw input the final wave synthesizes.
+- Downstream todos **read prior notepads by path** (the orchestrator passes the pointers), so a
+  notepad is the handoff contract between fan-out executors that never share a context window.
+- The final wave (F1-F4) reads notepads through a delegated sub-agent (memory rule above) or, when
+  the run is large, through the optional `_compact-brief.md` produced by `scripts/compact.mjs`.
+
+This is the structural analog of prime-agent primitive #8's "the kernel survives across
+compactions" — except ZOdyssey has no in-process kernel, so the persistence that survives across
+executor lifetimes is the **filesystem**, and the per-todo notepad is the unit that survives.
+Deleting or failing to write a notepad breaks the chain for every downstream consumer; treat
+notepad writes as mandatory output, not a nicety.
 
 ## After done — persist learnings (memory MCP)
 
@@ -267,6 +294,12 @@ After every phase transition and after every todo completes, write a checkpoint 
 ```
 On `/orchestrate resume <slug>`, read `state.json`, find the last checkpoint, and resume from there — not from scratch. This is the durable-execution requirement (DESIGN §5).
 
+**Consuming the resume-format fields** (`scaffold.mjs` + `record-verify.mjs` write them; you are the read side — older runs lack them, treat missing fields as empty):
+
+1. **Skip verified todos.** Any todo whose `state.acceptance[id].pass === true` is already verified — do NOT re-dispatch it; jump to the next pending/in-flight one.
+2. **Use notepad pointers for inherited context.** For todos you do resume, read `state.notepad_pointers[id]` (if present) instead of re-reading the full plan/doc — the notepad is the ~3% summary and the full doc stays out of your window (context-economy).
+3. **Orient before resuming.** Run `scripts/status.mjs <repo> <slug>` (output now carries verified/notepad counts) and use it as the one-line progress summary that frames the re-entry.
+
 ## When to stop and ask
 
 - Phase 1: Metis surfaced user-questions → ask the user, wait.
@@ -300,6 +333,7 @@ The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY n
 
 - `ZODYSSEY_PARALLEL_CAP` — the execute-phase parallel-dispatch cap (default 4; non-integer/≤0 → 4).
 - `ZODYSSEY_STALE_HOURS` — a run not updated in this many hours is treated as abandoned (hooks disarm; default 24; non-finite/≤0 → 24).
+- `ZODYSSEY_RECURSION_CAP` — the SEC-1s recursion-guard cap (default 1). Reserved for a future real depth counter; today the guard is a payload-pattern match against embedded nested dispatches, not a depth ledger (the harness tool-grant boundary is the primary control).
 - `CLAUDE_CLI` — the binary `consult.mjs` spawns as the external auditor (default `claude`). Receives the full repo diff + plan, so point this only at a trusted CLI.
 
 ## Memory store — canonical
