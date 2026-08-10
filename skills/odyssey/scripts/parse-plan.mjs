@@ -19,8 +19,10 @@
 //   parse-plan.mjs <plan.md> --todo 3        # emit one todo by id
 //   exit codes: 0 ok (parsed, maybe empty) · 2 bad args · 3 file unreadable
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync, realpathSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { argv, exit } from "node:process";
+import { scanText } from "./lint-untrusted.mjs";
 
 const args = argv.slice(2);
 if (args.length === 0) {
@@ -161,6 +163,98 @@ function parseRows(block, isFinal) {
 
 const todos = [...parseRows(todosSection, false), ...parseRows(finalSection, true)];
 
+// Todo 15 (toolchain-aware lint): find <repo>/.zcode/toolchain.json by walking up from the plan
+// path to the nearest ancestor that contains a `.zcode` directory. A ZOdyssey plan always lives at
+// <repo>/.zcode/plans/<slug>.md, so the .zcode dir is guaranteed to be an ancestor. Returns null
+// when no toolchain.json exists (the graceful no-op path — lint must not regress for bare repos).
+function loadToolchain(startPath) {
+  let dir = startPath;
+  try { dir = realpathSync(startPath); } catch { /* fall through with raw path */ }
+  // Walk up; resolve the parent of `dir` so we never loop forever on root.
+  let cur = dir;
+  for (let i = 0; i < 32; i++) {
+    const parent = dirname(cur);
+    const zcode = join(parent, ".zcode");
+    if (existsSync(zcode)) {
+      const tcPath = join(zcode, "toolchain.json");
+      if (!existsSync(tcPath)) return null; // .zcode exists but no toolchain.json → no-op
+      try {
+        return JSON.parse(readFileSync(tcPath, "utf8"));
+      } catch {
+        return null; // unreadable/unparseable → don't punish the plan
+      }
+    }
+    if (parent === cur) break; // reached filesystem root
+    cur = parent;
+  }
+  return null;
+}
+
+// Todo 15: map a referenced runner token to the test_runner value toolchain.json uses.
+// `go test` references runner "go"; bare `jest`/`pytest`/`mocha`/`vitest` map to themselves.
+// `node` and `npx` are deliberately NOT here — node is always present, npx just dispatches.
+function runnerForToken(tok) {
+  switch (tok) {
+    case "jest": return "jest";
+    case "vitest": return "vitest";
+    case "mocha": return "mocha";
+    case "pytest": return "pytest";
+    case "go": return "go"; // matched only on the `go test` bigram
+    default: return null;
+  }
+}
+
+// Todo 15: scan each non-final todo's acceptance criteria for runner references that the repo's
+// toolchain doesn't support. Returns an array of { todo, criterion_index, issue } problems.
+// toolchain is the parsed <repo>/.zcode/toolchain.json; if null the check is a no-op.
+function lintToolchainRefs(planPath, nonFinalTodos) {
+  const toolchain = loadToolchain(planPath);
+  if (!toolchain) return []; // graceful no-op
+  const problems = [];
+  const declaredRunner = toolchain.test_runner;
+  const isBare = toolchain.bare === true && !toolchain.package_manager;
+  for (const t of nonFinalTodos) {
+    for (let i = 0; i < t.acceptance.length; i++) {
+      const c = t.acceptance[i];
+      // `npm run <script>` requires a package manager / package.json. A bare repo (no lockfile)
+      // has none, so any `npm run` is invalid. (pnpm/yarn run handled symmetrically below.)
+      // node/npx references are NEVER flagged here — node is always present.
+      const npmRun = c.match(/\b(?:npm|pnpm|yarn)\s+run\s+\S+/i);
+      if (npmRun && isBare) {
+        problems.push({
+          todo: t.id,
+          criterion_index: i + 1,
+          issue: `criterion references "${npmRun[0]}" but toolchain.json says package_manager is null and bare=true (no package.json) — this repo has no npm scripts to run`,
+        });
+        continue; // already failed for this criterion; don't double-report
+      }
+      // `go test` bigram → runner "go". (The bare token "go" is too noisy; require the test form.)
+      if (/\bgo\s+test\b/.test(c) && declaredRunner !== "go") {
+        problems.push({
+          todo: t.id,
+          criterion_index: i + 1,
+          issue: `criterion references "go test" but toolchain.json says test_runner is ${declaredRunner}`,
+        });
+        continue;
+      }
+      // Other runners: word-boundary match on the bare token (jest/pytest/mocha/vitest are
+      // unambiguous command verbs — a stray "jest" in prose is rare and worth flagging).
+      const runnerTok = c.match(/\b(jest|vitest|mocha|pytest)\b/);
+      if (runnerTok) {
+        const ref = runnerForToken(runnerTok[1]);
+        if (ref && declaredRunner !== ref) {
+          problems.push({
+            todo: t.id,
+            criterion_index: i + 1,
+            issue: `criterion references ${ref} but toolchain.json says test_runner is ${declaredRunner}`,
+          });
+        }
+      }
+    }
+  }
+  return problems;
+}
+
 // CRIT-3 (operational-consult): --lint mode. Mechanical acceptance-criteria check that momus's
 // judgment call can't enforce. Fails (exit 6) if:
 //   (a) any NON-FINAL todo has zero acceptance criteria (nothing to verify against → phase 5 is a no-op)
@@ -197,7 +291,7 @@ if (mode === "--lint") {
     }
     // F1-grammar check: Files: should contain clean path-shaped entries, not prose descriptions.
     // If a todo's files contain spaces (after backtick stripping), the plan grammar is garbled and
-    // F1's set-difference will fail to match. (Found on a real production run 2026-08-02.)
+    // F1's set-difference will fail to match. (Found on the real iqraa-library.net run 2026-08-02.)
     for (const f of t.files) {
       if (/\s/.test(f) || f.length > 200) {
         problems.push({ todo: t.id, issue: `Files: entry is not a clean path (contains spaces or is too long): "${f.slice(0, 80)}..." — F1 scope-fidelity will fail to match this. Use comma-separated backtick-wrapped paths.` });
@@ -213,6 +307,27 @@ if (mode === "--lint") {
       problems.push({ todo: t.id, issue: `no Files: declared — the scope-isolation hook will BLOCK every product-code edit for this todo (empty declared set = fail-closed). Add a Files: [\`path/to/file\`] list, or split the todo.` });
     }
   }
+  // Todo 14 (injection hardening): EXTEND the existing lint with an untrusted-content scan.
+  // Plans + notepads are agent-written and flow into dispatch prompts; an injected "ignore
+  // previous instructions" in prose could drive ungated Bash now that the Bash gate is removed
+  // (pre-tool.mjs:707). scanText masks exempt zones (backticked spans, fenced blocks, indented
+  // acceptance/QA items) and flags only directive patterns in PROSE — so legit `rm -rf` in a
+  // backticked acceptance criterion is NOT flagged. See lint-untrusted.mjs.
+  const injectionFindings = scanText(body);
+  for (const f of injectionFindings) {
+    problems.push({ todo: "-", issue: `untrusted-content injection (line ${f.line}, ${f.label}): matched "${f.pattern}" — ${f.snippet}` });
+  }
+  // Todo 15 (toolchain-aware lint): EXTEND the existing lint with a static check that
+  // acceptance-criteria runner references match what toolchain.json says the repo actually
+  // has. This kills the empirically-observed class where a plan referenced `jest` but the
+  // repo used node --test (caught only by the external consult, not the in-session wave).
+  //
+  // Graceful no-op if toolchain.json is absent: many repos won't have one yet, and lint must
+  // never regress for them. We locate toolchain.json by walking up from the plan path to the
+  // nearest ancestor containing a `.zcode` dir (the plan itself lives at <repo>/.zcode/plans/).
+  // STATIC ONLY: this never executes the referenced runner.
+  const toolchainProblems = lintToolchainRefs(planPath, NON_FINAL);
+  for (const p of toolchainProblems) problems.push(p);
   const result = { pass: problems.length === 0, problems, todos_checked: NON_FINAL.length };
   console.log(JSON.stringify(result, null, 2));
   exit(problems.length === 0 ? 0 : 6);

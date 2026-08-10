@@ -14,6 +14,7 @@
 import { readFileSync, existsSync, realpathSync } from "node:fs";
 import { basename } from "node:path";
 import { argv, exit } from "node:process";
+import { validateOutcome } from "./lib/memory-schema.mjs";
 
 const [repo, ...rest] = argv.slice(2);
 if (!repo) { console.error("usage: recall-outcomes.mjs <repo> [--failed]"); exit(2); }
@@ -25,7 +26,26 @@ if (!existsSync(outcomesPath)) {
   console.error(`(no prior outcomes at ${outcomesPath} — this is the first run for this repo)`);
   exit(3);
 }
-const outcomes = readFileSync(outcomesPath, "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
+// Parse + validate against the shared schema (lib/memory-schema.mjs). A malformed
+// line (bad JSON or missing required fields) is skipped with a stderr warning
+// rather than crashing the whole recall — one bad append must not blind metis.
+const rawLines = readFileSync(outcomesPath, "utf8").split("\n").filter((l) => l.trim());
+const outcomes = [];
+rawLines.forEach((line, idx) => {
+  const lineNo = idx + 1;
+  let parsed;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    process.stderr.write(`recall-outcomes: skipping malformed outcome at line ${lineNo}\n`);
+    return;
+  }
+  if (!validateOutcome(parsed)) {
+    process.stderr.write(`recall-outcomes: skipping malformed outcome at line ${lineNo}\n`);
+    return;
+  }
+  outcomes.push(parsed);
+});
 const filtered = onlyFailed
   ? outcomes.filter((o) => ["blocked", "abandoned"].some((p) => o.name.includes(`:${p}`)))
   : outcomes;

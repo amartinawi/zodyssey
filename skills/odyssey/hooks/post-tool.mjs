@@ -11,8 +11,9 @@
 // exit: 0 always (PostToolUse hooks must not block).
 
 import { readFileSync, readdirSync, existsSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve as pathResolve } from "node:path";
 import { exit } from "node:process";
+import { spawnSync } from "node:child_process";
 import { findActiveRuns, mostRecent, STALE_MS_DEFAULT, TERMINAL } from "./lib/find-run.mjs";
 
 const PROJECT_DIR =
@@ -32,6 +33,65 @@ try {
 }
 
 const toolName = payload.tool_name || payload.tool || "";
+
+// ─── NEW ARM: post-edit diagnostics for Edit/Write/MultiEdit ─────────────────
+// (todo 12, "post-edit diagnostics hook as a new arm"). MUTUALLY EXCLUSIVE with
+// the existing Task/Agent ledger-drain path below by tool_name, so it cannot
+// race the ledger drain: this arm returns early on non-Edit tools, and the
+// existing path returns early on Edit tools. Reads .zcode/toolchain.json
+// (produced by probe-toolchain.mjs, todo 4). Never blocks on success; injects a
+// lint failure back to the executor only on a non-zero exit.
+if (["Edit", "Write", "MultiEdit"].includes(toolName)) {
+  // Phase guard: diagnostics only run during execute/verify/final — never
+  // planning/review (an edit there is the planner/reviewer's own scratch, not a
+  // product edit; running lint would be noise + risk false-rejecting the gate).
+  const _diagRuns = findActiveRuns({ projectDir: PROJECT_DIR, staleMs: STALE_MS });
+  const _diagRun = mostRecent(_diagRuns);
+  if (_diagRun && _diagRun.state && _diagRun.state.phase &&
+      ["execute", "verify", "final"].includes(_diagRun.state.phase)) {
+    // repo root for this run = two levels above its stateDir (.../<repo>/.zcode/state)
+    const _diagRepoRoot = pathResolve(_diagRun.stateDir, "..", "..");
+    const _toolchainPath = join(_diagRepoRoot, ".zcode", "toolchain.json");
+    let _tc = null;
+    if (existsSync(_toolchainPath)) {
+      try { _tc = JSON.parse(readFileSync(_toolchainPath, "utf8")); } catch { _tc = null; }
+    }
+    const _lintCmd = _tc && typeof _tc.lint_cmd === "string" && _tc.lint_cmd.trim()
+      ? _tc.lint_cmd.trim() : null;
+    if (_lintCmd) {
+      // The edited file path (Edit/Write carry file_path; some hosts use path).
+      const _target = (payload.tool_input && (payload.tool_input.file_path || payload.tool_input.path)) || "";
+      if (_target) {
+        // Scope the lint to the single edited file by appending the path to
+        // the configured cmd. spawnSync with an argv array + shell:false → no
+        // shell interpolation → no injection surface (consistent with
+        // consult.mjs:719). 5s cap keeps this fast. Never throws on non-zero
+        // exit — that IS the failure signal we read from result.status.
+        const lintParts = _lintCmd.split(/\s+/);
+        const result = spawnSync(lintParts[0], [...lintParts.slice(1), _target], {
+          cwd: _diagRepoRoot,
+          stdio: ["ignore", "pipe", "pipe"],
+          timeout: 5000,
+          shell: false,
+          encoding: "utf8",
+        });
+        if (result.status !== 0) {
+          // Inject the failure back to the executor. PostToolUse hooks must not
+          // block, so exit 0; the JSON decision carries the reason.
+          const _stderr = result.stderr || result.stdout || "";
+          const _reason = `post-edit lint failed for ${_target} (cmd: ${_lintCmd}): ${String(_stderr).slice(0, 400)}`;
+          console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", decision: "block", reason: _reason } }));
+        }
+        // lint exited 0 → silent pass (do NOT block).
+      }
+    }
+  }
+  // This arm OWNS Edit/Write/MultiEdit — never fall through to the Task/Agent
+  // ledger path. (They are disjoint tool_name sets; falling through would let an
+  // Edit event spuriously drain the parallel-cap ledger.)
+  exit(0);
+}
+
 if (!["Task", "Agent", "dispatch_agent"].includes(toolName)) exit(0);
 
 // SEC-H4 (external audit #3 + in-session F6): findActiveRun is now the SHARED DFS discovery

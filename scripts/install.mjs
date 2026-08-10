@@ -9,7 +9,7 @@
 //
 // What it does:
 //   1. Copies skills/odyssey/, agents/*.md, commands/*.md into ~/.zcode/
-//   2. Registers the 3 enforcement hooks (PreToolUse, PostToolUse, Stop) in ~/.zcode/cli/config.json
+//   2. Registers the 4 hooks (PreToolUse, PostToolUse, Stop, UserPromptSubmit) in ~/.zcode/cli/config.json
 //   3. Merges the ZOdyssey section into ~/.zcode/AGENTS.md (if the marker isn't already present)
 //   4. Inits ~/.zcode/orchestration/eval/ (for the optional eval harness)
 //
@@ -64,10 +64,15 @@ function copyFiles(srcDir, dstDir, label) {
 const HOOK_SPECS = [
   { event: "PreToolUse",  matcher: "Write|Edit|ApplyPatch|MultiEdit|NotebookEdit|Bash|Task|Agent",
     script: join(ZCODE_DIR, "skills", "odyssey", "hooks", "pre-tool.mjs") },
-  { event: "PostToolUse", matcher: "Task|Agent",
+  // PostToolUse matcher MUST include the edit tools so the post-edit diagnostics arm fires.
+  // (v0.1.0 shipped "Task|Agent" only, which silently dead-coded the diagnostics arm.)
+  { event: "PostToolUse", matcher: "Task|Agent|Edit|Write|MultiEdit",
     script: join(ZCODE_DIR, "skills", "odyssey", "hooks", "post-tool.mjs") },
   { event: "Stop",        matcher: ".*",
     script: join(ZCODE_DIR, "skills", "odyssey", "hooks", "stop.mjs") },
+  // UserPromptSubmit (v0.1.1): trivial-gate warning-only hook. Never blocks (exit 0).
+  { event: "UserPromptSubmit", matcher: ".*",
+    script: join(ZCODE_DIR, "skills", "odyssey", "hooks", "user-prompt-submit.mjs") },
 ];
 
 function resolveNodeBin() {

@@ -14,7 +14,7 @@
 //
 // stdin: ZCode Stop hook JSON (we ignore the body; we just need to know we stopped).
 
-import { readFileSync, readdirSync, existsSync, writeFileSync, openSync, closeSync, unlinkSync, renameSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, openSync, closeSync, unlinkSync, renameSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { exit } from "node:process";
 import { findActiveRuns, mostRecent, STALE_MS_DEFAULT, TERMINAL } from "./lib/find-run.mjs";
@@ -32,8 +32,6 @@ try {
 } catch {
   // ignore
 }
-
-if (!existsSync(STATE_DIR)) exit(0);
 
 // SEC-H4 (external audit #3 + in-session F6): findActiveRun is now the SHARED DFS discovery
 // (hooks/lib/find-run.mjs). Was flat here while pre-tool was fixed (#6a) — so nested-repo runs

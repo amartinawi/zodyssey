@@ -6,10 +6,8 @@
 > do not default to generic behavior. Skills are loaded via `skill(name="…")`; plugin agents via
 > `Task(subagent_type="…")`; MCPs are called directly.
 
-> Inventory snapshot: **replace this line with your machine's actual inventory.** Run
-> `find ~/.zcode -name SKILL.md | wc -l` (skills), `ls ~/.zcode/agents/*.md | wc -l` (agents),
-> and check your MCP config. The routing table below names capabilities that are common in a
-> typical ZCode + Superpowers setup — edit it to match what you actually have installed.
+> Inventory snapshot: 8 plugins enabled · ~50 user skills · 8 user sub-agents · 20 MCPs · codegraph.
+> Run `find ~/.zcode -name SKILL.md` to re-discover; this table names the load-bearing ones.
 
 > **Trust anchor — RESOLVED 2026-08-02 (smoke-test):** ZCode sub-agents do NOT receive the Skill
 > tool or routed MCPs (codegraph, Context7) regardless of `tools:` frontmatter. A dispatched
@@ -94,7 +92,7 @@
 - **`scripts/record-final-wave.mjs`** — binds all four F-items to evidence (closes the "final wave was unbound self-report" gap, the operational-consult's central defect).
 - **F1 Plan-compliance:** MACHINE-CHECKED inside record-final-wave.mjs as a set-difference (plan `Files:` vs `git diff --name-only`). No longer orchestrator self-review.
 - **F2 Code-quality:** `Task: code-reviewer` (feature-dev) → produces an artifact under `.zcode/reviews/` with a hook-minted nonce; `skill: merge-ready` as the F2 wrapper (multi-axis subagent review with verified findings). record-final-wave verifies the nonce.
-- **F3 Manual-QA:** for UI tasks, the **`skill: ui-ux-pro-max`** pre-delivery checklist (no emoji icons, contrast ≥4.5:1, no layout-shift hovers, responsive at 320/768/1024/1440px, accessibility: alt text + form labels + `prefers-reduced-motion`) serves as the F3 verification standard. Route **`skill: playwright`** + the **`playwright`/`chrome-devtools` MCPs** for executable UI verification — the plan's QA scenario compiles to a Playwright script whose exit code feeds `record-final-wave.mjs --f3`. For non-UI tasks, an executable shell checklist remains.
+- **F3 Manual-QA:** for UI tasks, the **`skill: ui-ux-pro-max`** pre-delivery checklist (no emoji icons, contrast ≥4.5:1, no layout-shift hovers, responsive at 320/768/1024/1440px, accessibility: alt text + form labels + `prefers-reduced-motion`) serves as the F3 verification standard. Route the **`chrome-devtools` MCP** (drive the page + screenshot) and the **`zai-mcp-server` MCP** (`ui_diff_check` vs a design ref, or `diagnose_error_screenshot`) to produce the F3 verdict — **in the PARENT thread** (sub-agents don't get routed MCPs; see trust anchor above). That verdict is written to a checklist file consumed by `record-final-wave.mjs --f3-checklist <path>` (NOT a bare `--f3`). → see **`references/f3-ui-verify.md`** for the full wiring sequence (drive → screenshot → diff/diagnose → checklist → `--f3-checklist`). For non-UI tasks, an executable shell checklist remains (same `--f3-checklist` consumption).
 - **F4 Scope-fidelity:** `Task: oracle` → artifact under `.zcode/reviews/` with a hook-minted nonce; record-final-wave verifies.
 
 ### Capability-grant reconciliation (run after any agent/frontmatter change)
@@ -109,7 +107,7 @@
 - **`skill: dispatching-parallel-agents`** — the conductor follows this for phase-4 fan-out (it's the superpowers method; our parallel-by-default rule is its ZOdyssey expression).
 - **`skill: using-superpowers`** — load at SessionStart to keep the capability-discovery habit active throughout.
 - **AWS work:** the 13 `aws-*` skills are authoritative for anything on AWS — Metis/Prometheus MUST route AWS tasks to the matching one rather than improvising.
-- **Domain-specific plugins:** if you have WordPress, SEO, or other domain-specific plugins/skills installed, route to them for tasks in those domains rather than improvising.
+- **WordPress / Iqraa / SEO:** `iqraa-wordpress`, `wordpress-mcp`, and the `openseo-*` / SEO skills are domain-specific; route to them for those domains.
 
 ### The three newest capabilities (use these deliberately)
 
@@ -139,7 +137,7 @@ between "a pipeline" and "the ultimate most accurate value."
 - **`web-search-prime` / `web-reader`** — research fallback when Context7 + librarian don't cover a topic.
 
 **Deliberately out-of-pipeline (12) — context cost accepted:**
-- Domain-specific (route only for those domains): `aws-*` (handled by the aws-* skills), plus whatever domain plugins you have installed (SEO, WordPress, etc.).
+- Domain-specific (route only for those domains): `aws-*` (4 — handled by the aws-* skills), `novamira-iqraa-tech`, `openseo` (SEO), `ruflo`, `syncthing-docs`.
 - Specialized runtimes (route only when the task needs them): `node_repl` (browser-use), `computer-use`, `notebooklm-mcp`, `zread`, `mcp-server-git` (redundant with the github MCP + shelling), `zai-mcp-server` (image analysis — route via multimodal-looker).
 
 **Discipline:** do NOT add more MCPs before routing the high-leverage unrouted ones above. Each MCP costs context on every turn whether used or not; an unrouted MCP is pure overhead.

@@ -18,6 +18,7 @@
 
 import { mkdirSync, writeFileSync, existsSync, readFileSync, openSync, closeSync, fstatSync } from "node:fs";
 import { join } from "node:path";
+import { makeReviewDefault } from "./lib/verdict-schema.mjs";
 import { argv, exit, cwd } from "node:process";
 import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
@@ -188,7 +189,7 @@ const state = {
   file_locks: {},
   in_flight_dispatches: 0,
   inherited_wisdom: [],
-  review: { round: 0, max_rounds: 3, verdict: null, history: [] },
+  review: makeReviewDefault(),
   consult: { rounds: 0, verdict: null, history: [], last_gaps: [] },
   checkpoints: [{ at: now, phase: "plan", note: "plan scaffolded" }],
 };

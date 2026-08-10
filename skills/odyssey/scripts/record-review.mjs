@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { argv, exit, env } from "node:process";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { makeReviewDefault } from "./lib/verdict-schema.mjs";
 
 const [repo, slug, verdict, ...rest] = argv.slice(2);
 if (!repo || !slug || !verdict) {
@@ -191,7 +192,7 @@ function acquireLock() {
   }
 }
 function apply(st) {
-  st.review = st.review && typeof st.review === "object" ? st.review : { round: 0, max_rounds: 3, verdict: null, history: [] };
+  st.review = st.review && typeof st.review === "object" ? st.review : makeReviewDefault();
   st.review.round = round;
   st.review.verdict = v;
   st.review.momus_session = momusSession || st.review.momus_session || null;

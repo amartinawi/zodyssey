@@ -26,3 +26,9 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Final-wave verify artifacts (run-state, never commit)
+.zcode/verify/
+
+# Machine-specific capabilities lock (regenerate locally with resolve-capabilities.mjs)
+/capabilities.lock.json

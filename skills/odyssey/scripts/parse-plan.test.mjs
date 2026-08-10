@@ -6,7 +6,7 @@
 // EXAMPLE. Before the audit fix, parse-plan parsed that example as a real todo the executor
 // would implement. Run:  node parse-plan.test.mjs   (exit 0 = pass, 1 = fail)
 
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -124,6 +124,172 @@ console.log("parse-plan.mjs unit tests\n");
   const todos = parsePlan(plan);
   const t = todos.find((x) => x.id === "1");
   check("QA scenarios parsed (2)", t && t.qa.length === 2, `(got ${t?.qa.length})`);
+}
+
+// --- Test 6: toolchain-aware lint — `node` references always pass (node-test repo) ---
+// A plan whose criteria reference `node` must pass lint against a node-test toolchain.json.
+// `node` is always present and must NEVER be flagged (todo 15 MUST NOT).
+{
+  const dir = mkdtempSync(join(tmpdir(), "zod-tc-node-"));
+  try {
+    mkdirSync(join(dir, ".zcode", "plans"), { recursive: true });
+    writeFileSync(join(dir, ".zcode", "toolchain.json"), JSON.stringify({
+      test_runner: "node-test",
+      test_cmd: "node --test",
+      package_manager: null,
+      lint_cmd: null,
+      node_version: process.version,
+      bare: true,
+      detected_at: new Date().toISOString(),
+    }));
+    const planPath = join(dir, ".zcode", "plans", "p.md");
+    writeFileSync(planPath, `# x
+## Todos
+- [ ] 1. Use node
+  - Files: [src/a.js]
+  - Acceptance criteria:
+    - \`node --check src/a.js\` exits 0
+    - \`node src/a.js\` prints done
+## Final verification wave
+`);
+    // Lint mode: exit 0 = pass. We capture stdout/stderr separately; non-zero = failure.
+    let code = 0, errMsg = "";
+    try {
+      execFileSync("node", [PARSE, planPath, "--lint"], { encoding: "utf8", stdio: "pipe" });
+    } catch (e) {
+      code = e.status ?? 1;
+      errMsg = (e.stderr || "").slice(0, 200);
+    }
+    check("node references pass against node-test toolchain", code === 0,
+      `(exit ${code}; ${errMsg})`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// --- Test 7: toolchain-aware lint — `jest` reference vs node-test toolchain FAILS ---
+// This is the empirically-observed mismatch class (arch-01 plan referenced jest, repo used
+// node --test). Lint must catch it: exit 6, and the problems array mentions the jest mismatch.
+{
+  const dir = mkdtempSync(join(tmpdir(), "zod-tc-jest-"));
+  try {
+    mkdirSync(join(dir, ".zcode", "plans"), { recursive: true });
+    writeFileSync(join(dir, ".zcode", "toolchain.json"), JSON.stringify({
+      test_runner: "node-test",
+      test_cmd: "node --test",
+      package_manager: "npm",
+      lint_cmd: null,
+      node_version: process.version,
+      bare: false,
+      detected_at: new Date().toISOString(),
+    }));
+    const planPath = join(dir, ".zcode", "plans", "p.md");
+    writeFileSync(planPath, `# x
+## Todos
+- [ ] 1. Run jest
+  - Files: [src/a.js]
+  - Acceptance criteria:
+    - \`jest src/a.test.js\` exits 0
+## Final verification wave
+`);
+    let code = 0, stdout = "";
+    try {
+      stdout = execFileSync("node", [PARSE, planPath, "--lint"], { encoding: "utf8", stdio: "pipe" });
+    } catch (e) {
+      code = e.status ?? 0;
+      stdout = e.stdout || "";
+    }
+    check("jest reference vs node-test toolchain fails lint (exit 6)", code === 6,
+      `(exit ${code})`);
+    let problemsOk = false;
+    try {
+      const r = JSON.parse(stdout);
+      problemsOk = Array.isArray(r.problems) && r.problems.some(
+        (p) => /jest/.test(p.issue || "") && /test_runner is node-test/.test(p.issue || ""),
+      );
+    } catch {}
+    check("lint problem names jest + the declared test_runner", problemsOk,
+      `(stdout: ${stdout.slice(0, 200)})`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// --- Test 8: toolchain-aware lint — graceful no-op when toolchain.json absent ---
+// A repo with no .zcode/toolchain.json must NOT regress: a jest reference should still pass
+// because the check is skipped entirely (many repos won't have probed yet).
+{
+  const dir = mkdtempSync(join(tmpdir(), "zod-tc-absent-"));
+  try {
+    mkdirSync(join(dir, ".zcode", "plans"), { recursive: true });
+    // NOTE: no toolchain.json written.
+    const planPath = join(dir, ".zcode", "plans", "p.md");
+    writeFileSync(planPath, `# x
+## Todos
+- [ ] 1. Run jest
+  - Files: [src/a.js]
+  - Acceptance criteria:
+    - \`jest src/a.test.js\` exits 0
+## Final verification wave
+`);
+    let code = 0, errMsg = "";
+    try {
+      execFileSync("node", [PARSE, planPath, "--lint"], { encoding: "utf8", stdio: "pipe" });
+    } catch (e) {
+      code = e.status ?? 1;
+      errMsg = (e.stderr || "").slice(0, 200);
+    }
+    check("jest reference passes lint when toolchain.json absent (graceful no-op)",
+      code === 0, `(exit ${code}; ${errMsg})`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// --- Test 9: toolchain-aware lint — `npm run <script>` vs bare repo FAILS ---
+// A bare repo (package_manager null, bare true) has no package.json, so `npm run X` is invalid.
+{
+  const dir = mkdtempSync(join(tmpdir(), "zod-tc-bare-"));
+  try {
+    mkdirSync(join(dir, ".zcode", "plans"), { recursive: true });
+    writeFileSync(join(dir, ".zcode", "toolchain.json"), JSON.stringify({
+      test_runner: "node-test",
+      test_cmd: "node --test",
+      package_manager: null,
+      lint_cmd: null,
+      node_version: process.version,
+      bare: true,
+      detected_at: new Date().toISOString(),
+    }));
+    const planPath = join(dir, ".zcode", "plans", "p.md");
+    writeFileSync(planPath, `# x
+## Todos
+- [ ] 1. Run build
+  - Files: [src/a.js]
+  - Acceptance criteria:
+    - \`npm run build\` exits 0
+## Final verification wave
+`);
+    let code = 0, stdout = "";
+    try {
+      stdout = execFileSync("node", [PARSE, planPath, "--lint"], { encoding: "utf8", stdio: "pipe" });
+    } catch (e) {
+      code = e.status ?? 0;
+      stdout = e.stdout || "";
+    }
+    check("npm run X vs bare toolchain fails lint (exit 6)", code === 6, `(exit ${code})`);
+    let problemsOk = false;
+    try {
+      const r = JSON.parse(stdout);
+      problemsOk = Array.isArray(r.problems) && r.problems.some(
+        (p) => /npm run build/.test(p.issue || "") && /bare=true/.test(p.issue || ""),
+      );
+    } catch {}
+    check("lint problem names npm run X + bare=true", problemsOk,
+      `(stdout: ${stdout.slice(0, 200)})`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 console.log(`\n${pass}/${pass + fail} passed`);
