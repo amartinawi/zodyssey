@@ -306,10 +306,11 @@ classifies the request and **refuses to enter the full pipeline for trivial work
 | **Architecture** | multi-system, ambiguous, cross-cutting | full pipeline + team mode + oracle | allows |
 
 The trivial gate is the single most important reliability guard: it prevents the documented
-failure of "spawn 50 subagents for a one-line fix." omo leaves this to the user. **In v1 this
-is prompt-guided** (the conductor's triage step, with no `UserPromptSubmit` hook yet wired), so a
-diligent model deflects trivial work but it is not hard-enforced; a future `UserPromptSubmit`
-hook (DESIGN §12, item 7) will make it code-enforced.
+failure of "spawn 50 subagents for a one-line fix." omo leaves this to the user. **As of v0.1.1
+this is code-enforced** by a `UserPromptSubmit` hook (`hooks/user-prompt-submit.mjs`) that flags
+trivial-shaped prompts (typo / rename / spelling keywords, short length, no file list) and warns
+that orchestration is overkill. The hook is warning-only (exit 0 always); override with the
+phrase "force orchestrate" in the prompt.
 
 ---
 
@@ -391,8 +392,8 @@ extension once we have an eval harness telling us which lessons are worth keepin
 | 3 | `prometheus` planner sub-agent | `~/.zcode/agents/prometheus.md` | done |
 | 4 | Plan scaffold + task-brief writer | `scripts/scaffold.mjs` | done |
 | 5 | Plan parser + acceptance-criteria lint | `scripts/parse-plan.mjs` (+ `parse-plan.test.mjs`) | done |
-| 6 | Enforcement hooks (PreToolUse + PostToolUse + Stop) | `hooks/{pre-tool,post-tool,stop}.mjs` + `config.json` | done |
-| 7 | Effort-scaling classifier (trivial/standard/arch) | inside the skill (prompt-guided; UserPromptSubmit hook TODO) | partial |
+| 6 | Enforcement hooks (PreToolUse + PostToolUse + Stop + UserPromptSubmit) | `hooks/{pre-tool,post-tool,stop,user-prompt-submit}.mjs` + `config.json` | done |
+| 7 | Effort-scaling classifier (trivial/standard/arch) | `hooks/user-prompt-submit.mjs` (trivial-shape detection, warning-only) + conductor prompt | done |
 | 8 | Executor sub-agent (sisyphus-jr port) | `~/.zcode/agents/sisyphus-junior.md` | done |
 | 9 | Verify + Final-wave evidence scripts | `scripts/{record-verify,record-final-wave}.mjs` | done |
 | 10 | Team mode (mailbox + tasklist + worktree) | `scripts/team/*.mjs` | deferred (v2) |
