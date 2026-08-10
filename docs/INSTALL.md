@@ -19,7 +19,7 @@ That's it. The installer is idempotent — re-run it after a `git pull` to updat
 ## What the installer does
 
 1. **Copies** `skills/odyssey/`, `agents/*.md`, `commands/*.md` into `~/.zcode/`.
-2. **Registers** 3 hooks (`PreToolUse`, `PostToolUse`, `Stop`) in `~/.zcode/cli/config.json`. It backs up your existing config to `config.json.zodyssey-backup` first.
+2. **Registers** 4 hooks (`PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`) in `~/.zcode/cli/config.json`. It backs up your existing config to `config.json.zodyssey-backup` first.
 3. **Merges** the `<!-- ZODYSSEY_START -->…<!-- ZODYSSEY_END -->` block into `~/.zcode/AGENTS.md` (skips if already present).
 4. **Inits** `~/.zcode/orchestration/eval/` with a `.gitkeep` and (if shipped) the eval seed.
 

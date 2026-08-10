@@ -67,12 +67,45 @@ All hooks are **NO-OP unless an orchestration run is active**. Normal ZCode edit
 
 After a run reaches `done`, `/orchestrate-consult <slug>` hands the plan + the full git diff to a **separate Claude CLI process** (fresh context, independent model) for an ACCEPT/REJECT audit. It cannot inherit the run's assumptions, so it catches things in-session reviewers miss. On REJECT, ZOdyssey sets `phase: remediate` (re-arming the gates) and loops until ACCEPT. See [`docs/DESIGN.md` §6.1](docs/DESIGN.md).
 
-## Requirements
+## Prerequisites
 
-- **[ZCode](https://z.ai)** (for the ready-to-run reference implementation) — the hooks, commands, and sub-agents are ZCode primitives.
-- **Node 18+** (for the hooks + scripts, all ESM `.mjs`).
-- **A coding model that follows multi-step instructions** — developed against GLM-5.2 via the Z.ai coding plan. Claude / GPT / Gemini class models work too if your harness can dispatch them as sub-agents.
-- **Optional:** [`superpowers`](https://github.com/obra/superpowers) for the brainstorming/TDD/debugging skills the conductor reaches for, and [codegraph](https://github.com/colbymchenry/codegraph) for the explore step.
+There are **two paths** and the prerequisites differ. Pick one, then install in the order listed.
+
+### Path A — Adapt the enforcement delta onto another harness (omo, Claude Code, Cursor, …)
+
+You already have an orchestrator and want to bolt on the 4 enforcement hooks. This is the porting path described in [`docs/ADAPT.md`](docs/ADAPT.md). Install in this order:
+
+1. **An orchestrator with a hook system.** ZOdyssey's delta is `PreToolUse` / `PostToolUse` / `Stop` hooks that return `pass` or `block`. Your harness must run a script before tool calls and honor that decision. [omo](https://github.com/code-yeongyu/oh-my-openagent) (TypeScript), Claude Code, and ZCode all qualify.
+2. **Node 18+** on the machine that runs the hooks. All ZOdyssey scripts are ESM `.mjs` using only Node built-ins (`fs`, `path`, `crypto`, `child_process`) — **zero npm dependencies**, so no `npm install` step.
+3. **A `PreToolUse` hook registration mechanism.** You need a way to tell your harness "run `pre-tool.mjs` before `Write|Edit|ApplyPatch|MultiEdit|NotebookEdit|Bash|Task|Agent`." On ZCode this is `~/.zcode/cli/config.json`; on Claude Code it's `.claude/settings.json`; on omo it's the TS hook layer. See [`docs/ADAPT.md` § "Porting to omo specifically"](docs/ADAPT.md).
+4. **A hook scripting language that can read JSON from stdin and exit with a code.** The reference implementation is Node; if your harness prefers Python or Bash, port the logic (it's ~200 lines) — the decision tree is what matters, not the language.
+
+That's the full mandatory set for Path A. The 4 hooks are the entire delta; everything else (agent cast, pipeline shape, notepad pattern) comes from your existing orchestrator.
+
+### Path B — Install the ready-to-run reference implementation on ZCode
+
+You want the full ZOdyssey pipeline (conductors, sub-agents, slash commands) working out of the box. Install in this order:
+
+1. **[ZCode](https://z.ai)** — the hooks, commands, and sub-agents are ZCode primitives. Start a ZCode session first; everything else installs into `~/.zcode/`.
+2. **Node 18+** (for the hooks + scripts, all ESM `.mjs`).
+3. **A coding model that follows multi-step instructions.** Developed against GLM-5.2 via the Z.ai coding plan. Claude / GPT / Gemini class models work too, as long as ZCode can dispatch them as sub-agents.
+4. **Clone this repo and run the installer:**
+   ```bash
+   git clone https://github.com/amartinawi/zodyssey.git
+   cd zodyssey
+   node scripts/install.mjs            # copies into ~/.zcode/, registers 4 hooks
+   ```
+   Full install / troubleshooting / config in [`docs/INSTALL.md`](docs/INSTALL.md).
+
+### Optional — for specific features (graceful no-op if absent)
+
+These are **not** required for the core pipeline. Each degrades honestly when missing:
+
+- **`git`** — needed for the strongest verification features: the external consult audit (`/orchestrate-consult`) diffs the run against `git rev-parse HEAD`, and final-wave F1 (plan-compliance) is a `git diff --name-only` set-difference. Without git, the pipeline still runs to completion but consult works from the whole working tree and F1 fails-closed (run stays at `phase: final`, not `done`). Most users have git already.
+- **A second CLI for the external consult gate** — `consult.mjs` and `judge.mjs` spawn an independent auditor (default binary: `claude`; override with `CLAUDE_CLI`). Set this if you want the `/orchestrate-consult` post-done audit or the eval harness's LLM-as-judge. Without it, the in-session review gate + final wave still run; you lose only the independent-model verification.
+- **[codegraph](https://github.com/colbymchenry/codegraph)** — used by `codegraph-impact.mjs` to derive declared `Files:` from real call-graph impact, and by the explore step. Graceful no-op if no `.codegraph/` index is present in the target repo.
+- **[`superpowers`](https://github.com/obra/superpowers)** — for the brainstorming / TDD / systematic-debugging skills the conductor reaches for. ZOdyssey works without it; you get the capsule versions of the three load-bearing skills (`tdd`, `debugging`, `executing-plans`) shipped in `references/capsules/` either way.
+- **A second provider CLI** (e.g. a different model's `*-p` headless binary) — for `--multi-auditor` consult mode. Set `CLAUDE_CLI_2` to a different provider's CLI and the consult gate runs two independent passes, flagging disagreement.
 
 ## What it is NOT
 
