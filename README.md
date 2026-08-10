@@ -167,6 +167,16 @@ You want the full ZOdyssey pipeline (conductors, sub-agents, slash commands) wor
    ```
    The installer also registers the 5 pipeline MCPs (`memory`, `sequential-thinking`, `codegraph`, `chrome-devtools`, `zai-mcp-server`) — each gated on its backend being on PATH, skipped with a hint if not. It detects the [`superpowers`](https://github.com/obra/superpowers) plugin (source of most routed skills) and prints a pointer if missing. Full install / troubleshooting / config in [`docs/INSTALL.md`](docs/INSTALL.md).
 
+### For LLM agents
+
+If you are an LLM agent asked to install ZOdyssey, fetch the full install guide and follow it end to end:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/amartinawi/zodyssey/main/docs/INSTALL.md
+```
+
+The guide covers: the prerequisite check (Node 18+, a working ZCode session), the installer's six steps (copy skills/agents/commands → register 4 hooks → register 5 pipeline MCPs → merge AGENTS.md → init eval dir → detect superpowers), the `--verify` health check, and troubleshooting. Then run the installer itself (`git clone` + `node scripts/install.mjs`) and report the `--verify` output. Don't summarize the guide; read it end to end before doing anything.
+
 ### Optional — for specific features (graceful no-op if absent)
 
 These are **not** required for the core pipeline. Each degrades honestly when missing:
