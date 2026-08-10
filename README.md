@@ -6,6 +6,12 @@
 
 That is the core idea. Most multi-agent orchestrators (including the excellent [**omo**](https://github.com/code-yeongyu/oh-my-openagent), which this project learned from) implement the review/approval gate as a prompt convention — the model is *told* not to edit before review passes, but nothing actually stops it. ZOdyssey code-enforces that gate with a hook, and adds a scope-isolation boundary so an executor can only touch files the plan declared. The full pipeline (prime → triage → consult → plan → review → execute → verify → final-wave) is the same shape omo and others use; the enforcement layer is the delta.
 
+<p align="center">
+  <img src="assets/hero.svg" alt="The enforcement delta: prompt-convention vs code-enforced gate" width="780">
+</p>
+
+*Both sides run the same pipeline. The right side just refuses to trust the model at the load-bearing invariant.*
+
 ---
 
 ## Two ways to use this repo
@@ -38,6 +44,29 @@ Full install/troubleshooting/config in [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ## The pipeline
 
+```mermaid
+flowchart TD
+    P["−1 · PRIME<br/><i>prompt-master</i>"] --> T{"0 · TRIAGE"}
+    T -- trivial --> SKIP["just answer normally"]
+    T -- standard / architecture --> C["1 · CONSULT <b>metis</b>"]
+    C --> PL["2 · PLAN <b>prometheus</b>"]
+    PL --> R{"3 · REVIEW <b>momus</b>"}
+    R -- "REJECT (round < 3)" --> PL
+    R -- OKAY --> E["4 · EXECUTE <b>sisyphus-junior</b><br/>parallel waves, capped at 4"]
+    E --> V["5 · VERIFY<br/>acceptance commands"]
+    V --> F{"6 · FINAL WAVE<br/>F1·F2·F3·F4"}
+    F -- pass --> DONE(("done"))
+    F -- fail --> E
+    classDef gate fill:#ffebe9,stroke:#cf222e,stroke-width:2px;
+    classDef good fill:#dafbe1,stroke:#2da44e,stroke-width:2px;
+    classDef phase fill:#ddf4ff,stroke:#218bff;
+    class R gate;
+    class DONE good;
+    class C,PL,E,V,P phase;
+```
+
+*The conductor drives this state machine; every transition checkpoints to `state.json` so a crashed run resumes.* Full topology + agent roles in [`docs/diagrams.md`](docs/diagrams.md).
+
 ```
   -1  PRIME        prompt-master refines the raw task into a sharp brief
    0  TRIAGE       trivial → just answer; standard → single-track; architecture → full pipeline
@@ -53,6 +82,32 @@ The orchestrator (main agent) drives this; the cast of sub-agents (`metis`, `pro
 
 ## What the hooks enforce (the delta)
 
+```mermaid
+flowchart TD
+    A(["tool call"]) --> B{"run active?"}
+    B -- no --> P1["✓ pass (no-op)"]
+    B -- yes --> K{"tool kind"}
+    K -- "Edit / Write" --> S{"in plan's<br/>declared Files: ?"}
+    S -- no --> X1["✗ BLOCK scope"]
+    S -- yes --> L{"file-lock<br/>free?"}
+    L -- no --> X2["✗ BLOCK collision"]
+    L -- yes --> V{"verdict<br/>== OKAY?"}
+    V -- no --> X3["✗ BLOCK review gate"]
+    V -- yes --> P2["✓ pass"]
+    K -- "Task / Agent" --> C{"within<br/>parallel cap?"}
+    C -- no --> X4["✗ BLOCK cap"]
+    C -- yes --> P3["✓ dispatch"]
+    K -- "Bash (write-capable)" --> V
+    classDef b fill:#ffebe9,stroke:#cf222e,stroke-width:1.5px;
+    classDef g fill:#dafbe1,stroke:#2da44e;
+    classDef d fill:#fff8c5,stroke:#d4a72c;
+    class X1,X2,X3,X4 b;
+    class P1,P2,P3 g;
+    class B,K,S,L,V,C d;
+```
+
+*First match wins; every other branch blocks.* Full decision tree (including the plan-tamper sha guard + the trusted-script allowlist) in [`docs/diagrams.md`](docs/diagrams.md).
+
 | Invariant | How omo does it | How ZOdyssey does it |
 |---|---|---|
 | **No edits before plan passes review** | prompt convention | hook reads `state.json`; blocks the Edit |
@@ -64,6 +119,20 @@ The orchestrator (main agent) drives this; the cast of sub-agents (`metis`, `pro
 All hooks are **NO-OP unless an orchestration run is active**. Normal ZCode editing is never affected. A run is "active" only between `/orchestrate` and reaching a terminal phase (`done`/`audited`/`abandoned`), and only inside the repo where you invoked it.
 
 ## The external consult gate (the strongest check)
+
+```mermaid
+flowchart LR
+    RUN["ZOdyssey run<br/>(in-session)"] --> DIFF["plan + git diff"]
+    DIFF --> AUD["🧪 external CLI<br/>fresh context · independent model"]
+    AUD --> V{"ACCEPT or<br/>REJECT?"}
+    V -- ACCEPT --> OK(("audited"))
+    V -- "REJECT + gaps" --> REM["remediate per gap"]
+    REM --> DIFF
+    classDef ext fill:#f6f8fa,stroke:#8250df,stroke-width:2px;
+    classDef good fill:#dafbe1,stroke:#2da44e,stroke-width:2px;
+    class AUD ext;
+    class OK good;
+```
 
 After a run reaches `done`, `/orchestrate-consult <slug>` hands the plan + the full git diff to a **separate Claude CLI process** (fresh context, independent model) for an ACCEPT/REJECT audit. It cannot inherit the run's assumptions, so it catches things in-session reviewers miss. On REJECT, ZOdyssey sets `phase: remediate` (re-arming the gates) and loops until ACCEPT. See [`docs/DESIGN.md` §6.1](docs/DESIGN.md).
 

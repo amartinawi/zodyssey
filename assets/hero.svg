@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" text-rendering="geometricPrecision">
+  <title>ZOdyssey: the enforcement delta</title>
+  <desc>Most orchestrators enforce the review gate as a prompt convention — the model is told to wait, nothing stops it. ZOdyssey code-enforces the gate with a hook that blocks the edit. Same pipeline shape, different enforcement layer.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6e7681"/>
+    </marker>
+    <marker id="arrow-block" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#cf222e"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="480" y="40" text-anchor="middle" font-size="22" font-weight="700" fill="#1f2328">The enforcement delta</text>
+  <text x="480" y="64" text-anchor="middle" font-size="13" fill="#656d76">Same pipeline shape. The difference is one architectural decision: enforce invariants with code, guide choices with prompts.</text>
+
+  <!-- LEFT: prompt convention -->
+  <g id="left">
+    <rect x="40" y="100" width="400" height="320" rx="12" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1.5"/>
+    <text x="240" y="128" text-anchor="middle" font-size="15" font-weight="600" fill="#1f2328">omo &amp; most orchestrators</text>
+    <text x="240" y="148" text-anchor="middle" font-size="11" fill="#656d76">review gate = prompt convention</text>
+
+    <!-- plan phase -->
+    <rect x="120" y="172" width="240" height="44" rx="8" fill="#ddf4ff" stroke="#218bff" stroke-width="1.5"/>
+    <text x="240" y="199" text-anchor="middle" font-size="13" font-weight="500" fill="#1f2328">plan (verdict pending)</text>
+
+    <!-- arrow -->
+    <line x1="240" y1="220" x2="240" y2="252" stroke="#6e7681" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="252" y="240" font-size="10" fill="#656d76">model is told &quot;wait&quot;</text>
+
+    <!-- edit attempt -->
+    <rect x="120" y="258" width="240" height="44" rx="8" fill="#fff8c5" stroke="#d4a72c" stroke-width="1.5"/>
+    <text x="240" y="285" text-anchor="middle" font-size="13" font-weight="500" fill="#1f2328">executor edits product code</text>
+
+    <!-- arrow (slips through) -->
+    <line x1="240" y1="306" x2="240" y2="338" stroke="#cf222e" stroke-width="2" marker-end="url(#arrow-block)" stroke-dasharray="5 3"/>
+    <text x="252" y="326" font-size="10" fill="#cf222e" font-weight="600">nothing stops it ⚠</text>
+
+    <!-- result -->
+    <rect x="120" y="344" width="240" height="44" rx="8" fill="#ffebe9" stroke="#ff8182" stroke-width="1.5"/>
+    <text x="240" y="371" text-anchor="middle" font-size="13" font-weight="500" fill="#1f2328">review bypassed</text>
+  </g>
+
+  <!-- RIGHT: code-enforced -->
+  <g id="right">
+    <rect x="520" y="100" width="400" height="320" rx="12" fill="#f6f8fa" stroke="#2da44e" stroke-width="2"/>
+    <text x="720" y="128" text-anchor="middle" font-size="15" font-weight="600" fill="#1f2328">ZOdyssey</text>
+    <text x="720" y="148" text-anchor="middle" font-size="11" fill="#656d76">review gate = PreToolUse hook</text>
+
+    <!-- plan phase -->
+    <rect x="600" y="172" width="240" height="44" rx="8" fill="#ddf4ff" stroke="#218bff" stroke-width="1.5"/>
+    <text x="720" y="199" text-anchor="middle" font-size="13" font-weight="500" fill="#1f2328">plan (verdict pending)</text>
+
+    <!-- arrow -->
+    <line x1="720" y1="220" x2="720" y2="252" stroke="#6e7681" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="732" y="240" font-size="10" fill="#656d76">model attempts edit</text>
+
+    <!-- HOOK (the delta) -->
+    <rect x="580" y="258" width="280" height="44" rx="8" fill="#dafbe1" stroke="#2da44e" stroke-width="2"/>
+    <text x="720" y="278" text-anchor="middle" font-size="12" font-weight="600" fill="#1a7f37">PreToolUse hook reads state.json</text>
+    <text x="720" y="294" text-anchor="middle" font-size="11" fill="#1f2328">verdict != OKAY → return BLOCK</text>
+
+    <!-- arrow (blocked, bounces back) -->
+    <line x1="720" y1="306" x2="720" y2="338" stroke="#2da44e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- result -->
+    <rect x="600" y="344" width="240" height="44" rx="8" fill="#dafbe1" stroke="#2da44e" stroke-width="1.5"/>
+    <text x="720" y="371" text-anchor="middle" font-size="13" font-weight="600" fill="#1a7f37">edit blocked ✓</text>
+  </g>
+
+  <!-- Footer caption -->
+  <text x="480" y="452" text-anchor="middle" font-size="11" fill="#656d76">Both systems run the same 8-phase pipeline. ZOdyssey just refuses to trust the model at the load-bearing invariant.</text>
+</svg>
