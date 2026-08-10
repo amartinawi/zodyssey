@@ -2,6 +2,39 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-08-11
+
+### Added — prime-agent adaptation (3 of 9 primitives borrowed)
+
+Studied [PrimeIntellect-ai/prime-agent](https://github.com/PrimeIntellect-ai/prime-agent) and adapted the borrowable ideas. Decision: **adapt-ideas** (NOT adopt-as-is) — 6 of 9 primitives require a long-lived daemon ZOdyssey doesn't have; only 3 fit the synchronous single-session model.
+
+- **`scripts/compact.mjs`** — OPTIONAL pre-final-wave notepad compactor (borrows prime-agent primitive #8). Deterministic, $0, additive: concatenates each notepad (truncated ~40 lines, `## <name>` headers) into a single `_compact-brief.md` the F1–F4 sub-agents consume instead of the full doc set. Never modifies source notepads.
+- **SEC-1s bounded-recursion guard** (`hooks/pre-tool.mjs`) — new ADDITIVE dispatch-gate enforcement branch, a sibling to SEC-1 (the review-nonce gate). Blocks a `Task()` dispatch whose prompt/message payload embeds a serialized nested tool invocation — both the generic `{\"tool_name\":\"Task\",...}` shape AND the Claude/ZCode-native `{\"type\":\"tool_use\",\"name\":\"Task\"}` shape. Defense-in-depth behind the harness tool-grant boundary (sub-agents aren't granted the Task tool at all); catches prompt-injection attempts that try to coerce a downstream agent into emitting a forged tool call.
+- **`state.acceptance` + `state.notepad_pointers`** — new OPTIONAL resume-format fields (SEC-7 candidate, format-only — no daemon). `acceptance[id] = {pass, at, evidence}` per verified todo; `notepad_pointers[id] = path` for inherited context. Backward-compatible (older state loads fine; consumers use `|| {}`).
+- **`status.mjs` consumer** — surfaces the new fields in `--json` (`acceptance`, `notepad_pointers`, `verified_count`) and human mode (gated `verified: N passed · M notepad(s) linked` line, only when fields have content — byte-identical backward compat).
+- **`ZODYSSEY_RECURSION_CAP`** env var (default 1; reserved for a future real depth counter — today the SEC-1s guard is a payload-pattern match).
+- **sisyphus-junior admission-only-handle return contract** + process-isolation trust model docs — formalizes the existing fan-out/fan-in shape as `{status, files-changed, acceptance-evidence, notepad-path}` (the trust-equivalent of prime-agent's `rlm(...)` admission handle) and documents verbatim that the sub-agent process boundary is lifecycle containment, NOT a security sandbox.
+
+### Changed
+- `SKILL.md` — phase-6 documents the optional compaction step; context-economy section names `.zcode/notepads/<slug>/<id>.md` as load-bearing working memory; resume section consumes the new fields (skip `acceptance[id].pass === true` todos, read `notepad_pointers[id]` for context, run `status.mjs` to orient).
+- `record-verify.mjs` — populates the new state fields on every verify.
+- `references/scripts.md` — documents `compact.mjs` + the new state fields + `status.mjs`'s `--json` output + the full `record-verify` flag set.
+
+### Fixed (audit-driven — 3 independent external audits)
+- **record-verify.mjs mid-verify race** — `acceptance[todoId].pass` now gated on `todos[todoId].status === 'done'` (previously flipped true after criterion N while N+1..M were still unrun; a resuming orchestrator could prematurely skip the todo).
+- **sisyphus-junior.md capability-routing contradiction** — rewrote the pre-existing "delegate to further sisyphus-junior dispatches" line (sub-agents cannot dispatch; they request through the orchestrator).
+- **pre-tool.mjs ledger leak** — moved the SEC-1s recursion guard BEFORE the parallel-cap ledger push so a blocked dispatch never consumes an in-flight slot until TTL.
+- **pre-tool.mjs SEC-1s regex** — extended to also catch the Claude/ZCode-native `name:`-shape (the previously-documented false-negative is now CLOSED); block message reframed to honestly say "payload-pattern match" rather than "recursion depth bound".
+
+### Security posture
+- **No existing SEC-1..6 member weakened.** The SEC-1s guard is additive, a sibling to SEC-1.
+- **Three independent external audits** (Claude Opus 5, manual `claude -p` payload): round 1 ACCEPT with 6 advisories → fixed → round 2 REJECT (scripts.md signature stale) → fixed (PR #2) → round 3 ACCEPT clean.
+- **Honest residual limit:** the SEC-1s regex matches literal JSON spellings — escaped (backslash-quoted) or single-quote variants still slip past. Accepted as defense-in-depth; the primary control remains the harness tool-grant boundary.
+
+### Not in this release (parked — require a daemon runtime layer)
+5 prime-agent primitives need a long-lived supervisor process ZOdyssey doesn't have. Deferred until/unless SEC-7 is authorized as a real enforcement member with a daemon runtime:
+- daemon-backed session survival, persistent goals, the three heartbeat surfaces, agent-to-agent messaging, autonomous mode.
+
 ## [0.1.3] — 2026-08-10
 
 Installer now covers all pipeline dependencies, not just hooks.
