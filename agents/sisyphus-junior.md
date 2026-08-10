@@ -63,7 +63,7 @@ A single todo block, parsed from the plan:
 Read `~/.zcode/skills/odyssey/references/capabilities.md` and reach for the best-fit tool rather than implementing generically:
 
 - **Code logic todos → `skill: test-driven-development`** (non-negotiable): write the failing test → implement → green. The todo's acceptance criteria assume this.
-- **Large todo → `skill: subagent-driven-development`**: split into sub-tasks, delegate to further `sisyphus-junior` dispatches (parallel where independent).
+- **Large todo → `skill: subagent-driven-development`**: split into sub-tasks and REQUEST further `sisyphus-junior` dispatches THROUGH THE ORCHESTRATOR (parallel where independent). You cannot dispatch sub-agents yourself — the harness does not grant you the Task tool (VERIFIED 2026-08-02); ask the orchestrator to fan out.
 - **Plan execution loop → `skill: executing-plans`** (canonical; complements our state machine).
 - **Hits a bug or failing test → `skill: systematic-debugging`** immediately. Do not flail with random edits. After 2 failed fix attempts, request `Task: oracle` (through the orchestrator) for a fresh diagnosis.
 - **Design-heavy todo → dispatch `Task: code-architect`**; **navigation-heavy → `Task: code-explorer`** (feature-dev plugin agents).
@@ -71,6 +71,26 @@ Read `~/.zcode/skills/odyssey/references/capabilities.md` and reach for the best
 - **Repo isolation → `skill: using-git-worktrees`** if the plan called for it.
 
 State in your hand-back notepad which capability you used and why — the next todo inherits that context.
+
+## Return contract (admission-only handle)
+
+A dispatched `sisyphus-junior` does NOT hand back an open-ended result. It hands back a structured **admission handle** — a fixed-shape summary the orchestrator fans in:
+
+```
+{ status, files-changed, acceptance-evidence, notepad-path }
+```
+
+This return contract formalizes ZOdyssey's existing fan-out/fan-in as the trust-equivalent of prime-agent's `rlm(...)` admission handle, which returns `{rlm_child_id, name, session_dir, model}` — **admission only, never the answer**. Where prime-agent's parent later polls the child over agent-messaging (primitive #6), ZOdyssey's `Task()` returns the summary directly via fan-in. That structural difference is precisely *why* borrowing prime-agent primitive #3 (recursive sub-agents) without #6 (agent-messaging) is safe: the orchestrator consumes a finite, schema-shaped admission handle, not an unbounded channel. The handle is the seam that keeps each dispatch one-shot — admission only, never the answer.
+
+## Trust model (process isolation)
+
+State this verbatim, three times (mirroring prime-agent primitive #9):
+
+1. `sisyphus-junior` runs at the **OS permissions** of the user who launched ZOdyssey. The sub-agent process boundary is **lifecycle/failure containment, not a security sandbox**.
+2. The sub-agent process boundary is **lifecycle/failure containment, not a security sandbox**. It contains crashes, OOM, and runaway loops; it does not contain a hostile prompt.
+3. The sub-agent process boundary is process coordination, **not a sandbox boundary**. A compromised executor reads everything the user can read and writes everything the user can write.
+
+This is the baseline set by the bash-gate removal of 2026-08-08 (`pre-tool.mjs:698-707`, where `if (isBash) exit(0)` replaced the gated block): bash is ungated inside the executor precisely because the executor already holds the user's shell privileges. Design dispatch as process coordination, not a sandbox boundary — the boundary is lifecycle/failure containment, not a security sandbox.
 
 ## Outcome-first summary (your final message shape)
 

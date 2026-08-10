@@ -44,6 +44,15 @@ const total = Object.keys(todos).length;
 const review = st.review || {};
 const verdict = review.verdict ?? "none";
 
+// Optional fields written by scaffold.mjs + record-verify.mjs (backlog #6). Pre-#6 runs lack
+// them, so guard everywhere — never assume the keys exist.
+const acceptance = (st.acceptance || {});
+const notepadPointers = (st.notepad_pointers || {});
+let verifiedCount = 0;
+for (const id of Object.keys(acceptance)) {
+  if (acceptance[id] && acceptance[id].pass === true) verifiedCount++;
+}
+
 if (asJson) {
   console.log(JSON.stringify({
     slug: st.slug,
@@ -54,6 +63,9 @@ if (asJson) {
     todos_total: total,
     todos: counts,
     updated_at: st.updated_at,
+    acceptance,
+    notepad_pointers: notepadPointers,
+    verified_count: verifiedCount,
   }));
   exit(0);
 }
@@ -61,5 +73,10 @@ if (asJson) {
 const r = (n) => (typeof n === "number" ? n : 0);
 console.log(`\n  ${st.slug}  ·  phase=${st.phase}  ·  verdict=${verdict} (round ${r(review.round)}/${r(review.max_rounds)})`);
 console.log(`  todos: ${counts.done}/${total} done · ${counts.in_flight} in-flight · ${counts.failed} failed · ${counts.blocked} blocked · ${counts.pending} pending`);
+// Only printed when at least one acceptance or notepad_pointer entry exists, so runs created
+// before backlog #6 (which lack both fields) render byte-identically to before.
+if (Object.keys(acceptance).length > 0 || Object.keys(notepadPointers).length > 0) {
+  console.log(`  verified: ${verifiedCount} passed  ·  ${Object.keys(notepadPointers).length} notepad(s) linked`);
+}
 if (counts.failed > 0) console.log(`  ⚠ ${counts.failed} failed todo(s) — check state.todos for details`);
 console.log(`  updated ${st.updated_at || "?"}\n`);
