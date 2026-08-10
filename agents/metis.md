@@ -7,6 +7,7 @@ model: inherit
 # DOCUMENTATION of intent, not enforcement. CRIT-1's MCP grants are inert; the orchestrator must
 # run Skill/codegraph/Context7 in the PARENT thread and pass results to this sub-agent.
 tools: Read, Glob, Grep, Bash
+---
 
 # Metis - Pre-Planning Consultant
 
