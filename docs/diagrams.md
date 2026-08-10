@@ -21,7 +21,8 @@ flowchart TD
     R -- "REJECT (round ≥ 3)" --> SURF["surface to user"]
     R -- "OKAY" --> E["4 · EXECUTE<br/><b>sisyphus-junior</b><br/>parallel waves, capped at 4"]
     E --> V["5 · VERIFY<br/>run each todo's<br/>acceptance commands"]
-    V --> F{"6 · FINAL WAVE<br/>F1 plan-compliance<br/>F2 code-quality<br/>F3 manual QA<br/>F4 scope-fidelity"}
+    V --> CMP["<i>(optional)</i><br/>compact.mjs<br/>summarize notepads → _compact-brief.md"]
+    CMP --> F{"6 · FINAL WAVE<br/>F1 plan-compliance<br/>F2 code-quality<br/>F3 manual QA<br/>F4 scope-fidelity"}
     F -- "all pass" --> DONE(("done"))
     F -- "any fail" --> E
 
@@ -30,8 +31,10 @@ flowchart TD
     classDef phase fill:#ddf4ff,stroke:#218bff,stroke-width:1px,color:#1f2328;
     class R gate;
     class DONE good;
-    class C,PL,E,V,P phase;
+    class C,PL,E,V,P,CMP phase;
 ```
+
+**v0.2.0 addition — optional compaction before final wave:** the orchestrator MAY run `scripts/compact.mjs <repo> <slug>` between verify and final wave to derive `_compact-brief.md` (a deterministic, $0 concatenation of the run's notepads, each truncated to ~40 lines). The F1–F4 sub-agents then consume the brief instead of the full notepad set, cutting final-wave context cost. Additive (source notepads are never modified); opt-in. Borrows prime-agent primitive #8.
 
 **Key invariants enforced at the gate (phase 3):**
 - The hook **blocks every product-code edit** until `state.review.verdict == OKAY`.
@@ -120,7 +123,9 @@ flowchart TD
     TAMPER -- "drift" --> BLOCK4["✗ BLOCK — plan tampered"]
     TAMPER -- "match" --> PASS5["✓ pass — edit proceeds"]
 
-    DISP --> PCAP{"in-flight dispatches<br/>< parallel cap (4)?"}
+    DISP --> REC{"v0.2.0: prompt embeds a<br/>serialized nested tool call?<br/>(SEC-1s recursion guard)"}
+    REC -- "yes (injection signature)" --> BLOCKR["✗ BLOCK — SEC-1s recursion guard"]
+    REC -- "no" --> PCAP{"in-flight dispatches<br/>< parallel cap (4)?"}
     PCAP -- "no" --> BLOCK5["✗ BLOCK — parallel cap"]
     PCAP -- "yes" --> PASS6["✓ dispatch proceeds"]
 
@@ -128,8 +133,8 @@ flowchart TD
     classDef block fill:#ffebe9,stroke:#cf222e,stroke-width:1.5px;
     classDef decision fill:#fff8c5,stroke:#d4a72c;
     class PASS1,PASS2,PASS3,PASS4,PASS5,PASS6 pass;
-    class BLOCK1,BLOCK2,BLOCK3,BLOCK4,BLOCK5 block;
-    class ACTIVE,KIND,SCOPE,LOCK,VERDICT1,TAMPER,PCAP,BASH decision;
+    class BLOCK1,BLOCK2,BLOCK3,BLOCK4,BLOCK5,BLOCKR block;
+    class ACTIVE,KIND,SCOPE,LOCK,VERDICT1,TAMPER,PCAP,BASH,REC decision;
 ```
 
 **The five load-bearing invariants**, each mapped to a branch above:
@@ -140,6 +145,7 @@ flowchart TD
 | Executor stays in declared scope | `SCOPE` | executor edits an unrelated file |
 | No edit collisions between agents | `LOCK` | two agents clobber the same file |
 | Parallel dispatch within bounds | `PCAP` | runaway fan-out, 50 subagents |
+| **No embedded-dispatch injection** (v0.2.0) | `REC` | a prompt-injected executor coerces a downstream agent into a forged nested `Task()` call |
 | Bash write-escape before review | `BASH` | shell bypass of the Edit gate (`sed -i`, `>`) |
 
 ---

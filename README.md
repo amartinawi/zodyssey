@@ -54,7 +54,8 @@ flowchart TD
     R -- "REJECT (round < 3)" --> PL
     R -- OKAY --> E["4 · EXECUTE <b>sisyphus-junior</b><br/>parallel waves, capped at 4"]
     E --> V["5 · VERIFY<br/>acceptance commands"]
-    V --> F{"6 · FINAL WAVE<br/>F1·F2·F3·F4"}
+    V --> CMP["(optional)<br/>compact.mjs<br/>summarize notepads"]
+    CMP --> F{"6 · FINAL WAVE<br/>F1·F2·F3·F4"}
     F -- pass --> DONE(("done"))
     F -- fail --> E
     classDef gate fill:#ffebe9,stroke:#cf222e,stroke-width:2px;
@@ -75,6 +76,7 @@ flowchart TD
    3  REVIEW       momus returns OKAY | REJECT + blockers   ←  THE ENFORCED GATE
    4  EXECUTE      sisyphus-junior per todo, parallel-by-default, scope-locked to the plan's Files:
    5  VERIFY       run each todo's executable acceptance criteria
+      (optional)  compact.mjs — summarize notepads so F1–F4 consume a brief, not the full doc set
    6  FINAL WAVE   F1 plan-compliance · F2 code-quality · F3 manual-QA · F4 scope-fidelity
 ```
 
@@ -115,6 +117,7 @@ flowchart TD
 | **No edit collisions between agents** | not enforced | hook checks a file-lock ledger |
 | **Parallel dispatch within bounds** | not enforced | hook counts in-flight Tasks; blocks beyond cap (default 4) |
 | **Bash write-escape before review** | n/a | hook gates write-capable Bash (`sed -i`, `>`, `git apply`, …) the same as Edit. Secure by default; `ZODYSSEY_UNGATE_BASH=1` disables |
+| **Embedded-dispatch injection** (SEC-1s, [v0.2.0](CHANGELOG.md#020---2026-08-11)) | n/a | hook blocks a `Task()` dispatch whose prompt payload embeds a serialized nested tool call — both `{"tool_name":"Task"}` and Claude-native `{"type":"tool_use","name":"Task"}` shapes. Defense-in-depth behind the harness tool-grant boundary. |
 
 All hooks are **NO-OP unless an orchestration run is active**. Normal ZCode editing is never affected. A run is "active" only between `/orchestrate` and reaching a terminal phase (`done`/`audited`/`abandoned`), and only inside the repo where you invoked it.
 
