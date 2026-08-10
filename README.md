@@ -93,9 +93,10 @@ You want the full ZOdyssey pipeline (conductors, sub-agents, slash commands) wor
    ```bash
    git clone https://github.com/amartinawi/zodyssey.git
    cd zodyssey
-   node scripts/install.mjs            # copies into ~/.zcode/, registers 4 hooks
+   node scripts/install.mjs            # copies into ~/.zcode/, registers 4 hooks + 5 MCPs
+   node scripts/install.mjs --verify   # health-check: hooks parse, MCP backends resolvable
    ```
-   Full install / troubleshooting / config in [`docs/INSTALL.md`](docs/INSTALL.md).
+   The installer also registers the 5 pipeline MCPs (`memory`, `sequential-thinking`, `codegraph`, `chrome-devtools`, `zai-mcp-server`) — each gated on its backend being on PATH, skipped with a hint if not. It detects the [`superpowers`](https://github.com/obra/superpowers) plugin (source of most routed skills) and prints a pointer if missing. Full install / troubleshooting / config in [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ### Optional — for specific features (graceful no-op if absent)
 

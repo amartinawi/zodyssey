@@ -19,18 +19,50 @@ That's it. The installer is idempotent — re-run it after a `git pull` to updat
 ## What the installer does
 
 1. **Copies** `skills/odyssey/`, `agents/*.md`, `commands/*.md` into `~/.zcode/`.
-2. **Registers** 4 hooks (`PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`) in `~/.zcode/cli/config.json`. It backs up your existing config to `config.json.zodyssey-backup` first.
-3. **Merges** the `<!-- ZODYSSEY_START -->…<!-- ZODYSSEY_END -->` block into `~/.zcode/AGENTS.md` (skips if already present).
-4. **Inits** `~/.zcode/orchestration/eval/` with a `.gitkeep` and (if shipped) the eval seed.
+2. **Registers 4 hooks** (`PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`) in `~/.zcode/cli/config.json`. It backs up your existing config to `config.json.zodyssey-backup` first.
+3. **Registers 5 pipeline MCPs** in `config.json`'s `mcp.servers`:
+   - `memory` — cross-run knowledge graph
+   - `sequential-thinking` — hard multi-step reasoning
+   - `codegraph` — call-graph impact analysis for declared `Files:`
+   - `chrome-devtools` — executable UI verification (F3)
+   - `zai-mcp-server` — UI diff + error diagnosis (F3)
+
+   Each is **gated on its backend being on PATH**. If the backend binary isn't installed, the MCP is **skipped with a warning** (and a hint) rather than writing a dead config entry that would error on every session. So on a fresh machine the installer registers the npx-backed MCPs immediately (they auto-install on first spawn) and prints install hints for `codegraph` and `zai-mcp-server`.
+4. **Merges** the `<!-- ZODYSSEY_START -->…<!-- ZODYSSEY_END -->` block into `~/.zcode/AGENTS.md` (skips if already present).
+5. **Inits** `~/.zcode/orchestration/eval/` with a `.gitkeep` and (if shipped) the eval seed.
+6. **Detects the `superpowers` plugin** (source of most routed skills: `tdd`, `systematic-debugging`, `writing-plans`, `brainstorming`, `premortem`, etc.). If it's missing, prints a one-line pointer to [github.com/obra/superpowers](https://github.com/obra/superpowers). ZOdyssey works without it — you get the 3 shipped skill capsules (`tdd`, `debugging`, `executing-plans`) either way — but the conductor will reach for skills that aren't there until you install it.
 
 > The hooks are **NO-OP unless an orchestration run is active**. Installing ZOdyssey does not change how ZCode behaves for normal requests — the gate only arms when you run `/orchestrate`, and only inside the repo where you invoked it.
 
 ## Verify the install
 
+The installer ships a built-in health check that covers everything it set up:
+
+```bash
+node scripts/install.mjs --verify
+```
+
+It checks, in order:
+
+- **Node ≥18** on PATH
+- Each **hook script** exists + parses (`node --check`) + is registered in `config.json`
+- Each **pipeline MCP** is registered in `config.json` AND its backend is on PATH (npx / codegraph / zai-mcp-server)
+- The **core skills + agents** are present under `~/.zcode/`
+- The **superpowers plugin** (optional, for routed skills)
+
+Exit code is `0` when everything passes, `1` if any check fails — so `--verify` works in CI / install scripts. The output tells you exactly what's missing and how to fix it (which MCP to install, which command to re-run).
+
+<details>
+<summary>Manual checks (if you prefer to inspect by hand)</summary>
+
 ```bash
 # hooks registered?
 node -e "const c=require(require('os').homedir()+'/.zcode/cli/config.json'); console.log(JSON.stringify(c.hooks.events.PreToolUse, null, 2))"
 # should show a hook pointing at ~/.zcode/skills/odyssey/hooks/pre-tool.mjs
+
+# MCPs registered?
+node -e "const c=require(require('os').homedir()+'/.zcode/cli/config.json'); console.log(Object.keys(c.mcp?.servers ?? {}).sort())"
+# should include: chrome-devtools, codegraph, memory, sequential-thinking (+ zai-mcp-server if installed)
 
 # agents in place?
 ls ~/.zcode/agents/{metis,prometheus,momus,sisyphus-junior}.md
@@ -38,6 +70,8 @@ ls ~/.zcode/agents/{metis,prometheus,momus,sisyphus-junior}.md
 # conductor skill in place?
 ls ~/.zcode/skills/odyssey/SKILL.md
 ```
+
+</details>
 
 ## Uninstall
 

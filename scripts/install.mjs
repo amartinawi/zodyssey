@@ -1,17 +1,21 @@
 #!/usr/bin/env node
-// ZOdyssey installer — copies the plugin into ~/.zcode/ and registers the enforcement hooks.
-// Idempotent: safe to re-run. Zero npm dependencies (uses only Node built-ins).
+// ZOdyssey installer — copies the plugin into ~/.zcode/, registers hooks + pipeline MCPs,
+// and detects optional dependencies. Idempotent: safe to re-run. Zero npm dependencies.
 //
 // Usage:
 //   node scripts/install.mjs                # install (or re-install)
 //   node scripts/install.mjs --uninstall    # remove ZOdyssey from ~/.zcode/
 //   node scripts/install.mjs --dry-run      # show what would happen, change nothing
+//   node scripts/install.mjs --verify       # health-check the install (hooks, MCPs, skills)
 //
 // What it does:
 //   1. Copies skills/odyssey/, agents/*.md, commands/*.md into ~/.zcode/
 //   2. Registers the 4 hooks (PreToolUse, PostToolUse, Stop, UserPromptSubmit) in ~/.zcode/cli/config.json
-//   3. Merges the ZOdyssey section into ~/.zcode/AGENTS.md (if the marker isn't already present)
-//   4. Inits ~/.zcode/orchestration/eval/ (for the optional eval harness)
+//   3. Registers the 5 pipeline MCPs (memory, sequential-thinking, codegraph, chrome-devtools,
+//      zai-mcp-server) — each gated on its backend being on PATH; skipped with a hint if not.
+//   4. Merges the ZOdyssey section into ~/.zcode/AGENTS.md (if the marker isn't already present)
+//   5. Inits ~/.zcode/orchestration/eval/ (for the optional eval harness)
+//   6. Detects the superpowers plugin (source of most routed skills); prints a pointer if missing
 //
 // Hooks are NO-OP unless an orchestration run is active, so installing this does NOT change
 // normal ZCode behavior. The gate only arms when you run /orchestrate.
@@ -35,6 +39,7 @@ const REPO_ROOT = dirname(__dirname);
 
 const DRY = argv.includes("--dry-run");
 const UNINSTALL = argv.includes("--uninstall");
+const VERIFY = argv.includes("--verify");
 
 const log = (m) => console.log(DRY ? `[dry-run] ${m}` : m);
 const logDim = (m) => console.log(DRY ? `[dry-run]   ${m}` : `   ${m}`);
@@ -85,18 +90,7 @@ function registerHooks() {
   log(`register hooks in ${CONFIG_PATH}`);
   if (DRY) { HOOK_SPECS.forEach((h) => logDim(`${h.event} [${h.matcher}] → ${h.script}`)); return; }
 
-  let config;
-  try {
-    config = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
-  } catch (e) {
-    if (e.code === "ENOENT") {
-      log(`  (config.json not found — creating fresh at ${CONFIG_PATH})`);
-      mkdirSync(CLI_DIR, { recursive: true });
-      config = {};
-    } else {
-      throw new Error(`Could not parse ${CONFIG_PATH}: ${e.message}. Fix it manually and re-run.`);
-    }
-  }
+  const config = loadConfig();
   if (!config.hooks || typeof config.hooks !== "object") config.hooks = {};
   config.hooks.enabled = true;
   if (!config.hooks.events || typeof config.hooks.events !== "object") config.hooks.events = {};
@@ -119,9 +113,7 @@ function registerHooks() {
     logDim(`${isNew ? "added" : "updated"} ${spec.event} [${spec.matcher}]`);
   }
 
-  // backup + write
-  writeFileSync(CONFIG_PATH + ".zodyssey-backup", readFileSync(CONFIG_PATH));
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+  saveConfig(config);
   log(`  hooks registered (${added} added, ${updated} updated). Backup: ${CONFIG_PATH}.zodyssey-backup`);
 }
 
@@ -148,6 +140,289 @@ function unregisterHooks() {
   if (Object.keys(config.hooks.events).length === 0) config.hooks.enabled = false;
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
   log(`  removed ${removed} hook(s)`);
+}
+
+// ---------- MCP registration (pipeline MCPs only) ----------
+//
+// The ZOdyssey pipeline routes a handful of MCPs at runtime. We register ONLY those (not the
+// user's other 20 MCPs). Each spec declares how to (a) detect the backend is installable and
+// (b) the config block to write into cli/config.json's mcp.servers. If the backend is missing
+// we skip with a warning instead of writing a dead entry that would error on every session.
+//
+// Detection is conservative: `which`/`command -v` for binaries, `npx -y <pkg> --help` is NOT
+// run (too slow); for npx-backed MCPs we trust that `npx` exists + the package name is public.
+// The user still has to be online the first time the MCP actually spawns (npx caches it).
+
+const MCP_SPECS = [
+  {
+    name: "memory",
+    reason: "cross-run knowledge graph (read at consult, written at done)",
+    config: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-memory"],
+      env: { MEMORY_FILE_PATH: join(ZCODE_DIR, "orchestration", "memory.json") },
+      enabled: true,
+      timeoutMs: 120000,
+    },
+    backendPresent: () => commandOnPath("npx"),
+    backendHint: "install Node 18+ (npx ships with it)",
+  },
+  {
+    name: "sequential-thinking",
+    reason: "hard multi-step reasoning (architecture decomposition, 2+ failed-fix debug)",
+    config: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      enabled: true,
+      timeoutMs: 120000,
+    },
+    backendPresent: () => commandOnPath("npx"),
+    backendHint: "install Node 18+ (npx ships with it)",
+  },
+  {
+    name: "codegraph",
+    reason: "call-graph impact analysis for declared Files: derivation",
+    config: {
+      type: "stdio",
+      command: "codegraph",
+      args: [],
+      enabled: true,
+      timeoutMs: 60000,
+    },
+    // codegraph is a global npm bin (root-owned on the reference machine). It's optional —
+    // codegraph-impact.mjs no-ops gracefully when no .codegraph/ index exists in the target repo.
+    backendPresent: () => commandOnPath("codegraph"),
+    backendHint: "install with: sudo npm install -g @colbymchenry/codegraph",
+  },
+  {
+    name: "chrome-devtools",
+    reason: "executable UI verification (F3 final-wave)",
+    config: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "chrome-devtools-mcp"],
+      enabled: true,
+      timeoutMs: 60000,
+    },
+    backendPresent: () => commandOnPath("npx"),
+    backendHint: "install Node 18+ (npx ships with it)",
+  },
+  {
+    // zai-mcp-server provides ui_diff_check / diagnose_error_screenshot for the F3 wiring.
+    // It is NOT an npm package — it ships as a standalone binary or a uvx-managed Python tool,
+    // depending on the install path. We register it only if the binary is already on PATH;
+    // otherwise we print the hint and skip (the F3 wiring doc references it by name).
+    name: "zai-mcp-server",
+    reason: "UI diff + error diagnosis for executable F3 verification",
+    config: {
+      type: "stdio",
+      command: "zai-mcp-server",
+      args: [],
+      enabled: true,
+      timeoutMs: 120000,
+    },
+    backendPresent: () => commandOnPath("zai-mcp-server") || commandOnPath("zai-mcp"),
+    backendHint: "install the zai-mcp-server package (see your z.ai docs for the current install path)",
+  },
+];
+
+function commandOnPath(cmd) {
+  // `which` on most unices, `command -v` as a portable fallback. Returns true if the binary resolves.
+  try {
+    execSync(`command -v ${cmd} >/dev/null 2>&1`, { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function loadConfig() {
+  try {
+    return JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      mkdirSync(CLI_DIR, { recursive: true });
+      return {};
+    }
+    throw new Error(`Could not parse ${CONFIG_PATH}: ${e.message}. Fix it manually and re-run.`);
+  }
+}
+
+function saveConfig(config) {
+  writeFileSync(CONFIG_PATH + ".zodyssey-backup", readFileSync(CONFIG_PATH));
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+}
+
+function registerMCPs() {
+  log(`register pipeline MCPs in ${CONFIG_PATH}`);
+  if (DRY) {
+    for (const spec of MCP_SPECS) logDim(`${spec.name} — ${spec.reason}`);
+    return;
+  }
+  const config = loadConfig();
+  if (!config.mcp || typeof config.mcp !== "object") config.mcp = {};
+  if (!config.mcp.servers || typeof config.mcp.servers !== "object") config.mcp.servers = {};
+
+  let added = 0, skipped = 0;
+  for (const spec of MCP_SPECS) {
+    if (!spec.backendPresent()) {
+      logDim(`(skip) ${spec.name}: backend not on PATH — ${spec.backendHint}`);
+      skipped++;
+      continue;
+    }
+    const isNew = !config.mcp.servers[spec.name];
+    config.mcp.servers[spec.name] = spec.config;
+    logDim(`${isNew ? "added" : "updated"} ${spec.name}`);
+    if (isNew) added++;
+  }
+  saveConfig(config);
+  log(`  MCPs registered (${added} added, ${MCP_SPECS.length - added - skipped} updated, ${skipped} skipped — backends missing). Backup: ${CONFIG_PATH}.zodyssey-backup`);
+}
+
+function unregisterMCPs() {
+  log(`unregister pipeline MCPs from ${CONFIG_PATH}`);
+  if (DRY) { for (const spec of MCP_SPECS) logDim(spec.name); return; }
+  let config;
+  try { config = JSON.parse(readFileSync(CONFIG_PATH, "utf8")); }
+  catch { log("  (config.json not readable — nothing to remove)"); return; }
+  if (!config.mcp || !config.mcp.servers) { log("  (no mcp.servers — nothing to remove)"); return; }
+  let removed = 0;
+  for (const spec of MCP_SPECS) {
+    if (config.mcp.servers[spec.name]) {
+      delete config.mcp.servers[spec.name];
+      removed++;
+    }
+  }
+  if (Object.keys(config.mcp.servers).length === 0) delete config.mcp.servers;
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+  log(`  removed ${removed} MCP(s)`);
+}
+
+// ---------- superpowers detection ----------
+//
+// Most routed skills (tdd, systematic-debugging, writing-plans, brainstorming, etc.) live in the
+// external superpowers plugin, not this repo. We detect it and print a pointer if missing.
+// We do NOT auto-install a third-party plugin — that's the user's call.
+// Detection: superpowers skills land under the plugin cache OR ~/.zcode/skills/ when installed.
+
+function detectSuperpowers() {
+  log(`check superpowers plugin`);
+  const locations = [
+    join(ZCODE_DIR, "cli", "plugins", "cache", "claude-plugins-official", "superpowers"),
+    join(ZCODE_DIR, "cli", "plugins", "cache", "zcode-plugins-official", "superpowers"),
+    join(ZCODE_DIR, "skills", "test-driven-development"),  // flat-install fallback
+  ];
+  const found = locations.some((p) => {
+    try { return existsSync(p) && statSync(p).isDirectory(); } catch { return false; }
+  });
+  // Also check installed_plugins.json if it exists (more reliable signal than dir presence)
+  try {
+    const ip = join(ZCODE_DIR, "cli", "plugins", "installed_plugins.json");
+    if (existsSync(ip)) {
+      const data = JSON.parse(readFileSync(ip, "utf8"));
+      const list = Array.isArray(data) ? data : Object.values(data).flat();
+      if (list.some((p) => p && (p.name || p.id || "").includes("superpowers"))) {
+        log("  superpowers: detected (installed_plugins.json)");
+        return;
+      }
+    }
+  } catch { /* ignore */ }
+
+  if (found) {
+    log("  superpowers: detected (plugin cache)");
+  } else if (DRY) {
+    logDim("(would warn) superpowers: NOT detected — 8+ routed skills will be unavailable");
+  } else {
+    console.log(`   ⚠  superpowers plugin not detected. Most routed skills (tdd, systematic-debugging,\n      writing-plans, brainstorming, premortem, etc.) live there, not in this repo.\n      Install it separately — see https://github.com/obra/superpowers\n      (ZOdyssey works without it; you get the 3 shipped capsules either way.)`);
+  }
+}
+
+// ---------- --verify: health-check the install ----------
+
+function verify() {
+  console.log(`\nZOdyssey verify — health check\n`);
+  let problems = 0;
+  const check = (label, ok, hint) => {
+    console.log(`  ${ok ? "✓" : "✗"} ${label}${!ok && hint ? ` — ${hint}` : ""}`);
+    if (!ok) problems++;
+  };
+
+  // 1. Node version >= 18
+  try {
+    const v = execSync("node --version", { encoding: "utf8" }).trim();
+    const major = parseInt(v.replace(/^v/, ""), 10);
+    check(`Node ${v} (≥18 required)`, major >= 18, "install Node 18+");
+  } catch {
+    check("Node on PATH", false, "install Node 18+");
+  }
+
+  // 2. Each registered hook script exists + parses
+  for (const spec of HOOK_SPECS) {
+    const exists = existsSync(spec.script);
+    let parses = false;
+    if (exists) {
+      try { execSync(`node --check ${JSON.stringify(spec.script)}`, { stdio: "ignore" }); parses = true; }
+      catch { parses = false; }
+    }
+    check(`hook ${spec.event} script parses`, exists && parses, exists ? "syntax error" : `missing: ${spec.script}`);
+  }
+
+  // 3. Hooks registered in config.json
+  try {
+    const config = loadConfig();
+    const events = config.hooks && config.hooks.events;
+    for (const spec of HOOK_SPECS) {
+      const arr = events && events[spec.event];
+      const registered = Array.isArray(arr) && arr.some((e) => e && e.hooks && e.hooks.some((h) => h.args && h.args.includes(spec.script)));
+      check(`${spec.event} hook registered in config.json`, registered, `run: node scripts/install.mjs`);
+    }
+  } catch (e) {
+    check("config.json readable", false, e.message);
+  }
+
+  // 4. Pipeline MCPs: config entry present + backend on PATH
+  try {
+    const config = loadConfig();
+    const servers = (config.mcp && config.mcp.servers) || {};
+    for (const spec of MCP_SPECS) {
+      const entry = servers[spec.name];
+      const backend = spec.backendPresent();
+      check(`MCP ${spec.name}: ${entry ? "registered" : "NOT registered"}, backend ${backend ? "present" : "missing"}`,
+        entry && backend,
+        !backend ? spec.backendHint : (!entry ? "run: node scripts/install.mjs" : ""));
+    }
+  } catch (e) {
+    check("MCP config readable", false, e.message);
+  }
+
+  // 5. Core skills + agents present
+  check("skills/odyssey/SKILL.md", existsSync(join(ZCODE_DIR, "skills", "odyssey", "SKILL.md")), "re-run installer");
+  for (const a of ["metis", "prometheus", "momus", "sisyphus-junior"]) {
+    check(`agents/${a}.md`, existsSync(join(ZCODE_DIR, "agents", `${a}.md`)), "re-run installer");
+  }
+
+  // 6. superpowers
+  try {
+    const ip = join(ZCODE_DIR, "cli", "plugins", "installed_plugins.json");
+    let sp = false;
+    [join(ZCODE_DIR, "cli", "plugins", "cache", "claude-plugins-official", "superpowers"),
+     join(ZCODE_DIR, "cli", "plugins", "cache", "zcode-plugins-official", "superpowers")].forEach((p) => {
+      try { if (existsSync(p)) sp = true; } catch {}
+    });
+    if (existsSync(ip)) {
+      try {
+        const data = JSON.parse(readFileSync(ip, "utf8"));
+        const list = Array.isArray(data) ? data : Object.values(data).flat();
+        if (list.some((p) => p && (p.name || p.id || "").includes("superpowers"))) sp = true;
+      } catch {}
+    }
+    check("superpowers plugin (optional, for routed skills)", sp, "see https://github.com/obra/superpowers");
+  } catch {}
+
+  console.log(`\n${problems === 0 ? "✓ all checks passed" : `✗ ${problems} problem(s) found`}\n`);
+  exit(problems === 0 ? 0 : 1);
 }
 
 // ---------- AGENTS.md merge ----------
@@ -226,7 +501,7 @@ function initEvalDir() {
 // ---------- main ----------
 
 function main() {
-  console.log(`\nZOdyssey installer${DRY ? " (DRY RUN)" : UNINSTALL ? " (UNINSTALL)" : ""}`);
+  console.log(`\nZOdyssey installer${DRY ? " (DRY RUN)" : UNINSTALL ? " (UNINSTALL)" : VERIFY ? " (VERIFY)" : ""}`);
   console.log(`  ZCode dir: ${ZCODE_DIR}`);
   console.log(`  Repo:      ${REPO_ROOT}\n`);
 
@@ -237,9 +512,14 @@ function main() {
     exit(1);
   }
 
+  if (VERIFY) {
+    verify();  // exits
+  }
+
   if (UNINSTALL) {
     log("\n=== Removing ZOdyssey ===\n");
     unregisterHooks();
+    unregisterMCPs();
     unmergeAgentsMd();
     for (const p of [
       join(ZCODE_DIR, "skills", "odyssey"),
@@ -258,11 +538,14 @@ function main() {
   copyFiles(join(REPO_ROOT, "agents"), join(ZCODE_DIR, "agents"), "agents/");
   copyFiles(join(REPO_ROOT, "commands"), join(ZCODE_DIR, "commands"), "commands/");
   registerHooks();
+  registerMCPs();
   mergeAgentsMd();
   initEvalDir();
+  detectSuperpowers();
 
   log("\n=== Done ===");
   log(`Next: start a NEW ZCode session (hooks load at startup), then run /orchestrate <task> in any repo.`);
+  log(`Health-check the install: node scripts/install.mjs --verify`);
   log(`Config + troubleshooting: docs/INSTALL.md`);
   log(`Adapting to other harnesses (omo, Claude Code, ...): docs/ADAPT.md\n`);
   exit(0);

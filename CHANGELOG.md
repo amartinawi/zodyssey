@@ -2,6 +2,20 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] — 2026-08-10
+
+Installer now covers all pipeline dependencies, not just hooks.
+
+### Added
+- **Installer registers the 5 pipeline MCPs** in `~/.zcode/cli/config.json`'s `mcp.servers`: `memory`, `sequential-thinking`, `codegraph`, `chrome-devtools`, `zai-mcp-server`. Each is gated on its backend being on PATH — if the binary isn't installed, the MCP is skipped with a hint instead of writing a dead config entry that would error on every session. The 4 npx-backed MCPs auto-install on first spawn; `codegraph` and `zai-mcp-server` print install pointers if missing.
+- **`--verify` mode**: `node scripts/install.mjs --verify` health-checks the install — Node version, each hook script exists + parses + is registered, each pipeline MCP is registered AND its backend is resolvable, core skills + agents present, superpowers plugin detected. Exits `0` on pass, `1` on any failure (CI-usable). Tells you exactly what's missing and how to fix it.
+- **Superpowers detection**: the installer detects whether the [`superpowers`](https://github.com/obra/superpowers) plugin (source of most routed skills — `tdd`, `systematic-debugging`, `writing-plans`, `brainstorming`, `premortem`, etc.) is installed, and prints a pointer if not. ZOdyssey works without it (the 3 shipped capsules cover the load-bearing cases); the conductor just can't reach the full routed set until you install it. The installer does NOT auto-install a third-party plugin — that's the user's call.
+- **`--uninstall` now removes the MCPs too** (was: hooks + files only).
+
+### Changed
+- **INSTALL.md** rewritten with a 6-step "what the installer does" section, a `--verify` section, and a collapsible manual-checks appendix.
+- **README Prerequisites** Path B step 4 now shows the `--verify` invocation and mentions MCP registration.
+
 ## [0.1.2] — 2026-08-10
 
 Public-default security fix. Restores the Bash write-gate that v0.1.1's verbatim mirror had deleted, so the public repo ships with the "secure by default" posture the README advertises.
