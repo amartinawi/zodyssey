@@ -616,10 +616,15 @@ function verify() {
     const servers = (config.mcp && config.mcp.servers) || {};
     for (const spec of MCP_SPECS) {
       const ent = servers[spec.name];
-      const backend = spec.backendPresent();
+      // Verify the ACTUAL registered command's backend (a user may override an MCP to a
+      // different runner — e.g. zai-mcp-server via `npx -y @z_ai/mcp-server` — in which
+      // case the spec's backendPresent() is a false negative against the bare binary).
+      // Falls back to spec.backendPresent() when the entry isn't registered or has no command.
+      const cmd = ent && ent.command;
+      const backend = cmd ? commandOnPath(cmd) : spec.backendPresent();
       check(`MCP ${spec.name}: ${ent ? "registered" : "NOT registered"}, backend ${backend ? "present" : "missing"}`,
         ent && backend,
-        !backend ? spec.backendHint : (!ent ? "run: node scripts/install.mjs" : ""));
+        !ent ? "run: node scripts/install.mjs" : (!backend ? (cmd ? `\`${cmd}\` not on PATH` : spec.backendHint) : ""));
     }
   } catch (e) {
     check("MCP config readable", false, e.message);

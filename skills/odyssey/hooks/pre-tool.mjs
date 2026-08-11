@@ -751,9 +751,9 @@ if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1") exit(0);
 // SELF-RELATIVE, single source. This hook always lives at
 // <install-root>/skills/odyssey/hooks/pre-tool.mjs, so the recorder scripts are always
 // ../scripts. Layout-independent by construction: a repo checkout, the pre-v0.3.0
-// ~/.zcode/skills/ install, and the v0.3.0 plugin cache
-// (~/.zcode/cli/plugins/cache/local/zodyssey/<version>/) all resolve correctly, and any future
-// relocation keeps working because the installer copies hooks/ and scripts/ together.
+// ~/.zcode/skills/ install, and the plugin cache
+// (~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/) all resolve correctly, and any future
+// relocation keeps working because the plugin ships hooks/ and scripts/ together.
 //
 // TWO GUESSES DELIBERATELY REMOVED (2026-08-11):
 //   join(PROJECT_DIR, "skills/odyssey/scripts")  — PROJECT_DIR is the USER'S repo, i.e.
