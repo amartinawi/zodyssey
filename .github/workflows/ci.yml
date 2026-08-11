@@ -1,0 +1,107 @@
+# CI — the missing organ.
+#
+# ZOdyssey's failure history is not bugs, it is undetected regressions. The Bash write-gate was
+# deleted twice and shipped both times. --verify reported 18/18 green while the deployed hook was
+# not the repo's. harness.mjs --list printed ✓ for seeds it could not run. Three external audits
+# reviewed v0.2.0 and none noticed the gate was gone, because an audit reads the diff in front of
+# it and nothing was re-checking invariants from two releases back.
+#
+# Audits are not a regression suite. This is.
+#
+# Zero dependencies: no install step, no lockfile, no cache. `node scripts/run-tests.mjs` walks the
+# tree and runs every *.test.mjs. Discovering zero suites is a FAILURE, not a pass — a runner
+# reporting success over an empty set is the same false green one level up.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 18 is the floor the code claims (engines.node, and every script's header).
+        # Testing the claimed floor and current LTS keeps that claim honest.
+        node: ["18", "22"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Several suites build real git fixtures and diff against a baseline commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: git identity for fixture repos
+        # record-final-wave and record-verify suites run `git commit` inside temp repos.
+        # Without a configured identity those commits fail and the suites error out.
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI"
+
+      - name: Syntax-check every script
+        # Cheap and catches the class of breakage that matters most here: a hook that does not
+        # parse is a hook that does not run, which is silent enforcement death.
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            node --check "$f" || { echo "SYNTAX ERROR: $f"; fail=1; }
+          done < <(find . -name '*.mjs' -not -path './node_modules/*' -not -path './.git/*')
+          exit $fail
+        shell: bash
+
+      - name: Test
+        run: npm test
+
+  enforcement-invariants:
+    # Separated so a red X here is unambiguous: the enforcement layer itself broke, not a helper.
+    # These are the invariants the README advertises and that have regressed before.
+    name: enforcement invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI"
+
+      - name: Bash write-gate is present and enforcing
+        run: node scripts/run-tests.mjs --filter bash-gate
+
+      - name: Evidence integrity (append-only notepads, frozen tests)
+        run: node scripts/run-tests.mjs --filter evidence-integrity
+
+      - name: Final wave judges content, not ceremony
+        run: node scripts/run-tests.mjs --filter record-final-wave
+
+      - name: ZODYSSEY_UNGATE_BASH exists in the HOOK, not only in docs
+        # It was documented in four places and present in ZERO lines of executable code for three
+        # releases, while install.mjs wrote the claim into every user's AGENTS.md.
+        #
+        # Scoped to pre-tool.mjs specifically. A first draft grepped all of skills/ and did not
+        # fire when the hatch was deleted from the hook — because the TEST file mentions the string
+        # too, so the search found it and passed. A doc-vs-code check that a test file can satisfy
+        # is not checking the code. Verified by deleting the hatch and watching this go red.
+        run: |
+          if grep -rq "ZODYSSEY_UNGATE_BASH" --include='*.md' . && \
+             ! grep -q "ZODYSSEY_UNGATE_BASH" skills/odyssey/hooks/pre-tool.mjs ; then
+            echo "ZODYSSEY_UNGATE_BASH is documented but absent from pre-tool.mjs."
+            echo "Either restore the escape hatch or remove the claim from the docs."
+            exit 1
+          fi
+        shell: bash
