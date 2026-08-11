@@ -6,9 +6,9 @@
 // populated it, so the scorecard always showed 0/0.
 //
 // Usage:
-//   record-todo.mjs <repo> <slug> <id> <status> [--attempts N] [--session S]
+//   record-todo.mjs <repo> <slug> <id> <status> [--attempts N] [--session S] [--force-done]
 //     status: pending | in_flight | done | failed | blocked
-//   exit: 0 ok · 2 bad args · 3 no state file
+//   exit: 0 ok · 2 bad args · 3 no state file · 7 done refused (no verify evidence)
 //
 // Atomic write under O_EXCL lockfile with stale-lock reaping (same pattern as the hooks).
 
@@ -18,7 +18,7 @@ import { argv, exit } from "node:process";
 
 const [repo, slug, id, status, ...rest] = argv.slice(2);
 if (!repo || !slug || !id || !status) {
-  console.error("usage: record-todo.mjs <repo> <slug> <id> <status> [--attempts N] [--session S]");
+  console.error("usage: record-todo.mjs <repo> <slug> <id> <status> [--attempts N] [--session S] [--force-done]");
   exit(2);
 }
 const VALID = new Set(["pending", "in_flight", "done", "failed", "blocked"]);
@@ -34,10 +34,38 @@ if (!existsSync(statePath)) {
 }
 
 // parse optional flags
-let attempts, session;
+let attempts, session, force = false;
 for (let i = 0; i < rest.length; i++) {
   if (rest[i] === "--attempts") attempts = parseInt(rest[++i], 10);
   else if (rest[i] === "--session") session = rest[++i];
+  else if (rest[i] === "--force-done") force = true;
+}
+
+// ---------------------------------------------------------------------------
+// THE VERIFY TRANSITION GUARD.
+//
+// record-verify.mjs:9-10 has claimed since it was written that "a todo cannot reach `done`
+// without verify evidence (enforced by record-todo.mjs's transition guard, added alongside
+// this)". No such guard was ever written. `done` was whatever the orchestrator asserted, which
+// made the whole acceptance chain circular: record-verify sets acceptance[id].pass only when
+// todos[id].status === "done", and nothing gated "done".
+//
+// The guard reads state.verify.history — per-criterion records written by record-verify with a
+// REAL exit code from a REAL spawn. That source is written independently of todo status, which
+// is what breaks the circularity (gating on acceptance[id] instead would deadlock immediately).
+//
+// --force-done exists because a todo can legitimately have no executable criteria. It is not a
+// silent bypass: it stamps forced:true and forced_reason into the todo record, so a forced
+// completion is visible in the evidence chain rather than indistinguishable from a verified one.
+function verifyEvidenceFor(st, todoId) {
+  const hist = (st.verify && Array.isArray(st.verify.history)) ? st.verify.history : [];
+  const mine = hist.filter((h) => h && String(h.todo_id) === String(todoId));
+  if (mine.length === 0) return { ok: false, reason: "no verify evidence: record-verify.mjs has never run for this todo" };
+  const failed = mine.filter((h) => !h.passed && !h.flaky);
+  const flaky = mine.filter((h) => h.flaky);
+  if (failed.length) return { ok: false, reason: `${failed.length} of ${mine.length} acceptance criteria FAILED (exit codes: ${failed.map((h) => h.exit_code).join(", ")})` };
+  if (flaky.length) return { ok: false, reason: `${flaky.length} criterion/criteria are FLAKY (disagreed across two runs) — neither passed nor failed` };
+  return { ok: true, count: mine.length };
 }
 
 const LOCK_STALE_MS = 60 * 1000;
@@ -77,8 +105,30 @@ try {
   st.todos = st.todos && typeof st.todos === "object" ? st.todos : {};
   const prev = st.todos[id] || {};
   const now = new Date().toISOString();
+
+  // Enforce the guard BEFORE any mutation, and release the lock on refusal.
+  let ev = null;
+  if (status === "done") {
+    ev = verifyEvidenceFor(st, id);
+    if (!ev.ok && !force) {
+      try { closeSync(lockFd); unlinkSync(lockPath); } catch {}
+      console.error(
+        `record-todo.mjs: REFUSING to mark todo ${id} as done — ${ev.reason}.\n` +
+        `  Run the todo's acceptance criteria through record-verify.mjs first.\n` +
+        `  If this todo genuinely has no executable criteria, re-run with --force-done ` +
+        `(which records forced:true in the evidence chain).`
+      );
+      exit(7);
+    }
+  }
+
   st.todos[id] = {
     status,
+    ...(status === "done" ? {
+      verified: !!(ev && ev.ok),
+      verified_criteria: ev && ev.ok ? ev.count : 0,
+      ...(ev && !ev.ok ? { forced: true, forced_reason: ev.reason } : {}),
+    } : {}),
     attempts: attempts !== undefined ? attempts : (prev.attempts || 0) + (status === "in_flight" && prev.status !== "in_flight" ? 1 : 0),
     started_at: prev.started_at || (status === "in_flight" ? now : null),
     completed_at: status === "done" || status === "failed" ? now : null,

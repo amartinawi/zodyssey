@@ -18,7 +18,7 @@
 //
 // Usage:
 //   record-verify.mjs <repo> <slug> <todo-id> --criterion <cmd> [--exit-code <N> --trust-argv] [--output <file>] [--n <idx>] [--flake-check [--exit-code-2 <N>]]
-//   exit: 0 ok · 2 bad args · 3 no state file · 6 verification FAILED (exit-code != 0) · 7 FLAKY (flake-check runs disagree)
+//   exit: 0 ok · 2 bad args · 3 no state file · 6 verification FAILED (exit-code != 0) · 7 FLAKY (flake-check runs disagree) · 10 STALLED (workspace unchanged since the last failed attempt; --no-stall-check overrides)
 //
 // --flake-check (opt-in, default OFF): runs the criterion a SECOND time and compares exit codes.
 //   - default (execute) path: the criterion is spawned twice in this process.
@@ -33,14 +33,15 @@
 import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSync, renameSync, statSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const [repo, slug, todoId, ...rest] = argv.slice(2);
 if (!repo || !slug || !todoId) {
   console.error("usage: record-verify.mjs <repo> <slug> <todo-id> --criterion <cmd> [--exit-code <N> --trust-argv] [--output <file>] [--n <idx>] [--flake-check [--exit-code-2 <N>]]");
   exit(2);
 }
-let criterion, exitCodeStr, exitCode2Str, outputFile, nStr, trustArgv = false, flakeCheck = false;
+let criterion, exitCodeStr, exitCode2Str, outputFile, nStr, trustArgv = false, flakeCheck = false, noStallCheck = false;
 for (let i = 0; i < rest.length; i++) {
   if (rest[i] === "--criterion") criterion = rest[++i];
   else if (rest[i] === "--exit-code") exitCodeStr = rest[++i];
@@ -49,6 +50,7 @@ for (let i = 0; i < rest.length; i++) {
   else if (rest[i] === "--n") nStr = rest[++i];
   else if (rest[i] === "--trust-argv") trustArgv = true;
   else if (rest[i] === "--flake-check") flakeCheck = true;
+  else if (rest[i] === "--no-stall-check") noStallCheck = true;
 }
 if (!criterion) {
   console.error("record-verify.mjs: --criterion <cmd> is required");
@@ -104,6 +106,96 @@ function runOnce(claimedExit) {
 if (exitCodeStr !== undefined && !trustArgv) {
   console.error("record-verify.mjs: --exit-code <N> was supplied WITHOUT --trust-argv. By default the criterion is now EXECUTED (SEC-H2). Pass --trust-argv only if you ran the criterion yourself and are passing its real exit code.");
   exit(2);
+}
+
+// ---------------------------------------------------------------------------
+// NO-PROGRESS STALL DETECTOR (prime-agent primitive, `captureGitWorktreeSnapshot` in
+// core/autonomous.ts — the one borrowable primitive left on the table after v0.2.0's fit study).
+//
+// THE LOOP IT BREAKS: a criterion fails. The executor is dispatched to fix it. It returns having
+// changed nothing that matters — a comment, a reformat, or literally nothing. Verify re-runs the
+// identical command against an identical workspace and gets the identical failure. Repeat until
+// the attempt cap. Failed agentic attempts burn ~3.5x more steps than successful ones, and this
+// shape is a large part of why: the harness cannot tell "tried again" from "tried again with
+// something different", so it keeps paying for re-runs that cannot possibly differ.
+//
+// The fix is a fact, not a judgement: if the worktree is byte-identical to what it was at the
+// previous FAILED attempt for this exact criterion, the outcome is already known. Refuse to
+// re-run, count the attempt anyway (so the cap still advances and the loop terminates), and say
+// plainly that nothing changed — which turns an invisible spin into a specific, actionable report.
+//
+// Fingerprint = tracked status + tracked diff + untracked file contents. Untracked CONTENT has to
+// be in there: `git status --porcelain` lists untracked files by NAME, so a fix that only edits an
+// untracked file would otherwise look like no change at all and be wrongly reported as a stall.
+// Non-git repos have no fingerprint → the detector stays inert rather than guessing.
+// `.zcode/` MUST be excluded. It holds this run's own state, plans, notepads, and the verify
+// artifacts THIS SCRIPT writes on every invocation. Including it makes the fingerprint change on
+// every call by construction, so the detector could never fire — and it would have failed exactly
+// that way in production, because a user's repo does not gitignore `.zcode/` (only ZOdyssey's own
+// repo does). Excluded via pathspec, with a JS-side filter behind it in case the pathspec form is
+// unsupported: the fingerprint must describe the WORK, not the bookkeeping about the work.
+const EXCLUDE_ZCODE = [".", ":(exclude).zcode", ":(exclude).zcode/**"];
+function worktreeFingerprint(repoDir) {
+  try {
+    const status = execFileSync("git", ["-C", repoDir, "status", "--porcelain=v1", "-uall", "--no-renames", "--", ...EXCLUDE_ZCODE],
+      { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
+    const diff = execFileSync("git", ["-C", repoDir, "diff", "HEAD", "--", ...EXCLUDE_ZCODE],
+      { encoding: "utf8", maxBuffer: 40 * 1024 * 1024 });
+    const untracked = execFileSync("git", ["-C", repoDir, "ls-files", "--others", "--exclude-standard", "--", ...EXCLUDE_ZCODE],
+      { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 })
+      .split("\n").map((s) => s.trim())
+      .filter((p) => p && !p.startsWith(".zcode/") && p !== ".zcode");
+    const h = createHash("sha256")
+      .update(status.split("\n").filter((l) => !/\s\.zcode\//.test(l)).join("\n"))
+      .update(diff);
+    for (const rel of untracked.sort()) {
+      h.update(rel);
+      try { h.update(readFileSync(join(repoDir, rel))); } catch { h.update("<unreadable>"); }
+    }
+    return h.digest("hex");
+  } catch {
+    return null; // not a git repo, or git unavailable → detector inert
+  }
+}
+
+const fingerprint = worktreeFingerprint(repoAbs);
+const statePathEarly = join(repoAbs, ".zcode", "state", `${slug}.json`);
+if (fingerprint && existsSync(statePathEarly) && !noStallCheck) {
+  try {
+    const stEarly = JSON.parse(readFileSync(statePathEarly, "utf8"));
+    const prior = ((stEarly.verify && stEarly.verify.history) || [])
+      .filter((h) => h && String(h.todo_id) === String(todoId) && h.criterion_index === idx && !h.passed)
+      .pop();
+    if (prior && prior.worktree === fingerprint) {
+      const attempts = (prior.stall_attempts || 0) + 1;
+      // Record the refusal as evidence and advance the attempt counter, so the run still converges
+      // on its cap instead of spinning silently.
+      const lockedWrite = (mut) => {
+        const st = JSON.parse(readFileSync(statePathEarly, "utf8"));
+        mut(st);
+        st.updated_at = new Date().toISOString();
+        const tmp = statePathEarly + ".tmp." + process.pid;
+        writeFileSync(tmp, JSON.stringify(st, null, 2) + "\n");
+        renameSync(tmp, statePathEarly);
+      };
+      try {
+        lockedWrite((st) => {
+          const rec = (st.verify.history || []).find((h) =>
+            String(h.todo_id) === String(todoId) && h.criterion_index === idx && !h.passed);
+          if (rec) { rec.stall_attempts = attempts; rec.last_stall_at = new Date().toISOString(); }
+        });
+      } catch { /* evidence write is best-effort; the refusal below still stands */ }
+      console.error(
+        `NOT RERUN: the workspace is unchanged since this criterion last failed.\n` +
+        `  todo ${todoId}, criterion #${idx}: ${criterion.slice(0, 120)}\n` +
+        `  worktree fingerprint ${fingerprint.slice(0, 12)} is identical to the previous failed attempt` +
+        ` (stall #${attempts}).\n` +
+        `  Re-running cannot produce a different result. Either change the code, or if the criterion\n` +
+        `  itself is wrong, say so and re-plan — do not retry unchanged. (--no-stall-check overrides.)`
+      );
+      exit(10);
+    }
+  } catch { /* unreadable state → fall through and run normally */ }
 }
 
 // First run (always happens).
@@ -191,7 +283,10 @@ function apply(st) {
   st.verify.history = Array.isArray(st.verify.history) ? st.verify.history : [];
   // replace any prior entry for this todo+index, then recompute counts
   st.verify.history = st.verify.history.filter((h) => !(h.todo_id === todoId && h.criterion_index === idx));
-  st.verify.history.push({ todo_id: todoId, criterion_index: idx, passed, status, flaky, criterion, exit_code: exitCode, ...(flakeCheck ? { exit_code_2: exitCode2 } : {}), at: evidence.recorded_at, artifact: artifactPath });
+  // `worktree` is what the stall detector compares against on the NEXT attempt: the fingerprint of
+  // the workspace that produced this result. Null in a non-git repo, which keeps the detector inert
+  // there rather than guessing.
+  st.verify.history.push({ todo_id: todoId, criterion_index: idx, passed, status, flaky, criterion, exit_code: exitCode, ...(flakeCheck ? { exit_code_2: exitCode2 } : {}), worktree: fingerprint, at: evidence.recorded_at, artifact: artifactPath });
   st.verify.total = st.verify.history.length;
   st.verify.passed = st.verify.history.filter((h) => h.passed).length;
   // A flaky entry is counted in `flaky` and EXCLUDED from `failed` (it is a distinct state, not a

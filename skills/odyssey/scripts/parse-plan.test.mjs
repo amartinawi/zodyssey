@@ -9,7 +9,7 @@
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { exit } from "node:process";
 
 const SCRIPT_DIR = new URL(".", import.meta.url).pathname;
@@ -287,6 +287,61 @@ console.log("parse-plan.mjs unit tests\n");
     } catch {}
     check("lint problem names npm run X + bare=true", problemsOk,
       `(stdout: ${stdout.slice(0, 200)})`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// --- B6: criteria must be executable, and one must run the real suite --------
+//
+// The old executability test was `!/\b(npm|node|…)\b|[\/.]|[\|>]/.test(c)` — an alternation that
+// binds looser than it reads, so ANY string containing a "." or a "/" counted as executable.
+// `- GET /healthz returns 200 {ok:true}` passed. `- The endpoint returns 200.` passed. Since the
+// planner also AUTHORS the criteria and momus explicitly declines to judge them, that regex was
+// the entire quality bar on the pipeline's own exam.
+{
+  const dir = mkdtempSync(join(tmpdir(), "pp-b6-"));
+  try {
+    mkdirSync(join(dir, ".zcode", "plans"), { recursive: true });
+    const planPath = join(dir, ".zcode", "plans", "p.md");
+    const plan = (criteria) =>
+      `# p\n\n## Todos\n\n- [ ] 1. do it\n  - Files: [\`src/a.js\`]\n  - Acceptance criteria:\n${criteria.map((c) => `    - ${c}`).join("\n")}\n\n## Final verification wave\n`;
+    const lint = () => {
+      const r = spawnSync(process.execPath, [PARSE, planPath, "--lint"], { encoding: "utf8" });
+      let out = {};
+      try { out = JSON.parse(r.stdout || "{}"); } catch {}
+      return { code: r.status, out };
+    };
+
+    writeFileSync(planPath, plan(["GET /healthz returns 200 {ok:true}"]));
+    let r = lint();
+    check("B6: prose containing a slash is NOT executable", r.code === 6 &&
+      (r.out.problems || []).some((p) => /not an executable command/.test(p.issue || "")));
+
+    writeFileSync(planPath, plan(["The endpoint returns 200."]));
+    r = lint();
+    check("B6: prose containing a period is NOT executable", r.code === 6);
+
+    writeFileSync(planPath, plan(["`curl -sf localhost:3000/healthz` exits 0"]));
+    r = lint();
+    check("B6: a real command passes", r.code === 0, `(${JSON.stringify(r.out.problems || []).slice(0, 200)})`);
+
+    writeFileSync(planPath, plan(["`cd packages/api && npm test` exits 0"]));
+    r = lint();
+    check("B6: `cd X && cmd` form passes", r.code === 0);
+
+    // With a toolchain present, at least one criterion must exercise the real suite.
+    writeFileSync(join(dir, ".zcode", "toolchain.json"),
+      JSON.stringify({ test_runner: "jest", test_cmd: "npm test", bare: false }));
+    writeFileSync(planPath, plan(["`curl -sf localhost:3000/healthz` exits 0"]));
+    r = lint();
+    check("B6: fails when no criterion runs the project's suite", r.code === 6 &&
+      (r.out.problems || []).some((p) => /runs the project's test suite/.test(p.issue || "")));
+
+    writeFileSync(planPath, plan(["`curl -sf localhost:3000/healthz` exits 0", "`npm test` exits 0"]));
+    r = lint();
+    check("B6: passes once a criterion runs the real suite", r.code === 0,
+      `(${JSON.stringify(r.out.problems || []).slice(0, 200)})`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -45,11 +45,34 @@ if (!existsSync(SEED)) { console.error("no seed file: " + SEED); exit(3); }
 
 const seeds = readFileSync(SEED, "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
 
+// A seed is runnable iff its fixture EXISTS ON DISK. The old test was
+// `!s.repo.includes("REPLACE_WITH")` — a magic-sentinel match that silently stopped working when
+// the seeds were written with a different placeholder ("/path/to/throwaway/repo"). The sentinel
+// never matched, so `--list` printed ✓ for all 5 seeds while every run died on cpSync ENOENT.
+// The eval reported itself ready and had never executed a single task.
+//
+// Sentinel matching is the wrong shape for this question: it tests a string convention rather
+// than the fact we actually care about. existsSync cannot drift out of sync with reality.
+function seedReady(s) {
+  if (!s.repo) return { ready: false, reason: "no `repo` field" };
+  if (/REPLACE_WITH|\/path\/to\//.test(s.repo)) return { ready: false, reason: "placeholder path — point it at a real fixture" };
+  if (!existsSync(s.repo)) return { ready: false, reason: `fixture does not exist: ${s.repo}` };
+  return { ready: true };
+}
+
 if (listMode) {
   console.log("seed tasks:");
+  let runnable = 0;
   for (const s of seeds) {
-    const ready = s.repo && !s.repo.includes("REPLACE_WITH") ? "✓" : "✗(no fixture)";
-    console.log(`  ${s.id} [${s.intent}] ${ready}  ${s.prompt.slice(0, 70)}`);
+    const r = seedReady(s);
+    if (r.ready) runnable++;
+    console.log(`  ${s.id} [${s.intent}] ${r.ready ? "✓" : `✗ (${r.reason})`}  ${s.prompt.slice(0, 70)}`);
+  }
+  console.log(`\n${runnable}/${seeds.length} seed(s) runnable.`);
+  if (runnable === 0) {
+    console.error("\nNO SEED IS RUNNABLE — this eval cannot produce a number. Point each seed's `repo`\n" +
+      "at a real fixture directory before drawing any conclusion from a harness run.");
+    exit(4);
   }
   exit(0);
 }
@@ -62,9 +85,10 @@ const results = [];
 
 for (const seed of selected) {
   console.log(`\n=== ${seed.id} [${seed.intent}] arm=${arm} ===`);
-  if (!seed.repo || seed.repo.includes("REPLACE_WITH")) {
-    console.log(`  SKIP — no fixture repo (seed has placeholder). Add a fixture and update seed.jsonl.`);
-    results.push({ id: seed.id, status: "skipped", reason: "no fixture" });
+  const readiness = seedReady(seed);
+  if (!readiness.ready) {
+    console.log(`  SKIP — ${readiness.reason}`);
+    results.push({ id: seed.id, status: "skipped", reason: readiness.reason });
     continue;
   }
   // fresh copy of the fixture so each run is isolated
@@ -119,4 +143,15 @@ for (const seed of selected) {
 console.log("\n=== harness summary ===");
 for (const r of results) console.log(`  ${r.id}: ${r.status}${r.repo ? " → " + r.repo : ""}`);
 console.log(`\nresults.jsonl: ${existsSync(RESULTS) ? readFileSync(RESULTS, "utf8").split("\n").filter((l) => l.trim()).length + " records" : "empty (will populate as runs complete)"}`);
+
+// A run in which EVERY seed skipped is not a successful run. Exiting 0 here is what let the eval
+// look healthy for its entire existence: it "completed", printed a summary, and measured nothing.
+// Same rule as run-tests.mjs treating zero discovered tests as failure — a green that represents
+// no work done is worse than a red, because it stops anyone from looking.
+const scaffolded = results.filter((r) => r.status === "scaffolded").length;
+if (scaffolded === 0) {
+  console.error(`\nNO SEED RAN (${results.length} skipped). The harness measured nothing.\n` +
+    `Do not treat this as a passing eval — fix the fixtures and re-run.`);
+  exit(4);
+}
 exit(0);

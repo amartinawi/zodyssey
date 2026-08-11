@@ -272,6 +272,32 @@ if (mode === "--lint") {
     problems.push({ todo: "-", issue: "plan declares no todos — a content-free plan cannot be reviewed. Add at least one todo with executable acceptance criteria." });
   }
   const USER_VERIFIES_RE = /\buser\s+(?:manually\s+)?(?:verifies|confirms|checks|tests?)\b/i;
+
+  // Commands a criterion may legitimately begin with. Extend deliberately: every addition widens
+  // what counts as "executable", and this list is the whole difference between an exam that can
+  // be run and a sentence that merely sounds like one.
+  const CMD_WORDS = ["npm", "pnpm", "yarn", "bun", "npx", "node", "deno", "python", "python3",
+    "pytest", "tox", "jest", "vitest", "mocha", "ava", "curl", "wget", "http", "git", "make",
+    "cargo", "go", "rustc", "bash", "sh", "zsh", "tsx", "ts-node", "tsc", "eslint", "ruff",
+    "mypy", "gradle", "mvn", "dotnet", "rake", "bundle", "rspec", "phpunit", "composer", "docker",
+    "grep", "rg", "test", "diff", "jq", "psql", "sqlite3", "terraform", "kubectl"];
+  const CMD_START_RE = new RegExp(
+    // optional `VAR=x ` prefixes and an optional `cd <dir> && ` preamble, then a command word
+    `^\\s*(?:[A-Za-z_]\\w*=\\S*\\s+)*(?:cd\\s+\\S+\\s*&&\\s*)?(?:${CMD_WORDS.join("|")})\\b`
+  );
+  function isExecutableCriterion(c) {
+    if (typeof c !== "string" || !c.trim()) return false;
+    // A criterion may chain (`npm test && curl ...`); only the leading command must be recognized.
+    return CMD_START_RE.test(c.trim());
+  }
+
+  // The repo's own test command, if probe-toolchain.mjs has characterized it. Machine-derived
+  // from the repo's config — not something a planner can invent — which is what makes it a
+  // useful anchor for the "one criterion must run the real suite" rule below.
+  const TOOLCHAIN_TEST_CMD = (() => {
+    const tc = loadToolchain(planPath); // existing helper: walks up from the plan to <repo>/.zcode
+    return tc && typeof tc.test_cmd === "string" && tc.test_cmd.trim() ? tc.test_cmd.trim() : null;
+  })();
   for (const t of NON_FINAL) {
     if (t.acceptance.length === 0) {
       problems.push({ todo: t.id, issue: "no acceptance criteria — phase 5 has nothing to run" });
@@ -284,9 +310,39 @@ if (mode === "--lint") {
       if (USER_VERIFIES_RE.test(c)) {
         problems.push({ todo: t.id, criterion_index: i + 1, issue: `criterion delegates to the user: "${c.slice(0, 80)}"` });
       }
-      // require at least one shell-runnable token: a known command verb, a path, or a pipe/redirect
-      else if (!/\b(?:npm|pnpm|yarn|node|python|pytest|jest|curl|git|make|cargo|go|bash|sh|tsx|ts-node|npx)\b|[\/.]|[\|>]/.test(c)) {
-        problems.push({ todo: t.id, criterion_index: i + 1, issue: `criterion is not an executable command: "${c.slice(0, 80)}"` });
+      // B6: does this criterion actually START with a command?
+      //
+      // The old test was:
+      //   !/\b(?:npm|node|python|…)\b|[\/.]|[\|>]/.test(c)
+      // whose alternation binds looser than it reads: ANY string containing a "." or a "/" passed
+      // as "executable". `- GET /healthz returns 200 {ok:true}` passed. `- The endpoint returns
+      // 200.` passed. So the "zero-user-intervention, executable criteria" guarantee that
+      // prometheus.md and metis.md both promise reduced to "contains a slash or a period" — and
+      // since the planner also AUTHORS these criteria and momus explicitly declines to judge
+      // them, that was the entire quality bar on the pipeline's own exam.
+      //
+      // Now: the criterion must BEGIN with a recognized command word (optionally after an env
+      // assignment or `cd … &&`). Anchoring at the start is what separates a command from prose
+      // that merely mentions one.
+      else if (!isExecutableCriterion(c)) {
+        problems.push({ todo: t.id, criterion_index: i + 1, issue: `criterion is not an executable command: "${c.slice(0, 80)}" — it must START with a command (e.g. \`npm test\`, \`curl -sf localhost:3000/healthz\`, \`node --check x.mjs\`), not describe an expected outcome in prose. Prose criteria cannot be run, so nothing verifies them.` });
+      }
+    }
+
+    // B6: at least ONE criterion per todo must exercise the repo's REAL test suite.
+    //
+    // Every criterion being planner-authored is the self-grading loop: the same agent writes the
+    // change spec and the exam. Requiring one criterion to invoke the toolchain's own test_cmd
+    // (machine-derived by probe-toolchain.mjs from the repo's config, not something an agent can
+    // invent) anchors at least one point of the exam to something the planner did not author.
+    // Only enforced when toolchain.json exists AND declares a test_cmd — a bare repo is not
+    // punished for having no suite.
+    if (TOOLCHAIN_TEST_CMD && t.acceptance.length > 0) {
+      const cmdWord = TOOLCHAIN_TEST_CMD.trim().split(/\s+/)[0];
+      const runsSuite = t.acceptance.some((c) =>
+        c.includes(TOOLCHAIN_TEST_CMD) || new RegExp(`(^|[;&|]\\s*)${cmdWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(c));
+      if (!runsSuite) {
+        problems.push({ todo: t.id, issue: `no criterion runs the project's test suite (\`${TOOLCHAIN_TEST_CMD}\`). At least one acceptance criterion must exercise the real suite, not only planner-authored checks — otherwise the plan writes its own exam and grades it.` });
       }
     }
     // F1-grammar check: Files: should contain clean path-shaped entries, not prose descriptions.
