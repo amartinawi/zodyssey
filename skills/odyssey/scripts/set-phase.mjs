@@ -102,6 +102,15 @@ function checkPrecondition(st, target) {
   if (target === "done") {
     if (st.review?.verdict !== "OKAY") return "done requires review.verdict === OKAY";
     if (!st.final || st.final.verdict !== "pass") return "done requires final.verdict === pass (run record-final-wave.mjs first)";
+    // B8: a recorded regression blocks `done`. Only an explicit `regressed` verdict blocks —
+    // "inert" (no test command), "no-baseline", and absent state all pass, so this can never
+    // wedge a repo the gate cannot meaningfully evaluate.
+    if (st.regression && st.regression.status === "regressed") {
+      const nf = (st.regression.new_failures || []).slice(0, 5);
+      return "done blocked: the test suite passed before this run and fails now" +
+        (nf.length ? ` (newly failing: ${nf.join(", ")})` : "") +
+        ". Fix the regression and re-run regression-gate.mjs --check.";
+    }
   }
   return null; // no precondition
 }
@@ -153,6 +162,20 @@ try {
   renameSync(tmp, statePath);
 } finally {
   try { closeSync(lockFd); unlinkSync(lockPath); } catch {}
+}
+
+// B8: snapshot the pre-existing test suite as we enter EXECUTE — the last moment before any
+// product code changes, which is the only point a truthful "before" reading exists.
+//
+// Wired here rather than as a SKILL.md instruction on purpose: an instruction to a conductor is
+// the prompt-convention "enforcement" this project exists to replace, and the baseline has to be
+// taken at exactly one moment to mean anything. Best-effort — a repo whose suite cannot be run
+// records `inert` and the gate stays quiet rather than blocking the run.
+if (phase === "execute") {
+  try {
+    execFileSync("node", [new URL("./regression-gate.mjs", import.meta.url).pathname, repo, slug, "--snapshot"],
+      { stdio: "inherit", timeout: 15 * 60 * 1000 });
+  } catch { /* baseline is best-effort; --check degrades to "no-baseline" and stays inert */ }
 }
 
 // CRIT-4a (operational-consult): when a run reaches a terminal phase (done|audited), auto-append

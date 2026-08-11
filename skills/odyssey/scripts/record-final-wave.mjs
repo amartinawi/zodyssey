@@ -39,6 +39,9 @@ for (let i = 0; i < rest.length; i++) {
   else if (k === "--skip") skipStr = rest[++i];
 }
 const skip = new Set((skipStr || "").split(",").map((s) => s.trim()).filter(Boolean));
+// Recorded in state.final so a resuming orchestrator (and any human reading the evidence) can see
+// WHAT the reviewer said, not merely that one was summoned.
+let f2Verdict = null, f4Verdict = null;
 
 const repoAbs = (() => { try { return realpathSync(repo); } catch { return repo; } })();
 const statePath = join(repoAbs, ".zcode", "state", `${slug}.json`);
@@ -47,6 +50,52 @@ let st;
 try { st = JSON.parse(readFileSync(statePath, "utf8")); } catch { console.error("cannot parse state"); exit(3); }
 
 const results = { F1: null, F2: null, F3: null, F4: null };
+
+// ---------------------------------------------------------------------------
+// classifyVerdict — read what the reviewer ACTUALLY SAID.
+//
+// Until 2026-08-11, F2 and F4 never opened the artifact. They confirmed the path was under
+// .zcode/reviews/, that the file existed, and that the hook-minted nonce consumed — then set
+// passed:true. An artifact reading {"verdict":"REJECT","blockers":["completely broken"]} passed
+// both. The nonce proves a reviewer was DISPATCHED; it says nothing about the answer.
+//
+// Returns "approve" | "reject" | "missing". AMBIGUITY RESOLVES TO "missing", NEVER "approve":
+// an artifact asserting both, or neither, is an artifact whose verdict we do not know, and an
+// unknown verdict must not be able to close a gate. Same fail-closed posture the scope boundary
+// already takes on an unreadable plan.
+function classifyVerdict(text) {
+  if (typeof text !== "string" || !text.trim()) return "missing";
+
+  // Structured artifacts win: an explicit field beats prose that merely mentions the words.
+  try {
+    const obj = JSON.parse(text);
+    const raw = obj && (obj.verdict ?? obj.overall ?? obj.status);
+    if (typeof raw === "string") {
+      const v = raw.trim().toUpperCase();
+      if (/^(APPROVE|APPROVED|OKAY|OK|PASS|PASSED|ACCEPT|ACCEPTED)$/.test(v)) return "approve";
+      if (/^(REJECT|REJECTED|FAIL|FAILED|BLOCK|BLOCKED)$/.test(v)) return "reject";
+      return "missing"; // a verdict field we don't recognize is not an approval
+    }
+  } catch { /* not JSON — fall through to the prose scan */ }
+
+  // Prose artifacts must carry an explicit `VERDICT: X` line. Deliberately NOT a bare keyword
+  // search: "this would REJECT under the old rules" is discussion, not a verdict, and a reviewer
+  // narrating its reasoning must never accidentally close the gate.
+  const approve = /^\s*(?:\*\*)?VERDICT(?:\*\*)?\s*[:=]\s*(?:\*\*)?\s*(APPROVE[D]?|OKAY|OK|PASS(?:ED)?|ACCEPT(?:ED)?)\b/im.test(text);
+  const reject = /^\s*(?:\*\*)?VERDICT(?:\*\*)?\s*[:=]\s*(?:\*\*)?\s*(REJECT(?:ED)?|FAIL(?:ED)?|BLOCK(?:ED)?)\b/im.test(text);
+  if (approve && reject) return "missing"; // says both → we don't know → fail closed
+  if (approve) return "approve";
+  if (reject) return "reject";
+  return "missing";
+}
+
+// Test-file detection for the integrity guard. Conservative by design: a false positive here
+// blocks a legitimate edit, so the patterns target unambiguous test-file conventions only.
+const TEST_PATH = /(^|\/)(tests?|spec|__tests__)\/|(^|\/)test_[^/]+\.py$|[._-](test|spec)\.[cm]?[jt]sx?$|_test\.(go|py|rb)$|Test[s]?\.(java|kt|cs)$/;
+const isTestPath = (p) => TEST_PATH.test(p);
+
+// Markers that silently neuter a test without deleting it.
+const SKIP_MARKER = /\b(?:it|test|describe|context)\s*\.\s*(?:skip|todo|only)\b|\bx(?:it|describe)\s*\(|@(?:unittest\.)?skip\b|@pytest\.mark\.(?:skip|xfail)|\bt\.Skip\(|\[Ignore\]|\.only\s*\(/;
 
 // --- F1: plan compliance via set difference (machine-checked) ---
 // declared = plan's Files: union; actual = git diff --name-only run_start_sha..HEAD (or HEAD).
@@ -126,7 +175,76 @@ try {
       if (p && !p.startsWith(".zcode/") && !IGNORE.test(p) && !/package-lock\.json$/.test(p)) actual.add(p);
     }
     const outOfScope = [...actual].filter((p) => !declared.has(p));
-    results.F1 = { passed: outOfScope.length === 0, declared: [...declared], actual: [...actual], out_of_scope: outOfScope };
+
+    // B4 — THE CONVERSE. F1 only ever computed `actual \ declared` (scope creep). It never asked
+    // whether the declared work HAPPENED. With an empty diff, `actual` is empty, so `outOfScope`
+    // is empty, so F1 passed — the vacuous pass this file's own SEC-H1 comment above concedes.
+    // Combined with --skip F2,F4 that was a clean path to `done` having changed nothing at all.
+    const untouched = [...declared].filter((p) => !actual.has(p));
+    const didNothing = declared.size > 0 && actual.size === 0;
+
+    // B3 — TEST-INTEGRITY GUARD. Nothing in the ecosystem implements this (verified against omo,
+    // prime-agent, spec-kit, SWE-agent, Cline/Roo, claude-flow). It matters because the cheapest
+    // way to make a failing acceptance criterion pass is to weaken the test — and a test file
+    // listed in the plan's Files: is IN SCOPE, so F1 waves it through while `npm test` goes green
+    // against a suite that no longer checks anything. Measured exploitation rates for exactly this
+    // behaviour: 76% (GPT-5) / 46% (Claude Opus 4.1) on ImpossibleBench.
+    const testIntegrity = { deleted: [], weakened: [], skip_markers: [] };
+    if (!f1Err) {
+      try {
+        const deletedRaw = execFileSync("git", ["-C", repoAbs, "diff", "--diff-filter=D", "--name-only", startSha],
+          { encoding: "utf8", shell: false });
+        for (let p of deletedRaw.split("\n")) { p = p.trim(); if (p && isTestPath(p)) testIntegrity.deleted.push(p); }
+
+        // --numstat gives "<added>\t<deleted>\t<path>"; a net-negative test file lost assertions.
+        const numstatRaw = execFileSync("git", ["-C", repoAbs, "diff", "--numstat", startSha],
+          { encoding: "utf8", shell: false, maxBuffer: 20 * 1024 * 1024 });
+        for (const line of numstatRaw.split("\n")) {
+          const m = line.match(/^(\d+|-)\t(\d+|-)\t(.+)$/);
+          if (!m) continue;
+          const [, addS, delS, path] = m;
+          if (addS === "-" || delS === "-") continue; // binary
+          if (!isTestPath(path)) continue;
+          const net = parseInt(addS, 10) - parseInt(delS, 10);
+          if (net < 0) testIntegrity.weakened.push({ file: path, net });
+        }
+
+        // Added lines that disable a test without removing it.
+        const patchRaw = execFileSync("git", ["-C", repoAbs, "diff", "-U0", startSha],
+          { encoding: "utf8", shell: false, maxBuffer: 20 * 1024 * 1024 });
+        let cur = null;
+        for (const line of patchRaw.split("\n")) {
+          const fm = line.match(/^\+\+\+ b\/(.+)$/);
+          if (fm) { cur = fm[1]; continue; }
+          if (!cur || !isTestPath(cur)) continue;
+          if (line.startsWith("+") && !line.startsWith("+++") && SKIP_MARKER.test(line)) {
+            testIntegrity.skip_markers.push({ file: cur, line: line.slice(1).trim().slice(0, 120) });
+          }
+        }
+      } catch (e) {
+        // Fail closed: an unverifiable test suite is not a passing one.
+        testIntegrity.error = (e && (e.stderr || e.message) || String(e)).toString().slice(0, 160);
+      }
+    }
+    const testsIntact = !testIntegrity.error && testIntegrity.deleted.length === 0 &&
+      testIntegrity.weakened.length === 0 && testIntegrity.skip_markers.length === 0;
+
+    results.F1 = {
+      passed: outOfScope.length === 0 && !didNothing && testsIntact,
+      declared: [...declared],
+      actual: [...actual],
+      out_of_scope: outOfScope,
+      declared_untouched: untouched,
+      test_integrity: testIntegrity,
+      ...(didNothing ? { error: "F1: the plan declares files but the diff is EMPTY — nothing was done. This is the vacuous pass; it is not a completed run." } : {}),
+      ...(testsIntact ? {} : { test_integrity_error: testIntegrity.error
+        ? "F1: test-integrity check could not run: " + testIntegrity.error
+        : "F1: tests were weakened — " +
+          [testIntegrity.deleted.length && `${testIntegrity.deleted.length} test file(s) DELETED`,
+           testIntegrity.weakened.length && `${testIntegrity.weakened.length} test file(s) net-negative`,
+           testIntegrity.skip_markers.length && `${testIntegrity.skip_markers.length} skip/only marker(s) added`,
+          ].filter(Boolean).join(", ") + ". Restore them, or justify in the plan and re-review." }),
+    };
   }
 } catch (e) {
   results.F1 = { passed: false, error: "F1 check failed: " + e.message };
@@ -192,10 +310,20 @@ if (skip.has("F2")) {
       // artifact with a caller-supplied nonce string is rejected because the pending_nonce in state
       // must match AND be consumed atomically.
       const c = consumeFinalNonce("final_f2", f2Nonce, abs);
-      if (c.ok) ok = true; else reason = "F2 " + c.reason;
+      if (!c.ok) reason = "F2 " + c.reason;
+      else {
+        // B1: the nonce proves the reviewer was dispatched. Now read what it SAID.
+        let verdict = "missing";
+        try { verdict = classifyVerdict(readFileSync(abs, "utf8")); } catch { verdict = "missing"; }
+        if (verdict === "approve") ok = true;
+        else reason = verdict === "reject"
+          ? "F2 review REJECTED the code (artifact verdict: REJECT). Fix the findings and re-review."
+          : "F2 artifact has no unambiguous verdict. It must be JSON with a \"verdict\" field, or contain a line `VERDICT: APPROVE` / `VERDICT: REJECT`. Ambiguous or absent verdicts fail closed.";
+        f2Verdict = verdict;
+      }
     } else if (abs) reason = "F2 artifact must live under .zcode/reviews/";
   }
-  results.F2 = { passed: ok, reason: ok ? null : reason, artifact: f2Artifact };
+  results.F2 = { passed: ok, reason: ok ? null : reason, artifact: f2Artifact, verdict: f2Verdict };
 }
 
 // --- F3: manual-QA checklist file exists ---
@@ -229,10 +357,19 @@ if (skip.has("F4")) {
     if (abs && abs.startsWith(reviewsDir + "/") && existsSync(abs)) {
       // SEC-H1: consume the F4 nonce against this artifact (one-time, sha-anchored).
       const c = consumeFinalNonce("final_f4", f4Nonce, abs);
-      if (c.ok) ok = true; else reason = "F4 " + c.reason;
+      if (!c.ok) reason = "F4 " + c.reason;
+      else {
+        let verdict = "missing";
+        try { verdict = classifyVerdict(readFileSync(abs, "utf8")); } catch { verdict = "missing"; }
+        if (verdict === "approve") ok = true;
+        else reason = verdict === "reject"
+          ? "F4 scope-fidelity review REJECTED (artifact verdict: REJECT). The change does not match the plan's declared scope."
+          : "F4 artifact has no unambiguous verdict. It must be JSON with a \"verdict\" field, or contain a line `VERDICT: APPROVE` / `VERDICT: REJECT`. Ambiguous or absent verdicts fail closed.";
+        f4Verdict = verdict;
+      }
     } else if (abs) reason = "F4 artifact must live under .zcode/reviews/";
   }
-  results.F4 = { passed: ok, reason: ok ? null : reason, artifact: f4Artifact };
+  results.F4 = { passed: ok, reason: ok ? null : reason, artifact: f4Artifact, verdict: f4Verdict };
 }
 
 const allPass = Object.values(results).every((r) => r && r.passed);

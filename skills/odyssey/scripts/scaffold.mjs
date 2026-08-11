@@ -210,4 +210,25 @@ const state = {
 };
 writeFileSync(statePath, JSON.stringify(state, null, 2) + "\n");
 
+// Probe the repo's toolchain at scaffold time so <repo>/.zcode/toolchain.json exists for the
+// whole run.
+//
+// probe-toolchain.mjs had ZERO callers anywhere in the pipeline — no hook, no script, no line in
+// SKILL.md — yet TWO consumers depend on the file it produces: post-tool.mjs's post-edit lint arm
+// (which reads toolchain.lint_cmd) and parse-plan.mjs's toolchain-aware criterion lint. Neither
+// had ever fired in a real run, because the file they read was never created. Both were shipped,
+// documented, and dead.
+//
+// Wired here rather than as a SKILL.md instruction on purpose: a conductor prompt is exactly the
+// kind of "enforcement" this project exists to replace. Doing it at scaffold means it happens
+// once, before any executor runs, without depending on a model remembering to.
+//
+// Non-fatal by design: the probe never executes the detected commands, but a repo it cannot
+// characterize must not block the run from being scaffolded. On failure the consumers simply
+// stay inert, which is the behaviour they have today.
+try {
+  const probe = new URL("./probe-toolchain.mjs", import.meta.url).pathname;
+  execSync(`node ${JSON.stringify(probe)} ${JSON.stringify(repoRoot)}`, { stdio: "ignore" });
+} catch { /* probe is best-effort; the run proceeds without toolchain-aware checks */ }
+
 console.log(planPath);
