@@ -15,6 +15,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { exit } from "node:process";
 
 const SCRIPT_DIR = new URL(".", import.meta.url).pathname;
@@ -33,6 +34,36 @@ function countWords(text) {
 }
 
 console.log("build-capsules.mjs unit tests\n");
+
+// PREFLIGHT — this suite has an EXTERNAL dependency the rest of the repo does not.
+//
+// build-capsules.mjs compiles its capsules from the superpowers plugin's SKILL.md files under
+// ~/.zcode/skills/ or the plugin cache. superpowers is explicitly OPTIONAL (README: "ZOdyssey
+// works without it; you get the capsule versions shipped in references/capsules/ either way"),
+// so those sources are absent on any machine that has not installed it — including every CI
+// runner. Until CI existed, this suite passed only because the author's machine happened to have
+// superpowers installed; it was never true of the repo.
+//
+// Skipping here rather than failing, because a missing optional dependency is not a defect. But
+// the skip is LOUD and exits with a visible banner: a silently-skipped suite that still reports
+// green is the harness.mjs false-green, and this repo has been bitten by that exact shape four
+// times. If you see this banner in CI, the capsule build is UNTESTED in that run.
+{
+  const HOME = homedir();
+  const SUPERPOWERS = `${HOME}/.zcode/cli/plugins/cache/claude-plugins-official/superpowers/6.2.0/skills`;
+  const anySource = [
+    `${HOME}/.zcode/skills/test-driven-development/SKILL.md`,
+    `${SUPERPOWERS}/test-driven-development/SKILL.md`,
+  ].some((p) => existsSync(p));
+  if (!anySource) {
+    console.log("  SKIPPED - superpowers SKILL.md sources are not installed on this machine.");
+    console.log("            build-capsules.mjs compiles from them; nothing to compile, nothing to assert.");
+    console.log("            The shipped capsules in references/capsules/ are unaffected and still committed.");
+    console.log("            To exercise this suite, install the superpowers plugin and re-run.");
+    console.log("\n0 passed, 0 failed (SUITE SKIPPED - capsule build was NOT tested in this run)");
+    exit(0);
+  }
+}
 
 // --- (a) build runs cleanly (exit 0) and produces tdd.md ---
 {
