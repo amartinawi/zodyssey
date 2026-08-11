@@ -41,9 +41,21 @@ Because paths are non-deterministic, we judge the **end state**, not the sequenc
 | **Acceptance-criteria pass rate** | did each todo's commands actually pass? | re-run them in verify phase | 100% before "done" |
 | **Scope fidelity** | built what was asked, nothing more | F4 (oracle) + judge | no scope creep |
 | **Plan compliance** | did execution match the plan? | F1 (conductor diff) | >90% |
-| **Code quality** | no regressions introduced | F2 (claude-security + code-reviewer) | 0 new findings |
+| **Code quality** | no regressions introduced | F2 (claude-security + code-reviewer) — **parses the reviewer's verdict as of 2026-08-11; before that it only confirmed a reviewer was dispatched** | 0 new findings |
 | **Verification rigor** | were QA scenarios real, not vibes? | judge scores the acceptance criteria | high |
 | **Factual accuracy** | no hallucinated APIs/files | judge + explore re-check | high |
+
+> **Honest status of this table.** These are targets; the mechanisms behind them are now:
+> `regression-gate.mjs` (pass-to-pass — the suite that was green before the run must still be
+> green after it, enforced at `done`), `check-imports.mjs` (imports must resolve against the
+> repo's declared dependencies), and F1's test-integrity guard (tests may not be deleted,
+> shortened, or skip-marked). All three landed 2026-08-11.
+>
+> What they still do **not** cover: the regression gate is suite-level, so it detects "green went
+> red", not "47 passing tests became 46 while the suite still exits 0" — per-test granularity
+> needs runner-specific parsing that would rot. `check-imports.mjs` verifies a package is
+> *declared here*, not that it exists on any registry, and does not check whether an imported
+> *symbol* exists within a real package. Nothing type-checks or builds. Treat those as open.
 | **LLM-as-judge score (0.0–1.0)** | overall, rubric-weighted | oracle/judge on final diff + success criteria | ≥0.85 |
 
 **Rubric for the judge** (0.0–1.0 each, weighted mean):

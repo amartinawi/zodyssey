@@ -59,6 +59,7 @@ It checks, in order:
 - **Node ≥18** on PATH
 - **Plugin is marketplace-installed**: an entry for `zodyssey` exists in `installed_plugins.json` (any marketplace), its `installPath` exists, and the cached manifest matches the repo's `name` + `version`
 - The **manifest declares the 4 hook events** (`PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`); each hook script resolves against the cached `installPath` (via `${CLAUDE_PLUGIN_ROOT}`) and parses (`node --check`)
+- **Each deployed hook is byte-identical to the repo's** (sha256). Parsing at the cached path says nothing about *whose* code is there — a stale cache runs older logic while every other check stays green. This caught a real drift on the day it was added, with `--verify` otherwise reporting 18/18
 - **No orphaned ZOdyssey hooks remain in `config.json`** — hooks are manifest-driven now; any `config.json` copy is pollution swept by the migrate step
 - The **marketplace is registered** in `known_marketplaces.json`
 - **No pre-v0.3.0 pollution** remains (no top-level `~/.zcode/skills/odyssey/`)
@@ -68,6 +69,39 @@ It checks, in order:
 Exit code is `0` when everything passes, `1` if any check fails — so `--verify` works in CI / install scripts. The output tells you exactly what's missing and how to fix it (which MCP to install, which command to re-run, or that the cached copy is stale and needs a marketplace Update).
 
 > **After a `git pull` that bumps the version**, `--verify` will report the cached manifest as stale until you re-Get the plugin via the marketplace (Discover → Update on zodyssey). That refreshes the cache copy — including the manifest hooks — from the repo source.
+
+## Is enforcement actually live?
+
+`--verify` answers "is the install well-formed". It cannot answer "does the gate fire" — and that
+distinction is the whole v0.3.0 regression: every file was correct, the hooks were registered, and
+`--verify` reported green while the enforcement chain was completely offline, because the
+registered path pointed somewhere the marketplace install never populated.
+
+```bash
+node scripts/smoke-gate.mjs          # automated checks + scaffolds the live fixture
+node scripts/smoke-gate.mjs --clean  # remove the fixture when done
+```
+
+**Automated** — registration and install path, manifest hook declarations, `${CLAUDE_PLUGIN_ROOT}`
+usage (a baked-in literal path is flagged: it goes stale on the next version bump), cached-vs-repo
+sha for all four hooks, no orphaned `config.json` hooks, and a direct-invoke probe confirming the
+deployed hook blocks a pre-OKAY `Edit`, blocks write-capable `Bash`, and **allows** read-only Bash.
+That last one matters: a hook that errors on every call blocks everything, which is indistinguishable
+from working unless you check that legitimate calls still pass.
+
+**Manual, and irreducible** — `/usr/bin/zcode` is a compiled binary. Whether ZCode substitutes
+`${CLAUDE_PLUGIN_ROOT}` and honours the manifest `hooks` field for marketplace-installed plugins
+cannot be determined by reading files, by this script, or by any external auditor. The script
+scaffolds a repo at `/tmp/zodyssey-gate-smoke` with an active run held at `verdict: REJECT`:
+
+1. Open a **new** ZCode session there (hooks load at session start)
+2. Ask it to edit `src/foo.js` → **must be refused**, citing the review gate
+3. Ask it to run `ls -la` → **must be allowed** (the control)
+4. Flip the verdict to `OKAY`, edit `src/foo.js` → **allowed**
+5. Edit `src/out-of-scope.js` → **refused**, scope violation
+
+If step 1 succeeds, enforcement is offline and nothing else on the page matters. Steps 2 and 4
+exist because only testing that the gate says *no* cannot distinguish enforcement from a crash.
 
 <details>
 <summary>Manual checks (if you prefer to inspect by hand)</summary>

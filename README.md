@@ -120,8 +120,18 @@ flowchart TD
 | **Parallel dispatch within bounds** | not enforced | hook counts in-flight Tasks; blocks beyond cap (default 4) |
 | **Bash write-escape before review** | n/a | hook gates write-capable Bash (`sed -i`, `>`, `git apply`, …) the same as Edit. Secure by default; `ZODYSSEY_UNGATE_BASH=1` disables |
 | **Embedded-dispatch injection** (SEC-1s, [v0.2.0](CHANGELOG.md#020---2026-08-11)) | n/a | hook blocks a `Task()` dispatch whose prompt payload embeds a serialized nested tool call — both `{"tool_name":"Task"}` and Claude-native `{"type":"tool_use","name":"Task"}` shapes. Defense-in-depth behind the harness tool-grant boundary. |
+| **Review verdicts are read, not assumed** *(unreleased)* | prompt convention | F2/F4 parse the artifact's verdict. Ambiguous or absent → `missing` → **fails**. Previously they confirmed a nonce and never opened the file |
+| **Tests can't be weakened to pass** *(unreleased)* | not enforced | F1 fails on a deleted test file, a net-negative test-file line count, or a newly added `skip`/`only`/`xfail`. Test files are read-only during `verify`/`final` |
+| **The declared work actually happened** *(unreleased)* | not enforced | F1 checks the converse: a plan declaring files against an empty diff fails instead of passing vacuously |
+| **Evidence can't be destroyed** *(unreleased)* | not enforced | notepads are append-only — `Write` over an existing one is blocked, `Edit` is not |
+| **`done` requires executed evidence** *(unreleased)* | not enforced | `record-todo` refuses `done` without passing `verify.history` records; `--force-done` is allowed but stamps `forced: true` |
+| **No pass-to-pass regressions** *(unreleased)* | not enforced | the suite is snapshotted entering `execute` and re-run later; green→red blocks `done`. An already-red suite is never blamed on the run |
+| **Imports resolve** *(unreleased)* | not enforced | `check-imports.mjs` flags packages that are in neither the manifest nor `node_modules`. Offline |
+| **No retrying an unchanged workspace** *(unreleased)* | not enforced | `record-verify` refuses to re-run a criterion whose worktree is byte-identical to its last failure (exit `10`). Ported from prime-agent |
 
 All hooks are **NO-OP unless an orchestration run is active**. Normal ZCode editing is never affected. A run is "active" only between `/orchestrate` and reaching a terminal phase (`done`/`audited`/`abandoned`), and only inside the repo where you invoked it.
+
+Rows marked *(unreleased)* are on `main` but not in a tagged release. Each was demonstrated failing against the pre-fix code before being accepted — see [CHANGELOG](CHANGELOG.md#unreleased) for what each replaced.
 
 ## The external consult gate (the strongest check)
 
@@ -169,6 +179,19 @@ You want the full ZOdyssey pipeline (conductors, sub-agents, slash commands) wor
    cd zodyssey
    node scripts/install.mjs            # configures MCPs + AGENTS.md + purges legacy state
    node scripts/install.mjs --verify   # health-check: manifest hooks parse, MCP backends resolvable, no orphans
+   node scripts/smoke-gate.mjs         # is enforcement actually LIVE? (see below)
+   ```
+
+   **Run the smoke gate before trusting a release.** v0.3.0 shipped with the entire enforcement
+   chain offline — every file correct, hooks registered at a path the marketplace install never
+   populated — and `--verify` reported green throughout, because it checked files, paths, and
+   registration rather than liveness. `smoke-gate.mjs` checks what `--verify` structurally cannot:
+   that the **deployed hook bytes match your source** (a stale cache silently runs different code),
+   and that the deployed hook actually blocks a pre-OKAY edit when invoked. It then scaffolds a
+   throwaway repo for the one check no script can perform — a live ZCode session attempting an edit
+   and being refused. `zcode` is a compiled binary, so `${CLAUDE_PLUGIN_ROOT}` resolution and
+   manifest-hook honouring are not statically decidable by any tool or auditor; only a live session
+   settles it. Two minutes, and it is the exact check whose absence cost v0.3.0.
    ```
    Then install the plugin itself via the ZCode marketplace (**Settings → Plugin Management → Discover → `+` → local directory →** this repo **→ Get zodyssey**) — the marketplace owns the cache copy + `installed_plugins.json` entry + the manifest. The 4 enforcement hooks ship in `.zcode-plugin/plugin.json` under `hooks` (via `${CLAUDE_PLUGIN_ROOT}`, so they track the cache location automatically); the installer no longer writes hooks into `config.json`. It does **purge any pre-v0.3.0 top-level copies** in `~/.zcode/skills|agents|commands/`, migrate any v0.3.0 orphaned hook refs out of `config.json`, and register the 5 pipeline MCPs (`memory`, `sequential-thinking`, `codegraph`, `chrome-devtools`, `zai-mcp-server`) — each gated on its backend being on PATH. Every component is namespaced `zodyssey:` (e.g. the conductor loads as `zodyssey:odyssey`, agents dispatch as `zodyssey:sisyphus-junior`); see the [v0.3.0 CHANGELOG entry](CHANGELOG.md#030---2026-08-11) for the full namespacing map. It detects the [`superpowers`](https://github.com/obra/superpowers) plugin (source of most routed skills) and prints a pointer if missing. Full install / troubleshooting / config in [`docs/INSTALL.md`](docs/INSTALL.md).
 
@@ -220,6 +243,24 @@ zodyssey/
 ## Provenance
 
 ZOdyssey is a synthesis of published multi-agent systems research, not an invention. Every load-bearing decision maps to a finding from production systems — the [Anthropic multi-agent research post](https://www.anthropic.com/engineering/multi-agent-research-system), the [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) essay, [LangChain's multi-agent architecture analysis](https://www.langchain.com/blog/choosing-the-right-multi-agent-architecture), the [arXiv context-engineering paper](https://arxiv.org/html/2508.08322v1), and the [omo](https://github.com/code-yeongyu/oh-my-openagent) source (the pipeline shape and the agent cast are modeled on omo; the enforcement layer is the differentiator). Full citations in [DESIGN.md §0 + §15](docs/DESIGN.md).
+
+### prime-agent
+
+[PrimeIntellect-ai/prime-agent](https://github.com/PrimeIntellect-ai/prime-agent) is the second direct source. Its 9 primitives were studied in [v0.2.0](CHANGELOG.md#020---2026-08-11) and the decision was **adapt-ideas, not adopt-as-is**: 6 of the 9 require a long-lived daemon ZOdyssey does not have, so only 3 fit a synchronous single-session model.
+
+**Taken:**
+
+| Primitive | Where it landed |
+|---|---|
+| Notepad compaction (#8) | `scripts/compact.mjs` — concatenates notepads into one brief the F1–F4 reviewers read instead of the full doc set. Deterministic, $0, never mutates the sources |
+| Bounded recursion (#4) | the SEC-1s dispatch guard in `hooks/pre-tool.mjs` — blocks a `Task()` whose payload embeds a serialized nested tool call |
+| Structured resume (#1) | `state.acceptance` + `state.notepad_pointers`, so a resumed run skips verified todos and re-enters with the right context |
+
+**Deliberately not taken** — daemon-backed session survival, persistent goals, the three heartbeat surfaces, agent-to-agent messaging, and autonomous mode. Each needs a supervisor process that outlives the session. Adopting them would mean adding a runtime layer to gain features the enforcement model does not depend on, so they stay parked rather than half-built.
+
+The `rlm(...)` admission-handle pattern also shaped `sisyphus-junior`'s return contract (`{status, files-changed, acceptance-evidence, notepad-path}`) — a sub-agent returns a *handle to evidence*, not a claim about its own work.
+
+**Since taken:** prime-agent's no-progress stall detector (`captureGitWorktreeSnapshot` in `core/autonomous.ts`) now lives in `record-verify.mjs`. If a criterion failed and the worktree is byte-identical at the next attempt, the criterion is **not re-run** — the attempt is counted (so the cap still converges), and the run reports *"NOT RERUN: the workspace is unchanged since this criterion last failed"* instead of spinning. It needed no daemon, which is exactly why it fit where the other five did not.
 
 ## License
 

@@ -4,7 +4,16 @@
 > **Status:** the pipeline is measured, enforcement-bound (scope-isolation fail-closed on both
 > axes), and the external consult gate is proven (2/2 runs audited, both caught real in-session
 > misses) and now hardened (consult.mjs no longer DOSes itself on committed `node_modules`).
-> Value proposition confirmed: **pipeline wins +0.25 on architecture tasks, ties on trivial.**
+> ~~Value proposition confirmed: **pipeline wins +0.25 on architecture tasks, ties on trivial.**~~
+>
+> **Retracted 2026-08-11.** This is n=1 per arm on a single task, and the baseline arm was produced
+> by hand because `harness.mjs` does not implement one (`--arm baseline` prints instructions to a
+> human; `judge.mjs` hardcodes `arm: "zodyssey"` on every record regardless of the flag). At n=1
+> there is no signal to report — the number cannot distinguish a real effect from run-to-run
+> variance, and single-run scores systematically overstate reliability for agentic tasks. It should
+> not be quoted as a value proposition anywhere. Establishing whether the pipeline beats a single
+> agent requires a real baseline arm and enough seeds to separate effect from noise; see
+> `docs/ROADMAP.md` §8, which treats that as an explicit decision point rather than a commitment.
 
 ---
 
