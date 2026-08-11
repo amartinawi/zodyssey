@@ -444,6 +444,9 @@ let RUN_STATE_DIR = _found.dir;
 }
 
 const isEdit = ["Write", "Edit", "ApplyPatch", "MultiEdit", "NotebookEdit"].includes(toolName);
+// Test-file conventions, kept in sync with record-final-wave.mjs's TEST_PATH. Conservative: a
+// false positive blocks a legitimate edit, so only unambiguous conventions are matched.
+const TEST_PATH_RE = /(^|\/)(tests?|spec|__tests__)\/|(^|\/)test_[^/]+\.py$|[._-](test|spec)\.[cm]?[jt]sx?$|_test\.(go|py|rb)$|Test[s]?\.(java|kt|cs)$/;
 const isBash = toolName === "Bash";
 const isDispatch = ["Task", "Agent", "dispatch_agent"].includes(toolName);
 
@@ -550,7 +553,54 @@ function classifyTarget(p) {
 
 if (isEdit) {
   const { rel, bookkeeping, isState } = classifyTarget(targetPath());
-  if (bookkeeping) exit(0); // plan/notepad writes always fine
+
+  // B2 — APPEND-ONLY NOTEPADS. Notepads are the evidence F1-F4 consume, and until 2026-08-11
+  // `if (bookkeeping) exit(0)` let ANY agent replace one wholesale, in any phase, before or
+  // after the verdict. ZOdyssey went to real trouble making verdicts non-forgeable (hook-minted
+  // nonces, one-time consumption, sha-anchoring) and left the INPUTS to those verdicts freely
+  // destroyable — the lock on the vault with the wall left open.
+  //
+  // Write replaces a file; Edit modifies it in place. Blocking Write while allowing Edit keeps
+  // notepads accumulating (the intended usage: append findings as you go) while making
+  // "overwrite the record of what actually happened" a blocked operation. Creating a NEW
+  // notepad is still Write, so the first write to a not-yet-existing path is allowed.
+  if (bookkeeping) {
+    const isNotepad = typeof rel === "string" && rel.startsWith(".zcode/notepads/");
+    if (isNotepad && toolName === "Write") {
+      const tp = targetPath();
+      let exists = false;
+      try { exists = !!tp && existsSync(tp); } catch { exists = false; }
+      if (exists) {
+        block(
+          `notepads are APPEND-ONLY: Write would replace ${rel} wholesale, destroying evidence the ` +
+          `final wave (F1-F4) reads. Use Edit to add to it, or write a new notepad file. ` +
+          `(slug=${state.slug})`
+        );
+      }
+    }
+    exit(0); // plans, and non-destructive notepad writes, remain free
+  }
+
+  // B5 — TESTS ARE READ-ONLY ONCE THE WORK IS BEING JUDGED.
+  //
+  // The cheapest way to turn a failing acceptance criterion green is to weaken the test. Measured
+  // rates for exactly this: 76% (GPT-5) / 46% (Claude Opus 4.1) on ImpossibleBench, where
+  // restricting test access drops it to near zero and prompting does not help at all — and where
+  // STRONGER models cheat MORE.
+  //
+  // Deliberately scoped to verify/final rather than blanket read-only: during `execute`, writing
+  // tests is the job (this project mandates TDD, so a blanket ban would forbid the correct
+  // workflow). Once we move to VERIFY, the criteria are being executed and the code is being
+  // judged — editing a test at that moment is not test-writing, it is moving the goalposts.
+  // Post-hoc weakening across the whole run is caught separately by F1's test-integrity guard.
+  if ((state.phase === "verify" || state.phase === "final") && typeof rel === "string" && TEST_PATH_RE.test(rel)) {
+    block(
+      `test files are read-only during phase=${state.phase}: ${rel} is a test, and the acceptance ` +
+      `criteria are being evaluated right now. Editing a test at this point changes the standard ` +
+      `rather than meeting it. If the test is genuinely wrong, say so and re-plan — do not edit it ` +
+      `here. (slug=${state.slug})`
+    );
+  }
 
   // Outside PROJECT_DIR entirely and not bookkeeping → treat as product code (gated).
   // Review gate: product-code edits require verdict == OKAY.
