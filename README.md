@@ -29,8 +29,10 @@ Install the reference implementation:
 ```bash
 git clone https://github.com/amartinawi/zodyssey.git
 cd zodyssey
-node scripts/install.mjs            # installs as a plugin under the ZCode cache; registers hooks
+node scripts/install.mjs            # configures pipeline MCPs + AGENTS.md + purges legacy state
 ```
+
+Then install the plugin itself via the ZCode marketplace (it owns the cache + the manifest, including the enforcement hooks): **Settings → Plugin Management → Discover → `+` → local directory →** `<path>/zodyssey` **→ Get on zodyssey**. Hooks are declared in `.zcode-plugin/plugin.json` and load automatically — no `config.json` surgery.
 
 Then start a new ZCode session and run, in any repo:
 
@@ -165,10 +167,10 @@ You want the full ZOdyssey pipeline (conductors, sub-agents, slash commands) wor
    ```bash
    git clone https://github.com/amartinawi/zodyssey.git
    cd zodyssey
-   node scripts/install.mjs            # installs as a plugin (cache + registered), registers 4 hooks + 5 MCPs
-   node scripts/install.mjs --verify   # health-check: hooks parse, MCP backends resolvable
+   node scripts/install.mjs            # configures MCPs + AGENTS.md + purges legacy state
+   node scripts/install.mjs --verify   # health-check: manifest hooks parse, MCP backends resolvable, no orphans
    ```
-   The installer copies the repo tree into the ZCode plugin cache (`~/.zcode/cli/plugins/cache/local/zodyssey/<version>/`), registers a `zodyssey@local` entry in `installed_plugins.json`, **purges any pre-v0.3.0 top-level copies** in `~/.zcode/skills|agents|commands/`, and rewrites the config.json hook paths to the cache. Every component is namespaced `zodyssey:` (e.g. the conductor loads as `zodyssey:odyssey`, agents dispatch as `zodyssey:sisyphus-junior`); see the [v0.3.0 CHANGELOG entry](CHANGELOG.md#030---2026-08-11) for the full namespacing map. The installer also registers the 5 pipeline MCPs (`memory`, `sequential-thinking`, `codegraph`, `chrome-devtools`, `zai-mcp-server`) — each gated on its backend being on PATH, skipped with a hint if not. It detects the [`superpowers`](https://github.com/obra/superpowers) plugin (source of most routed skills) and prints a pointer if missing. Full install / troubleshooting / config in [`docs/INSTALL.md`](docs/INSTALL.md).
+   Then install the plugin itself via the ZCode marketplace (**Settings → Plugin Management → Discover → `+` → local directory →** this repo **→ Get zodyssey**) — the marketplace owns the cache copy + `installed_plugins.json` entry + the manifest. The 4 enforcement hooks ship in `.zcode-plugin/plugin.json` under `hooks` (via `${CLAUDE_PLUGIN_ROOT}`, so they track the cache location automatically); the installer no longer writes hooks into `config.json`. It does **purge any pre-v0.3.0 top-level copies** in `~/.zcode/skills|agents|commands/`, migrate any v0.3.0 orphaned hook refs out of `config.json`, and register the 5 pipeline MCPs (`memory`, `sequential-thinking`, `codegraph`, `chrome-devtools`, `zai-mcp-server`) — each gated on its backend being on PATH. Every component is namespaced `zodyssey:` (e.g. the conductor loads as `zodyssey:odyssey`, agents dispatch as `zodyssey:sisyphus-junior`); see the [v0.3.0 CHANGELOG entry](CHANGELOG.md#030---2026-08-11) for the full namespacing map. It detects the [`superpowers`](https://github.com/obra/superpowers) plugin (source of most routed skills) and prints a pointer if missing. Full install / troubleshooting / config in [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ### For LLM agents
 
@@ -178,7 +180,7 @@ If you are an LLM agent asked to install ZOdyssey, fetch the full install guide 
 curl -fsSL https://raw.githubusercontent.com/amartinawi/zodyssey/main/docs/INSTALL.md
 ```
 
-The guide covers: the prerequisite check (Node 18+, a working ZCode session), the installer's three phases (copy the repo tree into the plugin cache + register `zodyssey@local` → purge pre-v0.3.0 top-level pollution → rewrite config.json hooks to the cache path), the `zodyssey:` namespacing, MCP registration, AGENTS.md merge, eval-dir init, superpowers detection, the `--verify` health check, and troubleshooting. Then run the installer itself (`git clone` + `node scripts/install.mjs`) and report the `--verify` output. Don't summarize the guide; read it end to end before doing anything.
+The guide covers: the prerequisite check (Node 18+, a working ZCode session), the marketplace install (Settings → Discover → add the repo as a local directory → Get zodyssey), the `zodyssey:` namespacing, manifest-declared hooks, MCP registration, AGENTS.md merge, eval-dir init, superpowers detection, the `--verify` health check, and troubleshooting. Then install + run the installer itself (`git clone` + `node scripts/install.mjs` + the GUI Get step) and report the `--verify` output. Don't summarize the guide; read it end to end before doing anything.
 
 ### Optional — for specific features (graceful no-op if absent)
 

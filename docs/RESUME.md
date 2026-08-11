@@ -89,7 +89,7 @@ the ORCHESTRATOR executes, not the sub-agent.
 
 ### Live system (what runs)
 ```
-~/.zcode/cli/plugins/cache/local/zodyssey/<version>/skills/odyssey/
+~/.zcode/cli/plugins/cache/*/zodyssey/<version>/skills/odyssey/
 ├── SKILL.md                         # the conductor (8-phase state machine + dispatch rules)
 ├── references/
 │   ├── capabilities.md              # capability routing table + MCP audit + trust-anchor note
@@ -183,28 +183,28 @@ held after remediation. This is why the consult gate exists.
 ### To run another eval task
 ```bash
 # list the 18 seeds
-node ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/scripts/harness.mjs --list
+node ~/.zcode/cli/plugins/cache/*/zodyssey/*/skills/odyssey/scripts/harness.mjs --list
 
 # scaffold a zodyssey-arm run for a specific task
-node ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/scripts/harness.mjs --task arch-02
+node ~/.zcode/cli/plugins/cache/*/zodyssey/*/skills/odyssey/scripts/harness.mjs --task arch-02
 
 # scaffold a baseline-arm run (single-agent comparator)
-node ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/scripts/harness.mjs --task arch-02 --arm baseline
+node ~/.zcode/cli/plugins/cache/*/zodyssey/*/skills/odyssey/scripts/harness.mjs --task arch-02 --arm baseline
 
 # after the conductor drives the run to done, judge it
-node ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/scripts/judge.mjs <run-repo> <slug> <seed-id>
+node ~/.zcode/cli/plugins/cache/*/zodyssey/*/skills/odyssey/scripts/judge.mjs <run-repo> <slug> <seed-id>
 ```
 
 ### To verify the system is healthy after any change
 ```bash
 # agent grants consistent?
-node ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/scripts/resolve-capabilities.mjs --check
+node ~/.zcode/cli/plugins/cache/*/zodyssey/*/skills/odyssey/scripts/resolve-capabilities.mjs --check
 
 # parser still correct?
-node ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/scripts/parse-plan.test.mjs
+node ~/.zcode/cli/plugins/cache/*/zodyssey/*/skills/odyssey/scripts/parse-plan.test.mjs
 
 # all scripts load?
-for f in ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/scripts/*.mjs ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/hooks/*.mjs; do node --check "$f"; done
+for f in ~/.zcode/cli/plugins/cache/*/zodyssey/*/skills/odyssey/scripts/*.mjs ~/.zcode/cli/plugins/cache/*/zodyssey/*/skills/odyssey/hooks/*.mjs; do node --check "$f"; done
 ```
 
 ### To re-consult (the external audit gate)

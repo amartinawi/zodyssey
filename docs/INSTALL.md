@@ -5,8 +5,12 @@
 ```bash
 git clone https://github.com/amartinawi/zodyssey.git
 cd zodyssey
-node scripts/install.mjs
+node scripts/install.mjs   # configures MCPs + AGENTS.md + purges old pollution
 ```
+
+Then install the plugin itself via the ZCode marketplace (the marketplace owns the cache + the manifest, including the enforcement hooks):
+
+> **Settings → Plugin Management → Discover → `+` → local directory →** `<path>/zodyssey` **→ click Get on zodyssey.**
 
 Start a **new** ZCode session (hooks load at startup), `cd` into any repo, and run:
 
@@ -14,35 +18,37 @@ Start a **new** ZCode session (hooks load at startup), `cd` into any repo, and r
 /orchestrate add a /healthz endpoint that returns 200
 ```
 
-That's it. The installer is idempotent — re-run it after a `git pull` to update.
+That's it. The installer is idempotent — re-run it after a `git pull` to refresh MCPs and purge stale state.
 
 ## What the installer does
 
-As of v0.3.0 the installer is structured as **three explicit, independently re-runnable phases** (each safe to run alone), followed by the auxiliary registrations. Every path is derived from `os.homedir()` — no hardcoded `/home/...` or literal `~` anywhere, so the same script is portable across machines.
+As of v0.3.1 the split of responsibility is: **the ZCode marketplace owns the plugin** (cache copy, `installed_plugins.json` entry, and the manifest — including the enforcement hooks), and **this installer owns the surrounding user-scope configuration** (pipeline MCPs, the AGENTS.md block, eval dir, and cleanup of legacy state). The installer no longer hand-writes `installed_plugins.json` or `config.json` hooks — that was the v0.3.0 bug (the hand-written `marketplace:"local"` wasn't in `known_marketplaces.json`, and the hooks were written against a cache path the marketplace install later moved).
 
-1. **Copy + register (phase 1).** `cpSync` the repo tree (`skills/`, `agents/`, `commands/`, `.zcode-plugin/`, `scripts/`, `docs/`, `README.md`, `CHANGELOG.md`, `LICENSE`) into the ZCode plugin cache at `~/.zcode/cli/plugins/cache/local/zodyssey/<version>/` (mirroring the `cache/<marketplace>/<name>/<version>/` layout used by `superpowers` and other plugins). It then upserts a `zodyssey@local` entry in `~/.zcode/cli/plugins/installed_plugins.json`, shaped like the existing entries (`{id, name, marketplace:"local", version, installPath, installedAt, updatedAt, scope:"user", source:"local"}`). Idempotent: if the entry already exists, `updatedAt` + `installPath` are refreshed; otherwise it is appended.
-2. **Purge pre-v0.3.0 pollution (phase 2).** Removes the old top-level copies that pre-v0.3.0 installs left behind: `~/.zcode/skills/odyssey/`, the stale `~/.zcode/skills/odyssey.bak.1786309084/`, the 8 `~/.zcode/agents/*.md` (`metis`, `prometheus`, `momus`, `sisyphus-junior`, `explore`, `librarian`, `oracle`, `multimodal-looker`), and `~/.zcode/commands/orchestrate{,-consult}.md`. Each `rmSync` is guarded by `existsSync` and scoped to ZOdyssey-owned names only; absent entries are skipped silently. (Without this phase the old top-level copies would double-load with the cache copy.)
-3. **Rewrite `config.json` hooks (phase 3).** Rewrites each of the 4 hook registrations in `~/.zcode/cli/config.json` so its `script:` points at the NEW cache path (`<cache>/skills/odyssey/hooks/<name>.mjs`). Your existing config is backed up to `config.json.zodyssey-backup` first.
-4. **Registers 4 hooks** total (`PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`) — the registration step within phase 3.
-5. **Registers 5 pipeline MCPs** in `config.json`'s `mcp.servers`:
+Every path is derived from `os.homedir()` — no hardcoded `/home/...` or literal `~` anywhere, so the same script is portable across machines.
+
+1. **Marketplace bootstrap.** Verifies `marketplace.json` exists at the repo root and reports whether the plugin is marketplace-installed. If it isn't, prints the exact GUI steps (Discover → `+` → local directory → Get). The installer never hand-writes the marketplace registry.
+2. **Purge pre-v0.3.0 pollution.** Removes the old top-level copies that pre-v0.3.0 installs left behind: `~/.zcode/skills/odyssey/`, the stale `~/.zcode/skills/odyssey.bak.1786309084/`, the 8 `~/.zcode/agents/*.md`, and `~/.zcode/commands/orchestrate{,-consult}.md`. Each `rmSync` is guarded by `existsSync` and scoped to ZOdyssey-owned names only; absent entries are skipped silently.
+3. **Migrate v0.3.0 orphaned hooks out of `config.json`.** v0.3.0 wrote the 4 hooks into `~/.zcode/cli/config.json` against `cache/local/zodyssey/<ver>/`. When the v0.3.1 marketplace install cached the plugin at `cache/<marketplace>/zodyssey/<ver>/`, those entries orphaned and began failing on every tool call. v0.3.1 drives hooks from the manifest (via `${CLAUDE_PLUGIN_ROOT}`, resolved by ZCode to wherever the plugin is cached), so this step sweeps every ZOdyssey hook ref out of `config.json`. Your existing config is backed up to `config.json.zodyssey-backup-<ts>` first.
+4. **Registers 5 pipeline MCPs** in `config.json`'s `mcp.servers`:
    - `memory` — cross-run knowledge graph
    - `sequential-thinking` — hard multi-step reasoning
    - `codegraph` — call-graph impact analysis for declared `Files:`
    - `chrome-devtools` — executable UI verification (F3)
    - `zai-mcp-server` — UI diff + error diagnosis (F3)
 
-   Each is **gated on its backend being on PATH**. If the backend binary isn't installed, the MCP is **skipped with a warning** (and a hint) rather than writing a dead config entry that would error on every session. So on a fresh machine the installer registers the npx-backed MCPs immediately (they auto-install on first spawn) and prints install hints for `codegraph` and `zai-mcp-server`.
-6. **Merges** the `<!-- ZODYSSEY_START -->…<!-- ZODYSSEY_END -->` block into `~/.zcode/AGENTS.md` (skips if already present).
+   Each is **gated on its backend being on PATH**. If the backend binary isn't installed, the MCP is **skipped with a warning** (and a hint) rather than writing a dead config entry that would error on every session. MCPs deliberately stay in `config.json` (not the manifest's `mcpServers`) because plugin-manifest MCPs are namespaced `plugin:zodyssey:<server>`, which would rename every tool the conductor references by its bare name. A `config.json` entry overrides the manifest base layer anyway, so any value you customize by hand wins.
+5. **Hooks** — declared in `.zcode-plugin/plugin.json` under the `hooks` field, loaded automatically by ZCode. Plugin hooks **auto-enable the hook runner**, so no `config.json` surgery is required. `${CLAUDE_PLUGIN_ROOT}` resolves to the cache path, so the hooks can never orphan when the cache moves.
+6. **Merges** the `<!-- ZODYSSEY_START -->…<!-- ZODYSSEY_END -->` block into `~/.zcode/AGENTS.md` (refreshes in place if already present).
 7. **Inits** `~/.zcode/orchestration/eval/` with a `.gitkeep` and (if shipped) the eval seed.
 8. **Detects the `superpowers` plugin** (source of most routed skills: `tdd`, `systematic-debugging`, `writing-plans`, `brainstorming`, `premortem`, etc.). If it's missing, prints a one-line pointer to [github.com/obra/superpowers](https://github.com/obra/superpowers). ZOdyssey works without it — you get the 3 shipped skill capsules (`tdd`, `debugging`, `executing-plans`) either way — but the conductor will reach for skills that aren't there until you install it.
 
-> **Namespacing (v0.3.0):** every component is dispatchable under the `zodyssey:` namespace (derived from `plugin.json:name`). The conductor skill loads as `zodyssey:odyssey`; the agents dispatch as `zodyssey:metis`, `zodyssey:prometheus`, `zodyssey:momus`, `zodyssey:sisyphus-junior`, `zodyssey:explore`, `zodyssey:librarian`, `zodyssey:oracle`, `zodyssey:multimodal-looker`; the commands declare `skills: zodyssey:odyssey`. Component `name:` frontmatter stays bare — only the dispatch references are namespaced. See the [v0.3.0 CHANGELOG entry](../CHANGELOG.md#030---2026-08-11) for the migration note.
+> **Namespacing:** every component is dispatchable under the `zodyssey:` namespace (derived from `plugin.json:name`). The conductor skill loads as `zodyssey:odyssey`; the agents dispatch as `zodyssey:metis`, `zodyssey:prometheus`, `zodyssey:momus`, `zodyssey:sisyphus-junior`, `zodyssey:explore`, `zodyssey:librarian`, `zodyssey:oracle`, `zodyssey:multimodal-looker`; the commands declare `skills: zodyssey:odyssey`. Component `name:` frontmatter stays bare — only the dispatch references are namespaced.
 
 > The hooks are **NO-OP unless an orchestration run is active**. Installing ZOdyssey does not change how ZCode behaves for normal requests — the gate only arms when you run `/orchestrate`, and only inside the repo where you invoked it.
 
 ## Verify the install
 
-The installer ships a built-in health check that covers everything it set up:
+The installer ships a built-in health check:
 
 ```bash
 node scripts/install.mjs --verify
@@ -51,32 +57,36 @@ node scripts/install.mjs --verify
 It checks, in order:
 
 - **Node ≥18** on PATH
-- Each **hook script** exists at the cache path + parses (`node --check`) + is registered in `config.json`
-- Each **pipeline MCP** is registered in `config.json` AND its backend is on PATH (npx / codegraph / zai-mcp-server)
-- The **`zodyssey@local` entry** is present in `installed_plugins.json` at the expected version, AND the **core skills + agents** are present under the plugin cache (`~/.zcode/cli/plugins/cache/local/zodyssey/<version>/`)
+- **Plugin is marketplace-installed**: an entry for `zodyssey` exists in `installed_plugins.json` (any marketplace), its `installPath` exists, and the cached manifest matches the repo's `name` + `version`
+- The **manifest declares the 4 hook events** (`PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`); each hook script resolves against the cached `installPath` (via `${CLAUDE_PLUGIN_ROOT}`) and parses (`node --check`)
+- **No orphaned ZOdyssey hooks remain in `config.json`** — hooks are manifest-driven now; any `config.json` copy is pollution swept by the migrate step
+- The **marketplace is registered** in `known_marketplaces.json`
 - **No pre-v0.3.0 pollution** remains (no top-level `~/.zcode/skills/odyssey/`)
+- Each **pipeline MCP** is registered in `config.json` AND its backend is on PATH (npx / codegraph / zai-mcp-server)
 - The **superpowers plugin** (optional, for routed skills)
 
-Exit code is `0` when everything passes, `1` if any check fails — so `--verify` works in CI / install scripts. The output tells you exactly what's missing and how to fix it (which MCP to install, which command to re-run).
+Exit code is `0` when everything passes, `1` if any check fails — so `--verify` works in CI / install scripts. The output tells you exactly what's missing and how to fix it (which MCP to install, which command to re-run, or that the cached copy is stale and needs a marketplace Update).
+
+> **After a `git pull` that bumps the version**, `--verify` will report the cached manifest as stale until you re-Get the plugin via the marketplace (Discover → Update on zodyssey). That refreshes the cache copy — including the manifest hooks — from the repo source.
 
 <details>
 <summary>Manual checks (if you prefer to inspect by hand)</summary>
 
 ```bash
-# hooks registered at the cache path?
-node -e "const c=require(require('os').homedir()+'/.zcode/cli/config.json'); console.log(JSON.stringify(c.hooks.events.PreToolUse, null, 2))"
-# each hook args[] should point at .../cache/local/zodyssey/<version>/skills/odyssey/hooks/pre-tool.mjs
+# plugin registered + where?
+node -e "const p=require(require('os').homedir()+'/.zcode/cli/plugins/installed_plugins.json').plugins.find(x=>x.name==='zodyssey'); console.log(p?.id, p?.version, '→', p?.installPath)"
 
-# plugin registered?
-node -e "const p=require(require('os').homedir()+'/.zcode/cli/plugins/installed_plugins.json').plugins.find(x=>x.id==='zodyssey@local'); console.log(p?.version, p?.installPath)"
+# manifest declares hooks?
+node -e "const m=require('./.zcode-plugin/plugin.json'); console.log(Object.keys(m.hooks||{}))"
+
+# no orphaned zodyssey hooks in config.json? (should print nothing)
+node -e "const c=require(require('os').homedir()+'/.zcode/cli/config.json'); for(const[k,arr]of Object.entries(c.hooks?.events??{}))for(const e of arr||[])for(const h of e?.hooks||[])if((h.args||[]).some(a=>typeof a==='string'&&a.includes('skills/odyssey/hooks/')))console.log('ORPHAN:',k,h.args)"
 
 # MCPs registered?
-node -e "const c=require(require('os').homedir()+'/.zcode/cli/config.json'); console.log(Object.keys(c.mcp?.servers ?? {}).sort())"
-# should include: chrome-devtools, codegraph, memory, sequential-thinking (+ zai-mcp-server if installed)
+node -e "const c=require(require('os').homedir()+'/.zcode/cli/config.json'); console.log(Object.keys(c.mcp?.servers ?? {}).filter(n=>['memory','sequential-thinking','codegraph','chrome-devtools','zai-mcp-server'].includes(n)).sort())"
 
-# agents + conductor skill in place under the cache?
-ls ~/.zcode/cli/plugins/cache/local/zodyssey/*/agents/{metis,prometheus,momus,sisyphus-junior}.md
-ls ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/SKILL.md
+# marketplace registered?
+node -e "const m=require(require('os').homedir()+'/.zcode/cli/plugins/known_marketplaces.json').marketplaces.find(x=>x.id?.includes('zodyssey')); console.log(m?.id, m?.source)"
 ```
 
 </details>
@@ -87,7 +97,7 @@ ls ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/SKILL.md
 node scripts/install.mjs --uninstall
 ```
 
-Removes the hooks from `config.json`, the AGENTS.md block, and the copied files. Run records under `<repo>/.zcode/` are left in place — delete those manually if you want a clean slate.
+Removes any ZOdyssey hook refs + the 5 pipeline MCPs from `config.json`, the AGENTS.md block, and any pre-v0.3.0 top-level pollution. Then GUI-uninstall the plugin itself: **Settings → Plugin Management → Installed → zodyssey → Uninstall** (the marketplace owns the cache copy + `installed_plugins.json` entry). Run records under `<repo>/.zcode/` are left in place — delete those manually if you want a clean slate.
 
 ## Dry run
 
@@ -126,34 +136,36 @@ That is the scope-isolation boundary working as designed. The plan's `Files:` un
 
 ### "The gate blocks my recorder scripts (set-phase, record-review, …)"
 
-It shouldn't — the gate has a trusted-script allowlist for the recorder scripts under the plugin cache (`.../cache/local/zodyssey/<version>/skills/odyssey/scripts/*`). If you moved the scripts, update the paths in the gate's `isTrustedScriptInvoke` check, or re-run the installer (which writes them to the cache location).
+It shouldn't — the gate has a trusted-script allowlist for the recorder scripts under the plugin cache (`.../cache/<marketplace>/zodyssey/<version>/skills/odyssey/scripts/*`, resolved via the plugin root at runtime). If you moved the scripts, update the paths in the gate's `isTrustedScriptInvoke` check, or re-Get the plugin via the marketplace (which rewrites the cache location).
 
 ### "Phase transitions are stuck"
 
 The phase-transition DAG (in `set-phase.mjs`) enforces legal transitions and rejects `--force` on `execute`/`done` (those would skip a gate). To recover a genuinely stuck run:
 ```bash
-node ~/.zcode/cli/plugins/cache/local/zodyssey/*/skills/odyssey/scripts/set-phase.mjs <repo> <slug> blocked --force
+node ~/.zcode/cli/plugins/cache/*/zodyssey/*/skills/odyssey/scripts/set-phase.mjs <repo> <slug> blocked --force
 # then resume forward through the gate normally
 /orchestrate resume <slug>
 ```
 
 ### "Config.json got mangled"
 
-The installer writes a backup to `~/.zcode/cli/config.json.zodyssey-backup` before every change. Restore with:
+The installer writes a timestamped backup to `~/.zcode/cli/config.json.zodyssey-backup-<ts>` before its first write to config.json in a run (the migrate + MCP steps). Find the most recent one and restore with:
 ```bash
-cp ~/.zcode/cli/config.json.zodyssey-backup ~/.zcode/cli/config.json
+cp ~/.zcode/cli/config.json.zodyssey-backup-* ~/.zcode/cli/config.json   # pick the right timestamp
 ```
 
 ## Updating
 
+Two things update on a new release — the repo source, and the cached plugin copy:
+
 ```bash
 cd zodyssey          # wherever you cloned it
 git pull
-node scripts/install.mjs   # idempotent — re-runs all 3 phases (refreshes the cache copy,
-                           # re-purges any stale top-level pollution, rewrites hook paths)
+node scripts/install.mjs   # idempotent — re-purges stale pollution, re-migrates any
+                           # config.json hook orphans, refreshes the pipeline MCPs
 ```
 
-Start a new ZCode session to pick up the new hooks.
+Then refresh the **cached** plugin copy so the new manifest (hooks included) takes effect: **Settings → Plugin Management → Discover → Update** on zodyssey (for a `directory` marketplace this re-copies from the repo you just pulled). Start a new ZCode session to pick up the new hooks.
 
 ## Where state lives (per repo)
 

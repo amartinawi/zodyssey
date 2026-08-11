@@ -3,7 +3,7 @@
 > One-page reference for everything we built: the layers, the runtime flow, where enforcement
 > bites, and how capabilities route. Read this to orient; read `DESIGN.md` for rationale,
 > the conductor's operating instructions at
-> `~/.zcode/cli/plugins/cache/local/zodyssey/<version>/skills/odyssey/SKILL.md`
+> `~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/SKILL.md`
 > (dispatchable as `zodyssey:odyssey` since v0.3.0), and `references/capabilities.md` for the
 > per-activity routing table.
 >
