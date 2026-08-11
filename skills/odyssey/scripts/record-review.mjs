@@ -215,12 +215,35 @@ if (lockFd === null) {
   try { writeFileSync(statePath, JSON.stringify(apply(JSON.parse(readFileSync(statePath, "utf8"))), null, 2) + "\n"); } catch {}
   exit(0);
 }
+let enteredExecute = false;
 try {
-  const st = apply(JSON.parse(readFileSync(statePath, "utf8")));
+  const parsed = JSON.parse(readFileSync(statePath, "utf8"));
+  // apply() MUTATES its argument and returns the same object, so the prior phase has to be read
+  // off before the call — comparing st.phase to parsed.phase afterwards compares a value to itself.
+  const phaseBefore = parsed.phase;
+  const st = apply(parsed);
+  enteredExecute = st.phase === "execute" && phaseBefore !== "execute";
   const tmp = statePath + ".tmp." + process.pid;
   writeFileSync(tmp, JSON.stringify(st, null, 2) + "\n");
   renameSync(tmp, statePath);
 } finally {
   try { closeSync(lockFd); unlinkSync(lockPath); } catch {}
+}
+
+// B8: take the pass-to-pass baseline HERE, because this is where a real run actually enters
+// execute — line ~208 sets st.phase directly rather than going through set-phase.mjs. The
+// baseline was wired only into set-phase, so in the real flow it was never taken and the gate
+// silently degraded to "no-baseline": present, passing, measuring nothing. Found by
+// pipeline-integration.test.mjs, which is the only thing that exercises these scripts in the
+// order a run actually calls them.
+//
+// The snapshot is idempotent (regression-gate.mjs refuses to overwrite an existing baseline), so
+// having both entry points call it is safe — a later set-phase re-entry cannot redefine "before"
+// as "after". Best-effort: a repo whose suite will not run records `inert` rather than blocking.
+if (enteredExecute) {
+  try {
+    execFileSync("node", [new URL("./regression-gate.mjs", import.meta.url).pathname, repo, slug, "--snapshot"],
+      { stdio: "inherit", timeout: 15 * 60 * 1000 });
+  } catch { /* baseline is best-effort; --check degrades to no-baseline and stays inert */ }
 }
 exit(0);

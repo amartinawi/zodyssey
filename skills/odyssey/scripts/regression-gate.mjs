@@ -113,6 +113,18 @@ if (!testCmd) {
 }
 
 if (mode === "snapshot") {
+  // IDEMPOTENT. There are two entry points into `execute` — record-review.mjs advances the phase
+  // itself on OKAY (record-review.mjs:208), and set-phase.mjs handles explicit transitions and
+  // re-entry from verify. Both call this, so without a guard a re-entry would re-baseline AFTER
+  // the change had already landed, quietly redefining "before" as "after" and making the gate
+  // measure nothing. The baseline must be the state at FIRST entry to execute.
+  const existing = (() => {
+    try { return JSON.parse(readFileSync(statePath, "utf8")).regression; } catch { return null; }
+  })();
+  if (existing && existing.baseline && !rest.includes("--resnapshot")) {
+    console.log(`regression-gate: baseline already recorded (${existing.baseline.green ? "GREEN" : "RED"}) — keeping it. Use --resnapshot to override.`);
+    exit(0);
+  }
   const res = runSuite(testCmd);
   const baselineGreen = res.exit_code === 0;
   writeState((st) => {
