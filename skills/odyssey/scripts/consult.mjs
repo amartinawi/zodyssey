@@ -49,6 +49,13 @@ import { normalizeConsultVerdict } from "./lib/verdict-schema.mjs";
 // validateOutcome to gate what gets recorded. Single source of truth for the two-store bridge.
 import { outcomeToGraphEntity, validateOutcome } from "./lib/memory-schema.mjs";
 
+// v0.3.0 portability: resolve auditor-prompt.md relative to this script's own location (ESM
+// URL-relative) so it is found from the plugin cache install, not only the legacy
+// ~/.zcode/skills/odyssey/ path. Both audit modes (runSingleAudit + runPostDoneConsult) read
+// the same file via this single const. `new URL(..., import.meta.url)` yields a file: URL which
+// fs.readFileSync accepts directly.
+const AUDITOR_PROMPT_URL = new URL("../references/auditor-prompt.md", import.meta.url);
+
 // ---------------------------------------------------------------------------
 // PLAN-AUDIT MODE (pre-execution plan review).
 //
@@ -440,7 +447,7 @@ export async function runSingleAudit({ repoRoot, slug, spawn, claudeBin, promptS
   }
   const plan = readFileSync(planPath, "utf8");
   const auditPromptHeader = readFileSync(
-    join(env.HOME, ".zcode/skills/odyssey/references/auditor-prompt.md"),
+    AUDITOR_PROMPT_URL,
     "utf8"
   );
   let originalTask = "(no original task recorded)";
@@ -833,7 +840,7 @@ if (!diff || !diff.trim()) {
 
 const plan = planText; // already read above for path-scoping
 const auditPromptHeader = readFileSync(
-  join(env.HOME, ".zcode/skills/odyssey/references/auditor-prompt.md"),
+  AUDITOR_PROMPT_URL,
   "utf8"
 );
 

@@ -1,10 +1,10 @@
 ---
 description: Run a task through the ZOdyssey orchestration pipeline (triage → consult → plan → review → execute → verify → final wave). Use for non-trivial multi-step work. Trivial fixes don't need this — just ask normally.
 argument-hint: "<task description>  |  resume <slug>  |  status <slug>"
-skills: odyssey
+skills: zodyssey:odyssey
 ---
 
-Load the `odyssey` skill, then act as its conductor for this request:
+Load the `zodyssey:odyssey` skill, then act as its conductor for this request:
 
 ```
 $ARGUMENTS
@@ -26,4 +26,4 @@ Show the user the primed brief (briefly), then proceed to Phase 0 triage using t
 
 **Repo root:** the current workspace's project root (the repo you're in). All plan/state/notepad paths are relative to it under `.zcode/`.
 
-**Before you start (default mode):** confirm the repo root is a git working tree you may modify. If `<repo>/.zcode/` doesn't exist yet, the scaffold script creates it. Follow the odyssey skill's state machine exactly — the enforcement hooks will block any shortcut (edits before plan-OKAY, file collisions, parallel overflow).
+**Before you start (default mode):** confirm the repo root is a git working tree you may modify. If `<repo>/.zcode/` doesn't exist yet, the scaffold script creates it. Follow the zodyssey:odyssey skill's state machine exactly — the enforcement hooks will block any shortcut (edits before plan-OKAY, file collisions, parallel overflow).

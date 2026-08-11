@@ -72,6 +72,9 @@ function buildFixture(setup) {
   const env = {
     ZCAP_HOME: root,
     ZCAP_NO_CODEGRAPH: "1", // tests cannot rely on the host having the codegraph binary
+    // v0.3.0: the script's default capabilities.md path is now import.meta.url-relative (cache),
+    // not ZCAP_HOME-rooted, so point the env override at the fixture path explicitly.
+    ZCAP_CAPS_MD: capsPath,
   };
   return { root, env, lockPath: join(zcode, "capabilities.lock.json"), capsPath };
 }

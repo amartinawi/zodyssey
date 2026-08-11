@@ -25,8 +25,11 @@ import { readFileSync, existsSync, rmSync, mkdirSync, cpSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit, env, cwd } from "node:process";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const SCRIPTS = join(env.HOME || "", ".zcode", "skills", "odyssey", "scripts");
+// v0.3.0 portability: resolve the SCRIPTS dir relative to this script's own location so sibling
+// scripts (run-report.mjs etc.) are found from the plugin cache install, not the legacy ~/.zcode path.
+const SCRIPTS = fileURLToPath(new URL(".", import.meta.url));
 const SEED = join(env.HOME || "", ".zcode", "orchestration", "eval", "seed.jsonl");
 const RESULTS = join(env.HOME || "", ".zcode", "orchestration", "eval", "results.jsonl");
 const WORKDIR = join(env.HOME || "", ".zcode", "orchestration", "eval", "runs");

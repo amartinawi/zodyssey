@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, appendFileSync, existsSync, openSync, clos
 import { join, basename } from "node:path";
 import { argv, exit, env } from "node:process";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 // PERF (memory fix 3b): rolling cap for the cross-run eval ledgers. Keeps the most recent `max`
 // non-empty lines; rewrites atomically via tmp+rename. Best-effort (advisory) — never lets a cap
@@ -161,7 +162,9 @@ try {
 if (phase === "done" || phase === "audited") {
   try {
     const report = execFileSync("node", [
-      join(env.HOME || "", ".zcode", "skills", "odyssey", "scripts", "run-report.mjs"),
+      // v0.3.0 portability: resolve the sibling run-report.mjs relative to this script's own
+      // location so it is found from the plugin cache install, not the legacy ~/.zcode path.
+      fileURLToPath(new URL("./run-report.mjs", import.meta.url)),
       repo, slug, "--json",
     ], { encoding: "utf8", shell: false });
     const resultsPath = join(env.HOME || "", ".zcode", "orchestration", "eval", "results.jsonl");

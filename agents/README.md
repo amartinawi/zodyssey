@@ -2,18 +2,21 @@
 
 User-scope sub-agents in `~/.zcode/agents/`. Auto-discovered by ZCode in every
 workspace. The main ZCode agent invokes them via the built-in `Task` tool
-(`subagent_type: "<name>"`).
+(`subagent_type: "zodyssey:<name>"` — these agents ship under the `zodyssey:`
+plugin namespace, so the dispatch identifier carries the `zodyssey:` prefix even
+though each agent's own `name:` frontmatter stays bare; the namespace is added
+by the plugin loader, not the file).
 
 ## Agents
 
 | Agent | Role | Tools (ZCode) | omo source |
 |---|---|---|---|
-| `explore` | Read-only codebase search ("where is X?") | Read, Glob, Grep, Bash | `agents/explore.ts` |
-| `librarian` | Docs / OSS research with citations + permalinks | Read, Glob, Grep, Bash, WebSearch, WebFetch, Context7 | `agents/librarian.ts` |
-| `oracle` | Strategic technical advisor (architecture, hard debug) | Read, Glob, Grep, Bash, WebSearch, WebFetch | `agents/oracle.ts` (default/non-GPT variant) |
-| `metis` | Pre-planning consultant (intent, ambiguity, slop-traps) | Read, Glob, Grep, Bash | `agents/metis.ts` (non-Kimi variant) |
-| `momus` | Plan reviewer (executable? references valid? QA present?) | Read, Glob, Grep, Bash | `agents/momus.ts` (default/non-GPT variant) |
-| `multimodal-looker` | Media/file interpretation (PDFs, images, diagrams) | Read | `agents/multimodal-looker.ts` |
+| `zodyssey:explore` | Read-only codebase search ("where is X?") | Read, Glob, Grep, Bash | `agents/explore.ts` |
+| `zodyssey:librarian` | Docs / OSS research with citations + permalinks | Read, Glob, Grep, Bash, WebSearch, WebFetch, Context7 | `agents/librarian.ts` |
+| `zodyssey:oracle` | Strategic technical advisor (architecture, hard debug) | Read, Glob, Grep, Bash, WebSearch, WebFetch | `agents/oracle.ts` (default/non-GPT variant) |
+| `zodyssey:metis` | Pre-planning consultant (intent, ambiguity, slop-traps) | Read, Glob, Grep, Bash | `agents/metis.ts` (non-Kimi variant) |
+| `zodyssey:momus` | Plan reviewer (executable? references valid? QA present?) | Read, Glob, Grep, Bash | `agents/momus.ts` (default/non-GPT variant) |
+| `zodyssey:multimodal-looker` | Media/file interpretation (PDFs, images, diagrams) | Read | `agents/multimodal-looker.ts` |
 
 All use `model: inherit` — they run on whatever model the orchestrator is using
 (currently the Z.ai coding plan, GLM-5.2).
@@ -29,7 +32,7 @@ mapping from omo's runtime to ZCode:
 | `description` / `temperature` | frontmatter `description` (temp left to default — ZCode frontmatter has no temp field) |
 | `createAgentToolRestrictions([deny...])` | frontmatter `tools:` allowlist (ZCode `tools:` is an allowlist, so we list the equivalent ZCode tools the agent MAY use) |
 | `createAgentToolAllowlist([allow...])` | frontmatter `tools:` with just those tools |
-| `call_omo_agent(subagent_type=...)` / `task(...)` | the agent **cannot** spawn sub-agents in ZCode, so `metis` instead *recommends* dispatch in its output ("ORCHESTRATOR: dispatch `explore`..."); the orchestrator executes it |
+| `call_omo_agent(subagent_type=...)` / `task(...)` | the agent **cannot** spawn sub-agents in ZCode, so `zodyssey:metis` instead *recommends* dispatch in its output ("ORCHESTRATOR: dispatch `zodyssey:explore`..."); the orchestrator executes it |
 | `.omo/plans/*.md` (omo plan convention) | generalized to "the plan path the orchestrator passes" (default `.zcode/plans/*.md`) |
 | model fallback chains (per-agent) | NOT ported — single `inherit` model |
 
@@ -54,10 +57,10 @@ After writing these, restart ZCode (or open a new session) and check
 **Settings → Subagents** — all six should appear. Then try a one-liner in any
 workspace, e.g.:
 
-> Use the `explore` sub-agent to find where MCP servers are configured in this
+> Use the `zodyssey:explore` sub-agent to find where MCP servers are configured in this
 > codebase.
 
-The main agent should dispatch `explore` via `Task` and return its structured
+The main agent should dispatch `zodyssey:explore` via `Task` and return its structured
 `<results>` block.
 
 ## Provenance
@@ -80,7 +83,7 @@ User request
    │
    ▼
 [Metis]  ── classify intent, surface questions/risks/directives
-   │       (recommends dispatch of explore/librarian/oracle as needed)
+   │       (recommends dispatch of zodyssey:explore / zodyssey:librarian / zodyssey:oracle as needed)
    ▼
 [Planner] ── produce  .zcode/plans/<slug>.md   (Must/Must-Not-Have, tasks, QA)
    │
@@ -89,8 +92,8 @@ User request
    │
    ▼
 [Orchestrator = main ZCode agent] ── read plan, dispatch workers in parallel:
-   │                                   • explore / librarian (research)
-   │                                   • oracle (advice on hard steps)
+   │                                   • zodyssey:explore / zodyssey:librarian (research)
+   │                                   • zodyssey:oracle (advice on hard steps)
    │                                   • executor sub-agents (implementation)
    ▼
 [Verification] ── run each task's executable QA (commands, assertions, evidence)

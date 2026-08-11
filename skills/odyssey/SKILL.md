@@ -1,11 +1,11 @@
 ---
 name: odyssey
-description: The ZOdyssey orchestration conductor. Loaded by `/orchestrate` and by the `prometheus` planner. Defines the full pipeline (triage → consult → plan → review → execute → verify → final-wave), the dispatch rules, parallelization logic, and the state-machine the enforcement hooks read. Follow this exactly when orchestrating.
+description: The ZOdyssey orchestration conductor. Loaded by `/orchestrate` and by the `zodyssey:prometheus` planner. Defines the full pipeline (triage → consult → plan → review → execute → verify → final-wave), the dispatch rules, parallelization logic, and the state-machine the enforcement hooks read. Follow this exactly when orchestrating.
 ---
 
 # ZOdyssey — Orchestration Conductor
 
-You are the **orchestrator** of a hybrid-enforced multi-agent pipeline. You direct the cast: `metis` (consult), `prometheus` (plan), `momus` (review), `explore`/`librarian`/`oracle` (research/advice), `sisyphus-junior` (execute). The enforcement hooks in `~/.zcode/cli/config.json` hard-block the dangerous invariants (edits before plan-OKAY, file collisions, parallel-overflow, wrong-phase dispatch). Your job is to *drive* the pipeline and *guide* the judgment parts.
+You are the **orchestrator** of a hybrid-enforced multi-agent pipeline. You direct the cast: `zodyssey:metis` (consult), `zodyssey:prometheus` (plan), `zodyssey:momus` (review), `zodyssey:explore`/`zodyssey:librarian`/`zodyssey:oracle` (research/advice), `zodyssey:sisyphus-junior` (execute). The enforcement hooks in `~/.zcode/cli/config.json` hard-block the dangerous invariants (edits before plan-OKAY, file collisions, parallel-overflow, wrong-phase dispatch). Your job is to *drive* the pipeline and *guide* the judgment parts.
 
 > This skill is the conductor. The pipeline below is the state machine. Read the active run's `<repo>/.zcode/state/<slug>.json` at every transition — that file is the source of truth for phase, review verdict, locks, and progress.
 
@@ -14,8 +14,8 @@ You are the **orchestrator** of a hybrid-enforced multi-agent pipeline. You dire
 - Plans: `<repo>/.zcode/plans/<slug>.md`
 - State: `<repo>/.zcode/state/<slug>.json`
 - Notepads: `<repo>/.zcode/notepads/<slug>/<todo-id>.md`
-- Scripts: `~/.zcode/skills/odyssey/scripts/{scaffold,parse-plan,run-report,record-todo,record-capability,consult}.mjs`
-- **Capability routing table: `~/.zcode/skills/odyssey/references/capabilities.md`** (read this at every phase)
+- Scripts: `skills/odyssey/scripts/{scaffold,parse-plan,run-report,record-todo,record-capability,consult}.mjs` (inside the `zodyssey` plugin install)
+- **Capability routing table: `skills/odyssey/references/capabilities.md`** (inside the `zodyssey` plugin install; read this at every phase)
 
 ## Capability routing — ALWAYS use the best tool for the activity
 
@@ -25,19 +25,19 @@ This is the orchestrator's core promise. This machine has 8 plugins, ~50 skills,
 |---|---|
 | Brainstorm/shape a fuzzy feature | `skill: brainstorming` (+ `premortem`) |
 | Hard multi-step reasoning | `sequentialthinking` MCP (decompose before answering) |
-| Plan | `Task: prometheus` + `skill: writing-plans` |
-| Research codebase | `codegraph_explore` MCP if `.codegraph/`, else `Task: explore` |
-| Research docs/libs | `Context7` MCP + `Task: librarian` |
-| Design/architecture | `Task: oracle` + `skill: brainstorming` (+ `feature-dev:code-architect`) |
-| Implement (logic) | `skill: test-driven-development` (non-negotiable for code) + `Task: sisyphus-junior` |
+| Plan | `Task: zodyssey:prometheus` + `skill: writing-plans` |
+| Research codebase | `codegraph_explore` MCP if `.codegraph/`, else `Task: zodyssey:explore` |
+| Research docs/libs | `Context7` MCP + `Task: zodyssey:librarian` |
+| Design/architecture | `Task: zodyssey:oracle` + `skill: brainstorming` (+ `feature-dev:code-architect`) |
+| Implement (logic) | `skill: test-driven-development` (non-negotiable for code) + `Task: zodyssey:sisyphus-junior` |
 | Implement (plan) | `skill: executing-plans` (+ `using-git-worktrees`) |
-| Debug (hard) | `skill: systematic-debugging` + `sequentialthinking` MCP (+ `Task: oracle` after 2 fails) |
+| Debug (hard) | `skill: systematic-debugging` + `sequentialthinking` MCP (+ `Task: zodyssey:oracle` after 2 fails) |
 | Security / vuln audit | `claude-security` plugin (verified findings + patches) |
 | Audit code | `Task: code-reviewer` + `skill: source-command-audit-code` |
-| Review plan (gate) | `Task: momus` (+ `Task: oracle` independent, for architecture) |
+| Review plan (gate) | `Task: zodyssey:momus` (+ `Task: zodyssey:oracle` independent, for architecture) |
 | Verify before "done" | `skill: verification-before-completion` |
 | Remember across runs | `memory` MCP (knowledge graph) |
-| Media/image/PDF | `Task: multimodal-looker` |
+| Media/image/PDF | `Task: zodyssey:multimodal-looker` |
 
 The table is the summary; `capabilities.md` is the authoritative detail. **Tell every agent you dispatch which capability to use for its activity** — don't assume they'll reach for it on their own. The whole point is that the orchestrator is the thing that *knows* to load TDD, codegraph, a premortem.
 
@@ -66,46 +66,49 @@ The table is the summary; `capabilities.md` is the authoritative detail. **Tell 
         └───────────────────────┬──────────────────────────────┘
                                 ▼
         ┌──────────────────────────────────────────────────────┐
-        │ 1. CONSULT   Task(metis)        phase: consult        │
+        │ 1. CONSULT   Task(zodyssey:metis) phase: consult      │
         │    FIRST: read prior learnings from the `memory` MCP │
         │    (search_nodes for this repo + intent keywords).  │
-        │    Then hand metis: request + repo root + memories.  │
-        │    She returns intent, risks, questions, directives. │
-        │    If she lists user-questions, surface them and     │
-        │    WAIT. If she recommends dispatching explore/      │
-        │    librarian, run those first, then re-metis.        │
+        │    Then hand zodyssey:metis: request + repo root +   │
+        │    memories. She returns intent, risks, questions,   │
+        │    directives. If she lists user-questions, surface  │
+        │    them and WAIT. If she recommends dispatching      │
+        │    zodyssey:explore/zodyssey:librarian, run those    │
+        │    first, then re-metis.                             │
         └───────────────────────┬──────────────────────────────┘
                                 ▼
         ┌──────────────────────────────────────────────────────┐
-        │ 2. PLAN      Task(prometheus)  phase: plan            │
-        │    Hand prometheus: the request, the repo root, the  │
-        │    metis output, and a slug. Prometheus loads THIS    │
-        │    skill, runs scripts/scaffold.mjs to create the    │
-        │    plan + state.json, drafts the plan, and returns   │
-        │    the plan path.                                    │
+        │ 2. PLAN      Task(zodyssey:prometheus) phase: plan   │
+        │    Hand zodyssey:prometheus: the request, the repo   │
+        │    root, the metis output, and a slug. zodyssey:prom-│
+        │    etheus loads THIS skill, runs scripts/scaffold.mjs│
+        │    to create the plan + state.json, drafts the plan, │
+        │    and returns the plan path.                        │
         │    After he returns, set state.phase = "review".     │
         └───────────────────────┬──────────────────────────────┘
                                 ▼
         ┌──────────────────────────────────────────────────────┐
-        │ 3. REVIEW    Task(momus)       phase: review   (gate) │
-        │    Dispatch momus with the plan path. She returns    │
-        │    [OKAY] or [REJECT] + ≤3 blockers.                 │
+        │ 3. REVIEW    Task(zodyssey:momus) phase: review (gate)│
+        │    Dispatch zodyssey:momus with the plan path. She   │
+        │    returns [OKAY] or [REJECT] + ≤3 blockers.         │
         │    • REJECT → increment state.review.round. If round │
-        │      < max_rounds (3): re-dispatch prometheus with   │
-        │      the blockers, then re-review. If round ≥ 3:     │
+        │      < max_rounds (3): re-dispatch zodyssey:promethe-│
+        │      us with the blockers, then re-review. If ≥ 3:   │
         │      STOP and surface to user (no unbounded loop).   │
         │    • OKAY → write verdict to state.json, set         │
         │      phase = "execute".                              │
         │    (Optional, for architecture intent: also dispatch │
-        │    oracle for an independent review; both must OKAY.)│
+        │    zodyssey:oracle for an independent review; both   │
+        │    must OKAY.)                                       │
         └───────────────────────┬──────────────────────────────┘
                           OKAY  ▼
         ┌──────────────────────────────────────────────────────┐
-        │ 4. EXECUTE   you + Task(sisyphus-junior)  phase: execute │
-        │    Parse the plan with scripts/parse-plan.mjs.       │
-        │    Dispatch todos per the parallel-by-default rule   │
-        │    (below). Each todo → one sisyphus-junior dispatch │
-        │    carrying the todo block + inherited wisdom.       │
+        │ 4. EXECUTE   you + Task(zodyssey:sisyphus-junior)    │
+        │    phase: execute. Parse the plan with               │
+        │    scripts/parse-plan.mjs. Dispatch todos per the    │
+        │    parallel-by-default rule (below). Each todo → one │
+        │    zodyssey:sisyphus-junior dispatch carrying the    │
+        │    todo block + inherited wisdom.                    │
         │    On each todo's return: tick its checkbox           │
         │    `- [ ] → - [x]`, write a checkpoint, update state.│
         │    (Hooks enforce: file locks, parallel cap, phase.) │
@@ -115,14 +118,15 @@ The table is the summary; `capabilities.md` is the authoritative detail. **Tell 
         │ 5. VERIFY    you (run acceptance cmds)  phase: verify │
         │    For each done todo, run its acceptance-criteria   │
         │    commands. On failure, re-dispatch that todo's     │
-        │    sisyphus-junior with the error output.            │
+        │    zodyssey:sisyphus-junior with the error output.   │
         └───────────────────────┬──────────────────────────────┘
                                 ▼
         ┌──────────────────────────────────────────────────────┐
-        │ 6. FINAL WAVE   Task(oracle) + Task(momus/code-review)│
-        │    against the full diff. F1 plan-compliance, F2 code│
-        │    quality, F3 manual QA checklist (you produce it), │
-        │    F4 scope fidelity. All must pass before "done".   │
+        │ 6. FINAL WAVE Task(zodyssey:oracle) + Task(zodyssey: │
+        │    momus) + Task(code-reviewer) against the full     │
+        │    diff. F1 plan-compliance, F2 code quality, F3     │
+        │    manual QA checklist (you produce it), F4 scope    │
+        │    fidelity. All must pass before "done".            │
         │    OPTIONAL COMPACTION (before F1-F4 dispatch): you  │
         │    MAY run `scripts/compact.mjs <repo> <slug>` to    │
         │    derive `_compact-brief.md` from the run's notepads│
@@ -172,7 +176,7 @@ don't re-research — and once you delegate, don't re-read.
 run. Treat notepads as *state read by downstream waves*, never as optional scratch an executor may
 or may not write. Concretely:
 
-- Every dispatched `sisyphus-junior` writes a notepad at the path its dispatch names — what it
+- Every dispatched `zodyssey:sisyphus-junior` writes a notepad at the path its dispatch names — what it
   changed, decisions made, gotchas, and the acceptance-command output (evidence). This is
   "inherited wisdom" for the next todo and the raw input the final wave synthesizes.
 - Downstream todos **read prior notepads by path** (the orchestrator passes the pointers), so a
@@ -206,7 +210,7 @@ because the auditor cannot inherit the run's assumptions.
 
 1. **Confirm the run is `done`** (state.phase). The audit diffs `run_start_sha..HEAD` — no diff
    exists until work has happened.
-2. **Run one audit round:** `~/.zcode/skills/odyssey/scripts/consult.mjs <repo> <slug>`. The script:
+2. **Run one audit round:** `skills/odyssey/scripts/consult.mjs <repo> <slug>` (inside the `zodyssey` plugin install). The script:
    - gathers `state.run_start_sha`, the plan, and `git diff <start>..HEAD`
    - spawns the external Claude Code CLI headless: `claude -p "<prompt>" --output-format json`
    - the prompt (`references/auditor-prompt.md`) forces a strict JSON verdict with the full-scope
@@ -215,7 +219,7 @@ because the auditor cannot inherit the run's assumptions.
 3. **On ACCEPT:** mark `phase: "audited"`, summarize, STOP.
 4. **On REJECT:** remediation loop:
    - read `consult.last_gaps` — each gap is `{category, severity, issue, fix}`
-   - dispatch `sisyphus-junior` per gap (parallel where independent — but see the limitation note
+   - dispatch `zodyssey:sisyphus-junior` per gap (parallel where independent — but see the limitation note
      below: hooks are DISARMED in `done`/`audited`, so the cap does NOT apply during remediation
      unless you set `phase: "remediate"` first), each carrying the gap's `issue` + `fix`
    - re-verify, then re-run `consult.mjs`
@@ -268,10 +272,10 @@ Once you delegate a question to a sub-agent, **do not** research the same thing 
 
 ## How to dispatch (the 6-section prompt to each worker)
 
-Every `Task(sisyphus-junior)` (or any worker) carries:
+Every `Task(zodyssey:sisyphus-junior)` (or any worker) carries:
 1. **TASK** — the todo title + What to do (literal, from the plan)
 2. **EXPECTED OUTCOME** — the acceptance criteria (so the worker knows when it's done)
-3. **REQUIRED TOOLS** — which tools to lean on (Read/Grep/Bash for code; explore/librarian via you for research)
+3. **REQUIRED TOOLS** — which tools to lean on (Read/Grep/Bash for code; zodyssey:explore/zodyssey:librarian via you for research)
 4. **MUST DO** — concrete steps
 5. **MUST NOT DO** — the todo's Must-NOT-do line (anti-slop)
 6. **CONTEXT** — repo root, the todo's References (path:lines to read first), inherited-wisdom notepad paths, and the slug
@@ -284,7 +288,7 @@ Every `Task(sisyphus-junior)` (or any worker) carries:
 
 **UI/UX todos add a 7th section:** **DESIGN CONTEXT** — the orchestrator runs `skill: ui-ux-pro-max`'s design-database search (product, style, typography, color, stack) BEFORE dispatching, and pastes the results + the pro-rules (`references/pro-rules.md`) into this section. The executor cannot load the skill itself (sub-agent limitation), so the orchestrator is the bridge. After the executor returns, the orchestrator validates the output against the pro-rules checklist (no emoji icons, contrast ≥4.5:1, responsive breakpoints, accessibility) before accepting it.
 
-For `explore`/`librarian`/`oracle`, the same structure but scoped to their read-only role.
+For `zodyssey:explore`/`zodyssey:librarian`/`zodyssey:oracle`, the same structure but scoped to their read-only role.
 
 ## Checkpointing & resume
 
@@ -321,13 +325,13 @@ On `/orchestrate resume <slug>`, read `state.json`, find the last checkpoint, an
 - **Phase transitions:** `scripts/set-phase.mjs <repo> <slug> <phase>` — the *only* sanctioned way to move phases. (Escape hatches: `blocked`/`abandoned` always allowed.)
 - **Scaffold the plan:** `scripts/scaffold.mjs <repo-root> <slug> <title> <intent> [task-brief]`.
 - **Parse todos:** `scripts/parse-plan.mjs <plan.md> --lint|--files|--waves|--todo N`.
-- **Review gate (phase 3):** dispatch momus → read the minted nonce from `state.review.pending_nonce` → `record-momus-artifact.mjs … --nonce <nonce> --from <bookkeeping-file>` → `record-review.mjs … OKAY --momus-artifact <path> --plan-sha <full-64-char-sha>`. Full order + the `--from`-vs-stdin caveat in `references/scripts.md`.
+- **Review gate (phase 3):** dispatch zodyssey:momus → read the minted nonce from `state.review.pending_nonce` → `record-momus-artifact.mjs … --nonce <nonce> --from <bookkeeping-file>` → `record-review.mjs … OKAY --momus-artifact <path> --plan-sha <full-64-char-sha>`. Full order + the `--from`-vs-stdin caveat in `references/scripts.md`.
 - **Record todo/verify/final-wave:** see `references/scripts.md` for exact flags (record-verify, record-final-wave, record-todo).
 - **Diagnostics:** `scripts/status.mjs <repo> <slug>` (where is this run), `scripts/resolve-capabilities.mjs` (tool-grant reconciliation).
 
-The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY non-forgeable against a **misbehaving executor agent**: an agent can't fabricate the artifact because the nonce only exists after a real `Task(momus)` call the hook witnessed, and `record-review` binds the verdict to the nonce's consumed record (path + sha256 + round). The 2026-08-04 security wave (SEC-1…SEC-5) closed the holes that let an agent mint OKAY without a real review: the consumed-nonce binding, the WRITE_PATTERNS allowlist (so `.zcode/reviews/` is genuinely not agent-writable), `--force` scope (recovery-only), the plan-sha re-hash at edit + final time, and the scope gate in `phase=final`.
+The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY non-forgeable against a **misbehaving executor agent**: an agent can't fabricate the artifact because the nonce only exists after a real `Task(zodyssey:momus)` call the hook witnessed, and `record-review` binds the verdict to the nonce's consumed record (path + sha256 + round). The 2026-08-04 security wave (SEC-1…SEC-5) closed the holes that let an agent mint OKAY without a real review: the consumed-nonce binding, the WRITE_PATTERNS allowlist (so `.zcode/reviews/` is genuinely not agent-writable), `--force` scope (recovery-only), the plan-sha re-hash at edit + final time, and the scope gate in `phase=final`.
 
-**Honest residual limit (not a bug to fix, a boundary to know):** none of this binds *what momus returned*. The nonce proves a dispatch happened; the artifact's verdict text is whatever the orchestrator pipes in. So the threat model is **executor-agent adversarial, NOT orchestrator adversarial** — if the orchestrator itself is compromised, it can dispatch momus for real and still record an arbitrary verdict. Fully closing that needs the harness to hand momus's transcript hash to the hook for a true content binding (a design change, tracked). SEC-6 partially mitigates by refusing `--from` paths under agent-writable bookkeeping dirs. State this limit honestly in any audit; do not claim the chain is airtight against an orchestrator adversary.
+**Honest residual limit (not a bug to fix, a boundary to know):** none of this binds *what zodyssey:momus returned*. The nonce proves a dispatch happened; the artifact's verdict text is whatever the orchestrator pipes in. So the threat model is **executor-agent adversarial, NOT orchestrator adversarial** — if the orchestrator itself is compromised, it can dispatch zodyssey:momus for real and still record an arbitrary verdict. Fully closing that needs the harness to hand zodyssey:momus's transcript hash to the hook for a true content binding (a design change, tracked). SEC-6 partially mitigates by refusing `--from` paths under agent-writable bookkeeping dirs. State this limit honestly in any audit; do not claim the chain is airtight against an orchestrator adversary.
 
 ## Environment overrides (documented; all validated)
 

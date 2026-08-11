@@ -10,9 +10,9 @@
 
 **The MCP calls MUST happen in the PARENT (orchestrator/main) thread — NEVER in a sub-agent.**
 
-ZCode sub-agents (sisyphus-junior, momus, etc.) do NOT receive routed MCPs regardless of the
+ZCode sub-agents (zodyssey:sisyphus-junior, zodyssey:momus, etc.) do NOT receive routed MCPs regardless of the
 `tools:` frontmatter — see the trust anchor at `references/capabilities.md:12-20`. A dispatched
-sisyphus-junior got a fixed set (Bash/Edit/Read/WebFetch/WebSearch/Write + 2 always-on MCPs) and no
+zodyssey:sisyphus-junior got a fixed set (Bash/Edit/Read/WebFetch/WebSearch/Write + 2 always-on MCPs) and no
 `chrome-devtools` / `zai-mcp-server`. So the orchestrator runs the MCP sequence itself, writes the
 checklist file itself, and only then calls `record-final-wave.mjs`. If you dispatch the F3 work to a
 sub-agent, the MCP tools will simply be absent and the step fails opaquely.
@@ -59,17 +59,18 @@ record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] \
 
 4. **Consume into F3.** Call (parent thread):
    ```
-   node ~/.zcode/skills/odyssey/scripts/record-final-wave.mjs <repo> <slug> \
+   node skills/odyssey/scripts/record-final-wave.mjs <repo> <slug> \
        --f3-checklist <repo>/.zcode/verify/<slug>/f3-checklist.md \
        [--f2-artifact ... --f2-nonce ...] [--f4-artifact ... --f4-nonce ...] [--skip F2,F4]
    ```
+   (Script path is relative to the `zodyssey` plugin install root.)
    Exit 0 = all bound F-items pass; exit 6 = at least one failed. The F3 lane in
    `.zcode/verify/<slug>/final-wave.json` records `{ passed, checklist }`.
 
 ## Checklist file shape (what `--f3-checklist` consumes)
 
 The script only requires: file exists + non-empty. For an *honest* F3, write one row per check so a
-human (or F4/oracle) can audit which assertion failed. Recommended markdown template:
+human (or F4/zodyssey:oracle) can audit which assertion failed. Recommended markdown template:
 
 ```markdown
 # F3 manual-QA checklist — <slug>
@@ -105,7 +106,7 @@ JSON equivalent (also valid — pick whichever the run prefers; both satisfy "no
 
 If any row is `fail`, the F3 evidence is honest about it — set the `overall` accordingly and let
 `record-final-wave.mjs` exit 6 so the run does NOT reach `done` on a broken UI. The script does not
-read the `overall` field; the discipline is yours (and F4/oracle audits it).
+read the `overall` field; the discipline is yours (and F4/zodyssey:oracle audits it).
 
 ## zai-mcp-server tools — which apply to F3
 
