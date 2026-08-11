@@ -2,8 +2,10 @@
 
 > One-page reference for everything we built: the layers, the runtime flow, where enforcement
 > bites, and how capabilities route. Read this to orient; read `DESIGN.md` for rationale,
-> `~/.zcode/skills/odyssey/SKILL.md` for the conductor's operating instructions, and
-> `references/capabilities.md` for the per-activity routing table.
+> the conductor's operating instructions at
+> `~/.zcode/cli/plugins/cache/local/zodyssey/<version>/skills/odyssey/SKILL.md`
+> (dispatchable as `zodyssey:odyssey` since v0.3.0), and `references/capabilities.md` for the
+> per-activity routing table.
 >
 > Snapshot (2026-08-02): **22 MCPs (5 routed, 3 should-route-next, 14 deliberately out-of-pipeline)
 > · 9 plugins · 8 user sub-agents (sub-agents do NOT inherit Skill/MCP — verified) · 48 user skills
@@ -26,8 +28,9 @@
           │  ENTRY + CONDUCTOR  (the brain of ZOdyssey)          │
           │                                                    │
           │   /orchestrate ──► odyssey skill (conductor)        │
-          │   (~/.zcode/commands/orchestrate.md)                │
-          │   (~/.zcode/skills/odyssey/SKILL.md)                │
+          │   (commands/orchestrate.md under the plugin cache)  │
+          │   (skills/odyssey/SKILL.md — dispatchable as        │
+          │    zodyssey:odyssey)                                 │
           │   · 7-phase state machine                           │
           │   · capability routing (consults capabilities.md)   │
           │   · parallel-by-default dispatch                    │
@@ -187,19 +190,19 @@ The conductor + cast consult `references/capabilities.md` at every phase. Headli
    ───────────                 ────────────────
    fuzzy feature shape  ──►   skill: brainstorming + premortem
    hard reasoning        ──►   MCP: sequential-thinking  ◄ NEW
-   plan the work         ──►   Task: prometheus + skill: writing-plans
-   research codebase     ──►   MCP: codegraph_explore (if .codegraph/) else Task: explore
-   research libs/docs    ──►   MCP: Context7 + Task: librarian
-   design/architecture   ──►   Task: oracle + feature-dev:code-architect
-   implement (code)      ──►   skill: test-driven-development (non-negotiable) + sisyphus-jr
+   plan the work         ──►   Task: zodyssey:prometheus + skill: writing-plans
+   research codebase     ──►   MCP: codegraph_explore (if .codegraph/) else Task: zodyssey:explore
+   research libs/docs    ──►   MCP: Context7 + Task: zodyssey:librarian
+   design/architecture   ──►   Task: zodyssey:oracle + feature-dev:code-architect
+   implement (code)      ──►   skill: test-driven-development (non-negotiable) + zodyssey:sisyphus-junior
    implement (plan)      ──►   skill: executing-plans + using-git-worktrees
    debug (hard)          ──►   skill: systematic-debugging + sequential-thinking
    security/vuln audit   ──►   plugin: claude-security (verified patches) ◄ NEW
    audit code quality    ──►   Task: code-reviewer + skill: source-command-audit-code
-   review plan (gate)    ──►   Task: momus (+ oracle independent)
+   review plan (gate)    ──►   Task: zodyssey:momus (+ zodyssey:oracle independent)
    verify before "done"  ──►   skill: verification-before-completion
    remember across runs  ──►   MCP: memory (knowledge graph) ◄ NEW
-   media / image / PDF   ──►   Task: multimodal-looker
+   media / image / PDF   ──►   Task: zodyssey:multimodal-looker
    parallel independent  ──►   skill: dispatching-parallel-agents
 ```
 

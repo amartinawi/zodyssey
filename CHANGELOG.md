@@ -2,6 +2,44 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-08-11
+
+### BREAKING — ZOdyssey is now a proper ZCode plugin (`zodyssey:` namespaced)
+
+ZOdyssey no longer pollutes `~/.zcode/skills/`, `~/.zcode/agents/`, or `~/.zcode/commands/` with top-level copies. It installs as a local plugin under the ZCode plugin cache, and every component is namespaced `zodyssey:` (derived from `.zcode-plugin/plugin.json:name`):
+
+- Skill `odyssey` → dispatchable as **`zodyssey:odyssey`** (also still loadable bare, mirroring `superpowers:brainstorming`).
+- The 8 repo agents → dispatchable as **`zodyssey:metis`**, **`zodyssey:prometheus`**, **`zodyssey:momus`**, **`zodyssey:sisyphus-junior`**, **`zodyssey:explore`**, **`zodyssey:librarian`**, **`zodyssey:oracle`**, **`zodyssey:multimodal-looker`**.
+- The `/orchestrate` and `/orchestrate-consult` commands now declare `skills: zodyssey:odyssey` in their frontmatter.
+
+Component `name:` frontmatter stays **bare** (the namespace is derived from `plugin.json:name`, not the file's `name:` field) — only the *dispatch* references changed. External references (`prompt-master`, `premortem`, `superpowers:*`, `feature-dev:code-reviewer`, `code-architect`, `code-explorer`) are untouched.
+
+### Migration — finish active runs before upgrading
+
+**Finish any active orchestration runs before upgrading.** Existing `<repo>/.zcode/state/<slug>.json` files that record bare agent names in their dispatch history are **NOT auto-migrated** (decision: document, don't migrate — option C). All known prior runs are terminal, so this is a documentation concern, not a data-loss one. The v0.3.0 installer's purge phase removes the pre-0.3.0 top-level copies (`~/.zcode/skills/odyssey/`, the stale `~/.zcode/skills/odyssey.bak.1786309084/`, the 8 `~/.zcode/agents/*.md`, and `~/.zcode/commands/orchestrate*.md`) — back up `~/.zcode/` first if you want a rollback path.
+
+### Changed — `install.mjs` rewritten as three idempotent phases
+
+The installer is restructured into three explicit, independently re-runnable phases, each safe to run alone:
+
+1. **Copy + register:** `cpSync` the repo tree (`skills/`, `agents/`, `commands/`, `.zcode-plugin/`, `scripts/`, `docs/`, `README.md`, `CHANGELOG.md`, `LICENSE`) into `~/.zcode/cli/plugins/cache/local/zodyssey/0.3.0/`, then upsert a `zodyssey@local` entry in `~/.zcode/cli/plugins/installed_plugins.json` (shaped like the existing `superpowers@claude-plugins-official` entry: `{id, name, marketplace:"local", version, installPath, installedAt, updatedAt, scope:"user", source:"local"}`; idempotent — updates `updatedAt` + `installPath` if the entry exists, else appends).
+2. **Purge pre-0.3.0 pollution:** remove the old top-level copies listed under Migration above. Each `rmSync` is guarded by `existsSync` and scoped to ZOdyssey-owned names only; absent entries are skipped silently.
+3. **Rewrite `config.json` hooks:** point each hook's `script:` at the new cache path (`<cache>/skills/odyssey/hooks/<name>.mjs`). MCP registration, the `AGENTS.md` block merge, eval-dir init, and superpowers detection are preserved. `--verify` checks the cache paths + the `installed_plugins.json` entry + that no top-level `~/.zcode/skills/odyssey/` remains; `--uninstall` removes the cache dir + the registration + the config hooks.
+
+Every path is derived from `os.homedir()` — **no hardcoded `/home/...` or literal `~`** anywhere in the installer. Portable to any machine (proven by a fresh-`HOME=` clone test that seeds pre-0.3.0 pollution, runs the installer, and asserts the cache tree is grep-clean).
+
+### Fixed — hooks + scripts resolve their own paths via `import.meta.url`
+
+Pre-0.3.0, `consult.mjs` and several sibling scripts joined `env.HOME` with `.zcode/skills/odyssey/...` to locate the auditor prompt and sibling scripts — correct only when the skill lived at the top-level install path, broken once it moved into the plugin cache. These now resolve relative to the script's own location via ESM `import.meta.url` (e.g. `new URL("../references/auditor-prompt.md", import.meta.url)`), so they work from any install path. The `ZCAP_CAPS_MD` env override in `resolve-capabilities.mjs` is preserved (tests rely on it); only the default fallback changed. `hooks/*.mjs` were already portable (env-driven project dir + relative ESM for the sibling `find-run.mjs` + state-dir-relative repo root) — confirmed unchanged by the cache move.
+
+### Fixed — single-seam namespaced-dispatch matching in `pre-tool.mjs`
+
+The review-gate nonce chain depends on `pre-tool.mjs` recognizing the dispatched sub-agent by name. After namespacing, a `Task(subagent_type="zodyssey:momus")` dispatch would have silently failed the bare `=== "momus"` comparison → nonce never minted → review verdict unrecordable → full run deadlock. Fixed at a single seam: the matcher normalizes `subagent` at extraction by stripping a leading `zodyssey:` prefix (scoped — it does **not** strip `feature-dev:`, which is external), so every existing bare-string comparator (`=== "momus"`, `=== "oracle"`, the `READONLY_AGENTS` / `PLANNER_AGENTS` `Set`s) keeps working unchanged. `code-reviewer` / `feature-dev:code-reviewer` handling is untouched.
+
+### Not in this release
+
+No pipeline-semantic changes — names and install paths only; the 8-phase state machine, hook event types, matchers, and exit codes are identical. No new dependencies (still zero npm deps). No auto-migration of in-flight runs (documented above).
+
 ## [0.2.0] — 2026-08-11
 
 ### Added — prime-agent adaptation (3 of 9 primitives borrowed)

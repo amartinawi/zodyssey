@@ -388,7 +388,7 @@ extension once we have an eval harness telling us which lessons are worth keepin
 | # | Component | Location | Status |
 |---|---|---|---|
 | 1 | `/orchestrate` slash command | `~/.zcode/commands/orchestrate.md` | done |
-| 2 | `odyssey` skill (conductor prompt + state machine) | `~/.zcode/skills/odyssey/SKILL.md` | done |
+| 2 | `odyssey` skill (conductor prompt + state machine) | plugin cache: `~/.zcode/cli/plugins/cache/local/zodyssey/<version>/skills/odyssey/SKILL.md` (dispatchable as `zodyssey:odyssey` since v0.3.0) | done |
 | 3 | `prometheus` planner sub-agent | `~/.zcode/agents/prometheus.md` | done |
 | 4 | Plan scaffold + task-brief writer | `scripts/scaffold.mjs` | done |
 | 5 | Plan parser + acceptance-criteria lint | `scripts/parse-plan.mjs` (+ `parse-plan.test.mjs`) | done |

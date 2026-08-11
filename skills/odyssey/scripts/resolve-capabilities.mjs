@@ -36,6 +36,7 @@ import { join } from "node:path";
 import { argv, exit, env } from "node:process";
 import { execFileSync } from "node:child_process";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const HOME = env.HOME || "";
 const AGENTS_DIR = join(HOME, ".zcode", "agents");
@@ -43,7 +44,11 @@ const SKILLS_DIR = join(HOME, ".zcode", "skills");
 const AGENTS_SKILLS_DIR = join(HOME, ".agents", "skills");
 const PLUGIN_CACHE = join(HOME, ".zcode", "cli", "plugins", "cache");
 const CFG_PATH = join(HOME, ".zcode", "cli", "config.json");
-const CAPS_MD = join(SKILLS_DIR, "odyssey", "references", "capabilities.md");
+// v0.3.0 portability: capabilities.md ships WITH the skill, so resolve it relative to this
+// script's own location (plugin cache) rather than the legacy ~/.zcode/skills/odyssey/ path.
+// The other HOME-rooted dirs above (AGENTS_DIR/SKILLS_DIR/etc.) intentionally scan the LIVE
+// install — only capabilities.md is a skill component that moves with the cache.
+const CAPS_MD = fileURLToPath(new URL("../references/capabilities.md", import.meta.url));
 const LOCK_PATH = join(HOME, ".zcode", "capabilities.lock.json");
 
 // ENV overrides (used by the test harness so fixtures replace the live tree):
@@ -57,7 +62,10 @@ const SKILLS_ROOT = join(ROOT, ".zcode", "skills");
 const AGENTS_ROOT = join(ROOT, ".zcode", "agents");
 const AGENTS_SKILLS_ROOT = join(ROOT, ".agents", "skills");
 const PLUGIN_ROOT = join(ROOT, ".zcode", "cli", "plugins", "cache");
-const CAPS_MD_PATH = env.ZCAP_CAPS_MD || join(SKILLS_ROOT, "odyssey", "references", "capabilities.md");
+// v0.3.0 portability: default fallback resolves capabilities.md relative to this script's own
+// location (plugin cache). The ZCAP_CAPS_MD env override is PRESERVED so tests can relocate it
+// to a fixture path.
+const CAPS_MD_PATH = env.ZCAP_CAPS_MD || fileURLToPath(new URL("../references/capabilities.md", import.meta.url));
 const LOCK_OUT = env.ZCAP_LOCK_PATH || join(ROOT, ".zcode", "capabilities.lock.json");
 const CFG_FILE = env.ZCAP_CFG_PATH || join(ROOT, ".zcode", "cli", "config.json");
 

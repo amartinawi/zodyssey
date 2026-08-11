@@ -20,7 +20,8 @@
 // exit: 0 pass · 2 block (with reason).
 
 import { readFileSync, readdirSync, existsSync, writeFileSync, renameSync, openSync, closeSync, unlinkSync, statSync } from "node:fs";
-import { join, resolve as pathResolve, sep } from "node:path";
+import { join, dirname, resolve as pathResolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
 import { exit, env } from "node:process";
 import { createHash } from "node:crypto";
@@ -52,6 +53,12 @@ const STALE_MS = (() => {
 // "abandoned" matter because nothing in code ever sets "done" and the consult path
 // sets "audited" — without these the gate stays armed forever (audit gap #5).
 const TERMINAL = new Set(["done", "audited", "abandoned"]);
+
+// Absolute path to set-phase.mjs, resolved ESM-relative so the path we print in
+// warnings actually exists post-install: the literal ~/.zcode/skills/odyssey/ path
+// is purged by Phase 2 of install.mjs, and the script lives under the plugin cache
+// at <cache>/skills/odyssey/scripts/set-phase.mjs (this hook is at .../hooks/).
+const SET_PHASE_PATH = join(dirname(dirname(fileURLToPath(import.meta.url))), "scripts", "set-phase.mjs");
 
 // --- helpers (declared at top level, BEFORE any dispatch code that calls them —
 //     `const` has a temporal-dead-zone, so this ordering is load-bearing) ---
@@ -256,8 +263,8 @@ const toolInput = payload.tool_input || payload.input || {};
 
 // --- find the active orchestration run, if any ---
 // Pilot-herdr fix (2026-08-03): the harness may set CLAUDE_PROJECT_DIR to a workspace root that
-// CONTAINS the actual repo as a (possibly deeply) nested subdirectory (e.g. PROJECT_DIR=
-// /home/amar/.zcode but the run lives in /home/amar/.zcode/v2/herdr/.zcode/state/). The old version
+// CONTAINS the actual repo as a (possibly deeply) nested subdirectory (e.g. PROJECT_DIR is the
+// user's ~/.zcode but the run lives in <~/.zcode>/v2/herdr/.zcode/state/). The old version
 // scanned only the flat top-level STATE_DIR, so a nested-repo run was never found → the hook exited
 // at `if (!state) exit(0)` before reaching the dispatch branch → nonce never minted → review→execute
 // deadlock. Fix: recursively discover every `.zcode/state/` dir under PROJECT_DIR (bounded depth +
@@ -695,16 +702,193 @@ if (isEdit) {
   exit(0);
 }
 
-// BASH GATE REMOVED by user request 2026-08-08: ZOdyssey (and every sub-agent) now has full,
-// ungated Bash access at every workflow level — pre-review, post-review, in-scope, out-of-scope.
-// The previous gate (G1 trusted-script allowlist + OKAY-verdict requirement + SEC-H5 write-target
-// scope check + read-only pre-OKAY check + final block) was deleted in favor of an unconditional
-// exit(0). This intentionally REVERSES documented security fixes SEC-H3 (CR-injection guard on
-// trusted-script invokes) and SEC-H5 (Bash write-target scope isolation), and removes the
-// pre-OKAY write block. Security tradeoff the user accepted: an executor sub-agent (or any agent)
-// can now mutate ANY file via Bash (sed -i, tee, >, cp/mv, git checkout --, curl|sh, rm, etc.)
-// regardless of review verdict or declared plan Files: scope. Edit/Write tools remain gated.
-if (isBash) exit(0);
+// ============================================================================
+// ZOdyssey ships with Bash GATED, mirroring the Edit/Write gate above. Write-capable Bash
+// commands (sed -i, tee, >, cp/mv/rm, git apply/commit/restore/checkout, ln, tar/unzip,
+// interpreter -e/--eval/-c, curl|sh, compilers, docker run, script indirection, etc. — see
+// WRITE_PATTERNS) require review.verdict == OKAY AND must land in the plan's declared Files:
+// scope (or .zcode/ bookkeeping). This closes the shell-escape bypass: without it an executor
+// sub-agent could mutate files via `sed -i` / `>` / `git checkout --` before review passes, or
+// outside the declared scope after it does — defeating the Edit gate by changing tools.
+//
+// DECISION TREE (first match wins; every other branch BLOCKS):
+//   1. Read-only Bash (no write-capable construct)           -> allow, any phase.
+//      looksReadOnly is conservative: when in doubt it returns false -> fall through.
+//   2. Trusted recorder-script invoke (node <odyssey-scripts/...>) -> allow, any phase.
+//      These implement the review/phase/todo machinery and write .zcode/{state,plans}/
+//      bookkeeping; blocking them would deadlock the run itself. Strict allowlist (see
+//      isTrustedScriptInvoke): the node operand must realpath INSIDE skills/odyssey/scripts/
+//      AND the command must contain NO shell metacharacters. Fail closed on both.
+//   3. Any other write-capable Bash command:
+//      a. state.review.verdict != OKAY                       -> BLOCK (review gate).
+//      b. verdict OKAY: re-hash the plan against state.review.plan_sha256 (SEC-4 tamper
+//         guard) — drift -> BLOCK. Then parse write-targets (bashWriteTargets):
+//         - confident == false OR targets empty              -> BLOCK (fail closed; the
+//           command is write-capable but scope is unverifiable — e.g. make/gcc/docker run/
+//           patch/ed, or an unparseable explicit-target form).
+//         - For each target: quickClassify; bookkeeping -> ok, else must be in
+//           declaredScopeForRun(state).declared (FAIL CLOSED on empty/missing plan,
+//           mirroring the Edit scope gate). ANY target out of scope -> BLOCK.
+//         - All targets in-scope/bookkeeping                  -> allow.
+//
+// PLAN-TAMPER GUARD (mirrors SEC-4 on the Edit path): the plan is agent-writable
+// (.zcode/plans/ is bookkeeping), so once a verdict is bound to a plan-sha we re-hash the
+// on-disk plan and BLOCK on drift. Without this, Bash is the bypass: write the plan to add a
+// file to Files:, then `sed -i` that file — all post-OKAY, all "in scope" of the tampered plan.
+//
+// POWER-USER ESCAPE HATCH: set ZODYSSEY_UNGATE_BASH=1 to bypass this gate entirely (all Bash
+// calls pass regardless of verdict/scope). This is the original author's personal setup; it is
+// OPT-IN and off by default. Edit/Write tools remain gated either way. Know the tradeoff:
+// ungated Bash lets any agent mutate ANY file via shell regardless of review or declared scope.
+if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1") exit(0);
+
+// Trusted-script allowlist for the recorder machinery (G1 + SEC-H3). Returns true ONLY for a
+// `node <path-under-skills/odyssey/scripts/>` invocation with no shell metacharacters. Any
+// metachar (; & | ` $ < > ( ) — command separators, pipes, command-sub, redirection, subshell)
+// -> NOT trusted, because it could chain a second, un-vetted command. realpath containment
+// (NOT a string prefix) defeats `node scripts/../hooks/evil.mjs` path-traversal. Fail closed on
+// any doubt (missing file, unreadable, outside the scripts dir, non-node command word).
+// SELF-RELATIVE, single source. This hook always lives at
+// <install-root>/skills/odyssey/hooks/pre-tool.mjs, so the recorder scripts are always
+// ../scripts. Layout-independent by construction: a repo checkout, the pre-v0.3.0
+// ~/.zcode/skills/ install, and the v0.3.0 plugin cache
+// (~/.zcode/cli/plugins/cache/local/zodyssey/<version>/) all resolve correctly, and any future
+// relocation keeps working because the installer copies hooks/ and scripts/ together.
+//
+// TWO GUESSES DELIBERATELY REMOVED (2026-08-11):
+//   join(PROJECT_DIR, "skills/odyssey/scripts")  — PROJECT_DIR is the USER'S repo, i.e.
+//     attacker-controlled content. A hostile repo shipping skills/odyssey/scripts/evil.mjs
+//     would have had that script allowlisted straight past the Bash gate. Trusting a path
+//     inside the audited repo to decide what bypasses the audit is backwards.
+//   join(HOME, ".zcode/skills/odyssey/scripts")  — the pre-v0.3.0 install location. Under
+//     v0.3.0's plugin-cache layout it no longer exists, and a stale copy left there from an
+//     older install would be trusted over the running one.
+// Both were unreachable anyway once the self-relative path resolves (it always does — this
+// very file proves the directory exists), so removing them costs nothing and closes the hole.
+const SCRIPTS_DIR = pathResolve(new URL(".", import.meta.url).pathname, "..", "scripts");
+function isTrustedScriptInvoke(cmd) {
+  if (!SCRIPTS_DIR) return false;
+  // Fail closed on ANY shell metacharacter that could inject a second command or redirect.
+  if (/[;&|`$<>()]/.test(cmd)) return false;
+  // Strip a leading env-var assignment prefix (FOO=bar node ...) so the command-word scan sees node.
+  const stripped = cmd.replace(/^\s*(?:[A-Za-z_]\w*=\S*\s+)*/, "");
+  // Must START with `node` (optional flags) then a single positional operand. Anchoring ^node
+  // defeats both `echo node ...` (node is an arg) and `mynode ...` (different command word).
+  const m = stripped.match(/^node(?:\s+[-\w]+)*\s+(\S+)/);
+  if (!m) return false;
+  const operand = m[1].replace(/^['"]|['"]$/g, "");
+  // A bare basename is anchored in SCRIPTS_DIR; anything with a slash is resolved relative to
+  // PROJECT_DIR (so `node ./scripts/x.mjs` from the repo resolves consistently).
+  const start = (!operand.includes(sep) && !operand.includes("/"))
+    ? join(SCRIPTS_DIR, operand)
+    : pathResolve(PROJECT_DIR, operand);
+  // realpath containment test (defeats ../ traversal and symlink escape). If the file doesn't
+  // exist yet we can't canonicalize it -> NOT trusted (fail closed).
+  let candidate;
+  try { candidate = realpathSync.native(start); } catch { return false; }
+  const prefix = SCRIPTS_DIR + sep;
+  return candidate === SCRIPTS_DIR || candidate.startsWith(prefix);
+}
+
+if (isBash) {
+  const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
+
+  // (1) Read-only Bash is always allowed, in any phase (ls, cat, grep, git status, npm test, etc.).
+  //     looksReadOnly is conservative — when in doubt it returns false and we fall through to (2)/(3).
+  if (looksReadOnly(cmd)) exit(0);
+
+  // (2) Trusted recorder-script invoke (the review/phase/todo machinery). Must run pre-OKAY or
+  //     the run cannot progress: record-review writes the verdict, set-phase advances phases,
+  //     record-todo updates the active-todo map. Strict allowlist — see isTrustedScriptInvoke.
+  if (isTrustedScriptInvoke(cmd)) exit(0);
+
+  // (3) Everything else is a write-capable Bash command. Apply the SAME gates as Edit/Write:
+  //     review verdict, then plan-sha tamper guard, then per-target scope check.
+  if (state.review?.verdict !== "OKAY") {
+    block(
+      `write-capable Bash command is blocked until the plan passes review ` +
+        `(current verdict: ${state.review?.verdict ?? "none"}, round ${state.review?.round ?? 0}/${state.review?.max_rounds ?? 3}). ` +
+        `Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. Complete the review phase first, or use a read-only command. (slug=${state.slug})`
+    );
+  }
+
+  // PLAN-TAMPER GUARD (SEC-4 mirror — see block comment above). Re-hash the on-disk plan against
+  // the sha bound to this OKAY verdict. Unreadable plan or sha drift -> BLOCK (fail closed).
+  const boundSha = state.review && state.review.plan_sha256;
+  if (boundSha) {
+    const planPath = state.plan_path || join(PROJECT_DIR, ".zcode", "plans", `${state.slug}.md`);
+    let planText;
+    try { planText = readFileSync(planPath, "utf8"); }
+    catch (e) {
+      block(
+        `SCOPE VIOLATION (Bash): plan could not be read at ${planPath} — cannot verify the write targets of: ${cmd.slice(0, 120)}. ` +
+          `Fix the plan path/permissions or re-scaffold. (slug=${state.slug}, error: ${e && (e.code || e.message) ? (e.code || e.message) : "unknown"})`
+      );
+    }
+    const diskSha = createHash("sha256").update(planText).digest("hex");
+    if (diskSha !== boundSha) {
+      block(
+        `PLAN TAMPERED (Bash): the on-disk plan (${planPath}) no longer matches the plan-sha bound to ` +
+          `the OKAY verdict (expected ${boundSha.slice(0, 12)}, got ${diskSha.slice(0, 12)}). ` +
+          `.zcode/plans/ is writable, so scope must be re-authorized by re-running momus + record-review ` +
+          `(which re-binds the sha). (slug=${state.slug})`
+      );
+    }
+  }
+
+  // Extract best-effort write targets. FAIL CLOSED when scope is unverifiable:
+  //   - confident=false: write-capable with an un-parseable explicit-target form (sed -i with no
+  //     file, git checkout with no path).
+  //   - targets empty: write-capable via a construct bashWriteTargets does not extract targets
+  //     from at all (make, gcc, docker run, patch, ed, tar -x, ln, …). These can write to ANY
+  //     path, so allowing them post-OKAY with no scope check IS the SEC-H5 isolation failure.
+  // Both cases -> BLOCK; ask for an explicit-target form or the (scope-checked) Edit/Write tool.
+  const { targets, confident } = bashWriteTargets(cmd);
+  if (!confident || targets.length === 0) {
+    block(
+      `SCOPE VIOLATION (Bash): write-capable command has no parseable, in-scope write target — cannot verify it stays in the declared scope. ` +
+        `Use an explicit-target form (\`sed -i ... FILE\`, \`cmd > FILE\`, \`cp src dst\`, \`git checkout -- FILE\`) or the Edit/Write tool (which is scope-checked directly). ` +
+        `Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+    );
+  }
+
+  // Derive the run's repo root (mirrors classifyTarget lines 522-524): RUN_STATE_DIR is
+  // .../.zcode/state -> up two levels is the repo root containing .zcode.
+  const runRepo = RUN_STATE_DIR ? pathResolve(pathResolve(RUN_STATE_DIR, ".."), "..") : PROJECT_DIR;
+
+  // Resolve + classify each target. Bookkeeping targets (.zcode/plans/, .zcode/notepads/) are
+  // always fine; every other target must be in the declared Files: scope. declaredScopeForRun
+  // returns declared.size===0 on plan read failure -> nothing is in scope -> BLOCK (fail closed).
+  const { declared } = declaredScopeForRun(state);
+  for (const t of targets) {
+    let abs;
+    try {
+      abs = realpathSync.native(pathResolve(PROJECT_DIR, t));
+    } catch {
+      // Target doesn't exist yet (e.g. `cmd > newfile`). Fall back to lexical resolve so we can
+      // still classify it; quickClassify's prefix test catches ../ escape lexically too.
+      abs = pathResolve(PROJECT_DIR, t);
+    }
+    const { rel, bookkeeping } = quickClassify(abs, runRepo);
+    if (bookkeeping) continue; // .zcode/plans/, .zcode/notepads/ — always writable
+    // Same inScope test as the Edit gate (exact match, or either contains the other as a dir).
+    const inScope = declared.size > 0 &&
+      [...declared].some((d) => rel === d || rel.startsWith(d + "/") || d.startsWith(rel + "/"));
+    if (!inScope) {
+      const tail = declared.size > 0
+        ? `declared: ${[...declared].slice(0, 5).join(", ")}${declared.size > 5 ? "..." : ""}`
+        : `plan declares NO editable files (Files: is empty/absent) — add the target to the plan's Files: list and re-review`;
+      block(
+        `SCOPE VIOLATION (Bash): write target ${t}${rel && rel !== t ? ` (${rel})` : ""} is not in the plan's declared Files: scope and is not bookkeeping. ` +
+          `The executor may only mutate files the plan declares (or .zcode/plans/, .zcode/notepads/). ` +
+          `${tail}. Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+      );
+    }
+  }
+  // All targets in scope or bookkeeping — allow. (No file-lock acquisition for Bash: the
+  // Edit-path lock is keyed on Edit-tool targets and is out of scope for this reconstruction.)
+  exit(0);
+}
 
 if (isDispatch) {
   // Phase-gate (audit gap #4): DESIGN §6 says "dispatches only allowed in execute/verify/final",
@@ -712,7 +896,16 @@ if (isDispatch) {
   // (explore/librarian/oracle). So: block EXECUTOR dispatches (sisyphus-junior) outside the
   // execution phases, allow read-only research agents anywhere. This stops a runaway executor
   // during planning without breaking the documented consult-time research fan-out.
-  const subagent = toolInput.subagent_type || toolInput.agent_type || toolInput.type || "";
+  // v0.3.0 namespacing normalization (SINGLE-SEAM FIX, safety-critical): the harness now passes
+  // `subagent_type: "zodyssey:momus"` (namespaced form) on dispatch, but every downstream matcher
+  // here is a bare-string comparison (`=== "momus"`, `=== "oracle"`, READONLY_AGENTS.has(...),
+  // PLANNER_AGENTS.has(...)). Without this normalization a namespaced dispatch silently misses
+  // every matcher → review nonce never minted → verdict unrecordable → full run deadlock (the
+  // 2026-08-03 regression relived). Strip a leading `zodyssey:` prefix ONCE at extraction so all
+  // existing matchers keep working byte-unchanged. Scoped to `zodyssey:` ONLY — must NOT strip
+  // `feature-dev:` (external, e.g. `feature-dev:code-reviewer` at line ~881) or any other prefix.
+  const _rawSubagent = toolInput.subagent_type || toolInput.agent_type || toolInput.type || "";
+  const subagent = _rawSubagent.replace(/^zodyssey:/, "");
   const READONLY_AGENTS = new Set([
     "explore", "librarian", "oracle", "metis", "momus", "multimodal-looker",
     "code-explorer", "code-architect", "code-reviewer", "feature-dev:code-explorer",
@@ -873,7 +1066,7 @@ if (isDispatch) {
   if (subagent === "momus") {
     if (state.phase !== "review") {
       process.stderr.write(
-        `ZOdyssey WARNING: momus dispatched in phase=${state.phase} (expected "review") — nonce minted anyway so the verdict is recordable, but the phase was not transitioned. Run 'node ~/.zcode/skills/odyssey/scripts/set-phase.mjs <repo> <slug> review' to reconcile, or the recorded verdict will not auto-advance to execute.\n`
+        `ZOdyssey WARNING: momus dispatched in phase=${state.phase} (expected "review") — nonce minted anyway so the verdict is recordable, but the phase was not transitioned. Run 'node ${SET_PHASE_PATH} <repo> <slug> review' to reconcile, or the recorded verdict will not auto-advance to execute.\n`
       );
     }
     mintNonceFor("review");

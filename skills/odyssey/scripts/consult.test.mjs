@@ -45,9 +45,9 @@ function check(name, cond, detail = "") {
 }
 
 // Read the post-done auditor-prompt.md so we can assert the plan-audit prompt is DISTINCT.
-const auditorPromptPath = join(
-  process.env.HOME, ".zcode/skills/odyssey/references/auditor-prompt.md"
-);
+// v0.3.0 portability: resolve relative to this test file's own location (SCRIPT_DIR, derived
+// from import.meta.url) instead of joining $HOME — works from the plugin cache install.
+const auditorPromptPath = join(SCRIPT_DIR, "..", "references", "auditor-prompt.md");
 const postDonePrompt = readFileSync(auditorPromptPath, "utf8");
 
 // Run consult.mjs as a child process; return { status, stdout, stderr }.

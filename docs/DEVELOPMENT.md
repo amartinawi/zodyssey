@@ -47,10 +47,10 @@ When a release is published, upgrade the live install:
 ```bash
 cd ~/Desktop/ZOdyssey
 git pull origin main
-node scripts/install.mjs            # copies skills/agents/commands into ~/.zcode/, registers hooks
+node scripts/install.mjs            # installs as a plugin under the ZCode cache; re-runs all 3 phases
 ```
 
-The installer is idempotent — safe to re-run. It will overwrite the matching files in `~/.zcode/`.
+The installer is idempotent — safe to re-run. It refreshes the cache copy, re-purges any stale pre-v0.3.0 top-level pollution, and rewrites the config.json hook paths to the cache.
 
 ## Repository layout (what's load-bearing)
 

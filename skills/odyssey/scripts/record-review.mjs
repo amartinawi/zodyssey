@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { argv, exit, env } from "node:process";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { makeReviewDefault } from "./lib/verdict-schema.mjs";
 
 const [repo, slug, verdict, ...rest] = argv.slice(2);
@@ -147,7 +148,9 @@ if (actualSha !== planShaArg) {
 // plan phase 5 can't actually verify. REJECT is allowed without a clean lint (a REJECT is just
 // "send back to the planner" — it doesn't need executable criteria to be valid).
 if (v === "OKAY") {
-  const parseScript = join(env.HOME || "", ".zcode", "skills", "odyssey", "scripts", "parse-plan.mjs");
+  // v0.3.0 portability: resolve the sibling parse-plan.mjs relative to this script's own
+  // location so it is found from the plugin cache install, not the legacy ~/.zcode path.
+  const parseScript = fileURLToPath(new URL("./parse-plan.mjs", import.meta.url));
   let lintPassed = false;
   try {
     const out = execFileSync("node", [parseScript, planPath, "--lint"], { encoding: "utf8", shell: false });

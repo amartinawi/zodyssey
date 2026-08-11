@@ -9,7 +9,7 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 - `scripts/set-phase.mjs <repo> <slug> <phase> [--note <text>]` — **the only sanctioned way to transition phases**. Enforces the transition DAG (plan→review→execute→verify→final→done) + preconditions (done requires OKAY + final pass). Escape hatches: blocked/abandoned always allowed. On done|audited, auto-appends run-report to results.jsonl + writes a memory outcome.
 
 ## Review gate (phase 3)
-- `scripts/record-momus-artifact.mjs <repo> <slug> <round> --nonce <nonce> [--from <file>]` — **the only sanctioned way to record momus's verdict artifact**. Requires `--nonce` (issued by the hook when it observed the `Task(momus)` dispatch). Writes under `.zcode/reviews/`. NOTE: prefer `--from <bookkeeping-file>` over stdin piping — the metachar denylist blocks the `<<EOF |` form pre-verdict.
+- `scripts/record-momus-artifact.mjs <repo> <slug> <round> --nonce <nonce> [--from <file>]` — **the only sanctioned way to record zodyssey:momus's verdict artifact**. Requires `--nonce` (issued by the hook when it observed the `Task(zodyssey:momus)` dispatch). Writes under `.zcode/reviews/`. NOTE: prefer `--from <bookkeeping-file>` over stdin piping — the metachar denylist blocks the `<<EOF |` form pre-verdict.
 - `scripts/record-review.mjs <repo> <slug> <OKAY|REJECT> --momus-artifact <path> --plan-sha <sha> [--blockers <file>]` — **the only sanctioned way to set the review verdict**. Runs `parse-plan --lint` on OKAY (refuses if acceptance criteria aren't executable). BOTH `--momus-artifact` and `--plan-sha` are MANDATORY. Pass the FULL 64-char plan-sha (a truncated prefix passes the error message but fails the equality check).
 
 ## Verify + final wave (phases 5-6)
@@ -35,8 +35,8 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 
 ## Phase 3 (REVIEW) — exact order to record a verdict
 
-1. Dispatch momus via `Task(subagent_type="momus")`. The enforcement hook observes this and mints a one-time **nonce** into `state.review.pending_nonce` (read it from there, or from the hook's stderr line). NOTE: SKILL.md older prose said `pending_momus` — that field does not exist; the real field is `pending_nonce`.
-2. momus returns her verdict JSON. Write it to a bookkeeping file (`.zcode/plans/` or `.zcode/notepads/`), then `record-momus-artifact.mjs <repo> <slug> <round> --nonce <nonce> --from <that file>` → prints the artifact path under `.zcode/reviews/`. (Stdin piping via `<<EOF |` is blocked by the metachar denylist pre-verdict.)
+1. Dispatch zodyssey:momus via `Task(subagent_type="zodyssey:momus")`. The enforcement hook observes this and mints a one-time **nonce** into `state.review.pending_nonce` (read it from there, or from the hook's stderr line). NOTE: SKILL.md older prose said `pending_momus` — that field does not exist; the real field is `pending_nonce`.
+2. zodyssey:momus returns her verdict JSON. Write it to a bookkeeping file (`.zcode/plans/` or `.zcode/notepads/`), then `record-momus-artifact.mjs <repo> <slug> <round> --nonce <nonce> --from <that file>` → prints the artifact path under `.zcode/reviews/`. (Stdin piping via `<<EOF |` is blocked by the metachar denylist pre-verdict.)
 3. `record-review.mjs <repo> <slug> <OKAY|REJECT> --momus-artifact <that path> --plan-sha $(sha256sum <plan> | cut -d' ' -f1) [--blockers <file>]`.
 
-The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY non-forgeable: an agent can't fabricate the artifact because the nonce only exists after a real `Task(momus)` call the hook witnessed. (CAVEAT — see external-audit finding: as of 2026-08-04 the review-lane non-forgeability has a confirmed hole; the nonce-binding fix is in the security wave.)
+The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY non-forgeable: an agent can't fabricate the artifact because the nonce only exists after a real `Task(zodyssey:momus)` call the hook witnessed. (CAVEAT — see external-audit finding: as of 2026-08-04 the review-lane non-forgeability has a confirmed hole; the nonce-binding fix is in the security wave.)
