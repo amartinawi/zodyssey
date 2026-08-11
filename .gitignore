@@ -32,3 +32,11 @@ Thumbs.db
 
 # Machine-specific capabilities lock (regenerate locally with resolve-capabilities.mjs)
 /capabilities.lock.json
+
+# Local audit prompts + verdicts (personal, and verdict files may hold model output)
+.zcode/audits/
+
+# Third-party agent tooling that writes into the working tree
+.claude-flow/
+.swarm/
+ruvector.db

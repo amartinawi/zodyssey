@@ -42,6 +42,7 @@ import { homedir } from "node:os";
 import { argv, exit } from "node:process";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 
 // ---------- paths (all derived from homedir + repo location) ----------
 
@@ -571,6 +572,39 @@ function verify() {
           }
           check(`${ev} script parses: ${scriptPath.replace(installPath, "<installPath>")}`,
             exists && parses, exists ? "syntax error" : `missing: ${scriptPath}`);
+
+          // SHA DRIFT: is the DEPLOYED hook actually this repo's hook?
+          //
+          // Every check above passes on a cached copy that is not your source. That is not
+          // hypothetical — on 2026-08-11 `--verify` reported 18/18 green while the cached
+          // pre-tool.mjs was a commit behind the repo. Benign that time (comment-only), but a
+          // functional divergence is indistinguishable from the repo side, and "the verified
+          // artifact is not the running artifact" is precisely how v0.3.0 shipped with
+          // enforcement dead.
+          //
+          // Compared against the manifest-declared path specifically, because that is the file
+          // ZCode is registered to execute — not whatever else happens to sit in the cache.
+          if (exists && parses) {
+            const relFromRoot = scriptPath.slice(installPath.length).replace(/^[/\\]/, "");
+            const repoTwin = join(REPO_ROOT, relFromRoot);
+            let drift = null; // null = match, string = reason
+            if (!existsSync(repoTwin)) {
+              drift = `no repo counterpart at ${relFromRoot}`;
+            } else {
+              try {
+                const a = createHash("sha256").update(readFileSync(scriptPath)).digest("hex");
+                const b = createHash("sha256").update(readFileSync(repoTwin)).digest("hex");
+                if (a !== b) drift = `cached ${a.slice(0, 12)} != repo ${b.slice(0, 12)}`;
+              } catch (e) {
+                drift = `unreadable (${e.code || e.message})`; // fail closed
+              }
+            }
+            check(`${ev} deployed == repo source`, drift === null,
+              drift ? `${drift} — the running hook is NOT your source. Update via the marketplace ` +
+                      `(Settings → Plugin Management → Discover → Update). If drift persists, the ` +
+                      `marketplace source itself is stale: ` +
+                      `git -C ~/.zcode/cli/plugins/marketplaces/<mp> pull` : "");
+          }
         }
       }
     }
