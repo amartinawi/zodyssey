@@ -4,11 +4,11 @@ You are a senior security/correctness auditor. Conduct a DEEP, ADVERSARIAL audit
 A multi-agent orchestration pipeline for the ZCode harness. Phases: Prime→Triage→Consult→Plan→Review→Execute→Verify→Final→Done. An enforcement hook gates every tool call (Write/Edit/Bash/Task) against the active run's phase + verdict + scope + file-locks + parallel-cap. "Trusted writer" scripts are the sanctioned escape hatches that mutate run state. The core security property: an OKAY review verdict is NON-FORGEABLE — it requires a nonce the hook mints only when it witnesses a real Task(momus) dispatch, bound through an artifact under a gated directory.
 
 # Where everything lives (read these)
-- Skill (conductor's instructions): ~/.zcode/cli/plugins/cache/local/zodyssey/<version>/skills/odyssey/SKILL.md
-- Enforcement hook (the gate — most bug-dense file): ~/.zcode/cli/plugins/cache/local/zodyssey/<version>/skills/odyssey/hooks/pre-tool.mjs
-- Other hooks: ~/.zcode/cli/plugins/cache/local/zodyssey/<version>/skills/odyssey/hooks/{stop,post-tool}.mjs
-- Trusted-writer scripts: ~/.zcode/cli/plugins/cache/local/zodyssey/<version>/skills/odyssey/scripts/*.mjs  (scaffold, set-phase, record-review, record-momus-artifact, record-final-wave, record-verify, record-todo, record-capability, parse-plan, consult, run-report, harness, judge, status, resolve-capabilities, recall-outcomes)
-- Auditor prompt template: ~/.zcode/cli/plugins/cache/local/zodyssey/<version>/skills/odyssey/references/auditor-prompt.md
+- Skill (conductor's instructions): ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/SKILL.md
+- Enforcement hook (the gate — most bug-dense file): ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/hooks/pre-tool.mjs
+- Other hooks: ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/hooks/{stop,post-tool}.mjs
+- Trusted-writer scripts: ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/scripts/*.mjs  (scaffold, set-phase, record-review, record-momus-artifact, record-final-wave, record-verify, record-todo, record-capability, parse-plan, consult, run-report, harness, judge, status, resolve-capabilities, recall-outcomes)
+- Auditor prompt template: ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/references/auditor-prompt.md
 - Harness config: ~/.zcode/cli/config.json
 - Per-run state shape: any <repo>/.zcode/state/<slug>.json
 

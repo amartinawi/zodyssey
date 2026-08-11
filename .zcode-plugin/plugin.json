@@ -1,7 +1,7 @@
 {
   "name": "zodyssey",
   "displayName": "ZOdyssey",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A hybrid-enforced multi-agent orchestration pipeline for ZCode: prime, triage, consult, plan, review (gated), execute, verify, final-wave. Code-enforces the invariants omo leaves to convention.",
   "author": {
     "name": "amartinawi",
@@ -22,5 +22,60 @@
   ],
   "skills": "./skills/",
   "agents": "./agents/",
-  "commands": "./commands/"
+  "commands": "./commands/",
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|ApplyPatch|MultiEdit|NotebookEdit|Bash|Task|Agent",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/skills/odyssey/hooks/pre-tool.mjs"],
+            "timeoutMs": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Task|Agent|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/skills/odyssey/hooks/post-tool.mjs"],
+            "timeoutMs": 5000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/skills/odyssey/hooks/stop.mjs"],
+            "timeoutMs": 5000
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/skills/odyssey/hooks/user-prompt-submit.mjs"],
+            "timeoutMs": 5000
+          }
+        ]
+      }
+    ]
+  }
 }

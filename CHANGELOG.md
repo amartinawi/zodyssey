@@ -2,6 +2,36 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] — 2026-08-11
+
+### Fixed — enforcement was dead: orphaned hooks after the marketplace install (the v0.3.0 regression)
+
+The v0.3.0 installer wrote the 4 enforcement hooks into `~/.zcode/cli/config.json` pointing at `cache/local/zodyssey/0.3.0/…`. Installing via the ZCode marketplace (the supported path) cached the plugin at `cache/<marketplace>/zodyssey/0.3.0/` instead — so every hook spawn resolved a now-empty path and failed silently. The plugin itself loaded (skill/agents/commands resolved), but the enforcement gate — the entire point of the project — was offline. `install.mjs --verify` missed it because it checked files/paths/registration but not whether ZCode's loader actually accepted the hand-written `installed_plugins.json` entry.
+
+### Changed — hooks are now manifest-declared (never orphan again)
+
+The 4 hooks moved **out of `config.json` and into `.zcode-plugin/plugin.json`** under a `hooks` field, using `${CLAUDE_PLUGIN_ROOT}/skills/odyssey/hooks/<name>.mjs` for the script paths. ZCode resolves the template var to wherever the plugin is cached, so the hooks track the cache location automatically — the path can never go stale. Plugin hooks also **auto-enable the hook runner**, so no `config.json` surgery is required at all. The matchers, events (`PreToolUse`/`PostToolUse`/`Stop`/`UserPromptSubmit`), timeouts, and the gate logic (`pre-tool.mjs` — untouched) are identical to v0.3.0.
+
+### Changed — `install.mjs` no longer fights ZCode's registries
+
+The installer stopped hand-writing `installed_plugins.json` (the v0.3.0 bug source: `marketplace:"local"` wasn't in `known_marketplaces.json` so the loader skipped the entry) and stopped writing hooks into `config.json`. New responsibilities:
+
+- **Marketplace bootstrap** — verifies `marketplace.json` exists, reports whether the plugin is installed, and prints the exact GUI steps if not. Never hand-writes the registry.
+- **Purge** — pre-v0.3.0 top-level pollution (unchanged).
+- **Migrate v0.3.0 orphaned hooks** — sweeps every ZOdyssey hook ref out of `config.json` (they're manifest-driven now; any copy is pollution that would keep firing-and-failing). Idempotent; config.json backed up first.
+- **MCP registration** — the 5 pipeline MCPs still go into `config.json`'s `mcp.servers` (gated on each backend being on PATH). MCPs deliberately stay out of the manifest's `mcpServers` field because plugin-manifest MCPs are namespaced `plugin:zodyssey:<server>`, which would rename every tool the conductor references by its bare name.
+- **AGENTS.md / eval / superpowers** — unchanged.
+
+The `--phase copy|purge|hooks` sub-phase flags are removed (the installer is now a single idempotent shot). `--verify` now resolves the install path dynamically from `installed_plugins.json` (instead of assuming `cache/local/…`), checks the manifest declares the 4 hooks + each hook script parses at the cached path, and confirms no orphaned hooks remain in `config.json`.
+
+### Upgrade path
+
+`git pull && node scripts/install.mjs` (re-purges + migrates the v0.3.0 hook orphans + refreshes MCPs), then **Settings → Plugin Management → Discover → Update** on zodyssey to refresh the cached plugin copy (so the new manifest with hooks takes effect). Start a new ZCode session.
+
+### Not in this release
+
+No pipeline-semantic changes — only how the gate is *registered* changed. The single-seam namespaced-dispatch matcher (`pre-tool.mjs`) is untouched (no security audit needed). The 8-phase state machine, hook event types, matchers, and exit codes are identical to v0.3.0.
+
 ## [0.3.0] — 2026-08-11
 
 ### BREAKING — ZOdyssey is now a proper ZCode plugin (`zodyssey:` namespaced)

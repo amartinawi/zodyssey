@@ -47,10 +47,13 @@ When a release is published, upgrade the live install:
 ```bash
 cd ~/Desktop/ZOdyssey
 git pull origin main
-node scripts/install.mjs            # installs as a plugin under the ZCode cache; re-runs all 3 phases
+node scripts/install.mjs            # idempotent — re-purges pollution, re-migrates config.json
+                                   # hook orphans, refreshes the pipeline MCPs
 ```
 
-The installer is idempotent — safe to re-run. It refreshes the cache copy, re-purges any stale pre-v0.3.0 top-level pollution, and rewrites the config.json hook paths to the cache.
+Then refresh the **cached** plugin copy so manifest/hook/skill changes take effect: **Settings → Plugin Management → Discover → Update** on zodyssey (for the local `directory` marketplace this re-copies from the repo you just pulled). Start a new ZCode session.
+
+The installer does **not** hand-write `installed_plugins.json` or `config.json` hooks (that was the v0.3.0 bug). The marketplace owns the cache + registry + manifest; the installer owns the surrounding user-scope config (MCPs, AGENTS.md, eval, legacy cleanup). Hooks are declared in `.zcode-plugin/plugin.json` under `hooks` (with `${CLAUDE_PLUGIN_ROOT}` paths), so they track the cache location automatically.
 
 ## Repository layout (what's load-bearing)
 
@@ -62,7 +65,8 @@ The installer is idempotent — safe to re-run. It refreshes the cache copy, re-
 | `skills/odyssey/references/` | load-on-demand docs (capabilities.md, scripts.md, auditor-prompt.md) |
 | `agents/` | the 8 sub-agent definitions |
 | `commands/` | the `/orchestrate` slash commands |
-| `scripts/install.mjs` | the installer (copy + register hooks) |
+| `.zcode-plugin/plugin.json` | the plugin manifest — declares `hooks` (the 4 enforcement hooks, via `${CLAUDE_PLUGIN_ROOT}`) + plugin identity |
+| `scripts/install.mjs` | the installer (marketplace bootstrap + purge + v0.3.0 hook-orphan migration + MCP registration) |
 | `docs/` | design + adaptation + measurement docs |
 
 ## When something breaks
