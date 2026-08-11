@@ -66,8 +66,25 @@ The installer does **not** hand-write `installed_plugins.json` or `config.json` 
 | `agents/` | the 8 sub-agent definitions |
 | `commands/` | the `/orchestrate` slash commands |
 | `.zcode-plugin/plugin.json` | the plugin manifest — declares `hooks` (the 4 enforcement hooks, via `${CLAUDE_PLUGIN_ROOT}`) + plugin identity |
-| `scripts/install.mjs` | the installer (marketplace bootstrap + purge + v0.3.0 hook-orphan migration + MCP registration) |
-| `docs/` | design + adaptation + measurement docs |
+| `scripts/install.mjs` | the installer (marketplace bootstrap + purge + v0.3.0 hook-orphan migration + MCP registration + cached-vs-repo sha drift check) |
+| `scripts/smoke-gate.mjs` | the release gate — automates every checkable part of "is enforcement live" and scaffolds the one manual live-session check |
+| `docs/` | design + adaptation + measurement docs, plus `ROADMAP.md` (the evidence-ranked plan) |
+
+## Testing
+
+There is no `package.json` and no CI yet (both are Phase A in [`ROADMAP.md`](ROADMAP.md)). Run the
+suites directly:
+
+```bash
+for t in skills/odyssey/scripts/*.test.mjs skills/odyssey/hooks/*.test.mjs; do node "$t" || echo "FAIL $t"; done
+```
+
+**The prove-it-fails rule.** A new enforcement test must be demonstrated *failing against the
+broken code* before it counts. Stash the fix, run the suite, confirm it goes red, restore. Without
+that step a test asserting `exit === 2` that silently never runs looks identical to a passing one —
+and the repo's whole history is checks that couldn't detect the failure they existed for
+(`--verify` checked paths not liveness; `harness.mjs --list` checked a sentinel that never matched;
+F2/F4 checked that a reviewer was summoned, not what it said).
 
 ## When something breaks
 
