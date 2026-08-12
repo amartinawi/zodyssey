@@ -2,7 +2,17 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.2] — 2026-08-12
+
+The release where the enforcement layer started being true.
+
+v0.2.0 through v0.3.1 shipped with the Bash write-gate **deleted** — every other enforcement (review gate, scope isolation, plan-sha guard, file locks) lives on the Edit branch, so an ungated `sed -i` walked past all four. Three external audits reviewed v0.2.0 and none noticed. Restoring it exposed a second problem: the final wave proved a reviewer had been *dispatched* and never read what it *said*, so an artifact reading `{"verdict":"REJECT"}` passed both F2 and F4.
+
+Fixing those uncovered a pattern that runs through the whole release — **a check that cannot detect the class of failure it exists for**. `install.mjs --verify` checked paths, not liveness. `harness.mjs --list` matched a sentinel the seeds had stopped using. A 0-byte verdict file still read as "audited". The regression gate was wired into a code path real runs never take. The trusted-script allowlist was corrupting the evidence it existed to protect.
+
+Most of these were found by **running the pipeline end to end**, three times, and fixing what stopped it. Unit tests assert a gate can say *no*; only a real run shows two correct gates combining into something unusable. Round 1 could not complete at all. Round 2 completed but could not reach `done`. Round 3 completed with no out-of-band escapes.
+
+This release also adds the thing whose absence allowed all of it: **CI**. 23 suites, run on every push, on the Node floor the code claims and on current LTS.
 
 ### Changed — three ergonomics fixes from shakedown round 3
 
