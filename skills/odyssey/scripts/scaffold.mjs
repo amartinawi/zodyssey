@@ -180,6 +180,39 @@ try {
   runStartSha = ""; // not a git repo — consult will diff the whole working tree
 }
 
+// INHERITED DIRTY STATE (2026-08-12, shakedown round 2). F1 measures
+// `git diff --name-only <run_start_sha>` ∪ untracked, so any file that was ALREADY modified or
+// untracked before the run started lands in F1's `actual` set, is not in `declared`, and fails
+// F1 as a scope violation the run never committed.
+//
+// Round 2 hit exactly this: an uncommitted pair from the previous run sat in the tree, F1 went
+// red on it, and every sanctioned way to clean it (stash, `git checkout --`, editing the files)
+// is blocked by the scope gate — because those files are, correctly, out of scope. The run could
+// not reach `done` through any legitimate path. Committing does not help either: F1 diffs against
+// run_start_sha, so a file committed mid-run still appears.
+//
+// Recording the dirty set here — the last moment before the run touches anything — lets F1
+// subtract it. Same principle as the regression gate refusing to blame a run for a suite that was
+// already red: a run answers for what it changed, not for what it walked into.
+//
+// Absent on runs scaffolded before this change; consumers treat that as an empty set, so the
+// behaviour is unchanged for them.
+let dirtyAtStart = [];
+if (runStartSha) {
+  try {
+    const tracked = execSync("git diff --name-only HEAD", { cwd: repoRoot, encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
+    const untracked = execSync("git ls-files --others --exclude-standard", { cwd: repoRoot, encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
+    // Exclude `.zcode/` — this scaffold has already written the plan and task files by now, so
+    // they show up as "untracked" and would be recorded as pre-existing mess created by the very
+    // run they belong to. F1 ignores `.zcode/` anyway; keeping it out here stops the field from
+    // being confusing to read.
+    dirtyAtStart = [...new Set((tracked + "\n" + untracked).split("\n").map((p) => p.trim()).filter(Boolean))]
+      .filter((p) => !p.startsWith(".zcode/"));
+  } catch {
+    dirtyAtStart = []; // best-effort; an empty set just means F1 keeps its current behaviour
+  }
+}
+
 const now = new Date().toISOString();
 const state = {
   slug,
@@ -191,6 +224,9 @@ const state = {
   started_at: now,
   updated_at: now,
   run_start_sha: runStartSha,
+  // Files already modified/untracked before this run began. F1 subtracts these so a run is not
+  // failed for mess it inherited. See the capture above.
+  dirty_at_start: dirtyAtStart,
   active_executor_session: null,
   todos: {},
   file_locks: {},

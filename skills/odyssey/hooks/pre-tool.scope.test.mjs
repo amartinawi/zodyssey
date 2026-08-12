@@ -79,16 +79,31 @@ console.log("pre-tool.mjs — scope prohibitions and the phase-3 staging path\n"
   check("a `### Never touch` subsection does NOT grant scope", editUnrelated(repo) === 2);
 }
 
-// --- ...but a POSITIVE mention still must ------------------------------------
-// The Scope harvest exists so a plan can widen scope in prose. Over-correcting into "Scope grants
-// nothing" would silently break real plans, so the positive path is asserted explicitly.
+// --- SEC-M7c: `## Scope` prose now grants NOTHING ----------------------------
+//
+// This reverses an assertion written earlier the same day ("a positive Scope mention DOES still
+// grant scope"). The harvest is gone entirely; `Files:` is the single source of truth for both
+// this gate and F1.
+//
+// Why the reversal: the harvest needed two fixes in two days for the same bug shape (SEC-M7, then
+// SEC-M7b) because reading paths out of prose cannot distinguish "edit this" from "do not edit
+// this" from "this is what the style looks like". Round 2 showed the third case biting — a plan
+// naming `test/text.test.js` as a STYLE REFERENCE thereby granted write access to it. And F1
+// never honoured the harvest at all, so anything it granted passed the gate and then guaranteed
+// an F1 failure. The gate authorised exactly what the final wave would reject.
 {
   const repo = repoWithScope("This work also updates `src/unrelated.js` alongside the main change.");
-  check("a positive Scope mention DOES still grant scope", editUnrelated(repo) === 0);
+  check("a positive Scope mention no longer grants scope (Files: is the only source)",
+    editUnrelated(repo) === 2);
 }
 {
   const repo = repoWithScope("### Must have\n\n- `src/unrelated.js` is updated too.");
-  check("a `### Must have` subsection still grants scope", editUnrelated(repo) === 0);
+  check("a `### Must have` subsection no longer grants scope", editUnrelated(repo) === 2);
+}
+{
+  // The case that motivated the removal: naming a file as a reference must not grant write access.
+  const repo = repoWithScope("Match the existing style — see `src/unrelated.js` for the conventions.");
+  check("naming a file as a STYLE REFERENCE does not grant write access", editUnrelated(repo) === 2);
 }
 
 // --- the declared file is unaffected in every case ---------------------------

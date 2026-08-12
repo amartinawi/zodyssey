@@ -174,7 +174,21 @@ try {
       p = p.trim();
       if (p && !p.startsWith(".zcode/") && !IGNORE.test(p) && !/package-lock\.json$/.test(p)) actual.add(p);
     }
-    const outOfScope = [...actual].filter((p) => !declared.has(p));
+    // INHERITED DIRTY STATE: files already modified/untracked when the run started are not this
+    // run's doing. scaffold.mjs records them in state.dirty_at_start.
+    //
+    // Subtracted ONLY from the scope-violation calculation, deliberately. They stay in `actual`,
+    // so `declared_untouched`, the empty-diff check, and the test-integrity scan all keep their
+    // current meaning — a run cannot hide a deleted test by having left it dirty beforehand. The
+    // single thing this changes is that inherited mess can no longer be reported as scope creep.
+    //
+    // Round 2 could not reach `done` because of this: a stale uncommitted pair from the previous
+    // run failed F1, and every sanctioned way to clean it was blocked by the scope gate, because
+    // those files were (correctly) out of scope. The gate and F1 between them made the run
+    // unfinishable through any legitimate path.
+    const inheritedDirty = new Set(Array.isArray(st.dirty_at_start) ? st.dirty_at_start : []);
+    const outOfScope = [...actual].filter((p) => !declared.has(p) && !inheritedDirty.has(p));
+    const ignoredInherited = [...actual].filter((p) => !declared.has(p) && inheritedDirty.has(p));
 
     // B4 — THE CONVERSE. F1 only ever computed `actual \ declared` (scope creep). It never asked
     // whether the declared work HAPPENED. With an empty diff, `actual` is empty, so `outOfScope`
@@ -234,6 +248,7 @@ try {
       declared: [...declared],
       actual: [...actual],
       out_of_scope: outOfScope,
+      ...(ignoredInherited.length ? { inherited_dirty_ignored: ignoredInherited } : {}),
       declared_untouched: untouched,
       test_integrity: testIntegrity,
       ...(didNothing ? { error: "F1: the plan declares files but the diff is EMPTY — nothing was done. This is the vacuous pass; it is not a completed run." } : {}),

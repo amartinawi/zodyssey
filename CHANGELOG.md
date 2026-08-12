@@ -4,6 +4,24 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Changed — `Files:` is now the only source of scope (SEC-M7c)
+
+**BREAKING for plans that widened scope in prose.** The `## Scope` prose harvest is deleted. The declared set comes from `Files:` blocks alone, in both the hook and F1.
+
+Its history is the argument. SEC-M7 narrowed a whole-plan harvest to `## Scope` after a prohibition granted access; SEC-M7b then had to strip `Must NOT` subsections *inside* `## Scope` after the same bug reappeared one level down. Two fixes in two days, same shape — because reading paths out of prose cannot distinguish "edit this" from "do not edit this" from "this is what the style looks like".
+
+Shakedown round 2 showed the third case biting: a plan naming `test/text.test.js` as a **style reference** thereby granted write access to it. And F1 never honoured the harvest at all — it derives `declared` from `Files:` only. So a Scope-granted file passed the gate and then *guaranteed* an F1 failure at the end of the run. The gate authorised precisely what the final wave would reject.
+
+A plan that needs a file in scope declares it in `Files:`, which F1 requires anyway. One source, two consumers, no disagreement. This reverses an assertion added earlier the same day; the test now states the new invariant explicitly, including the style-reference case that motivated it.
+
+### Fixed — F1 no longer fails a run for mess it inherited
+
+F1 measures `git diff --name-only <run_start_sha>` ∪ untracked, so a file left modified or untracked *before* the run started landed in `actual`, was absent from `declared`, and failed F1 as a scope violation the run never committed.
+
+Round 2 could not reach `done` because of this: a stale uncommitted pair from the previous run failed F1, and every sanctioned way to clean it — stash, `git checkout --`, editing the files — was blocked by the scope gate, correctly, since those files were out of scope. Committing does not help either, because F1 diffs against `run_start_sha`. The gate and F1 between them made the run unfinishable through any legitimate path.
+
+`scaffold.mjs` now records `state.dirty_at_start` (excluding `.zcode/`), and F1 subtracts it **from the scope-violation calculation only**. Those files stay in `actual`, so `declared_untouched`, the empty-diff check, and test-integrity keep their current meaning — a deleted test cannot be laundered by marking it dirty-at-start, and a file created *during* the run is still scope creep. What F1 ignored is reported as `inherited_dirty_ignored` rather than silently dropped. Absent on older runs, which keep the previous behaviour.
+
 ### Added — `record-final-artifact.mjs`, the missing trusted writer (2026-08-12)
 
 `.zcode/reviews/` is deliberately not bookkeeping, so no agent can `Write` there — that is what makes a review artifact unforgeable. The review lane has had a trusted writer since W7-2 (`record-momus-artifact.mjs`); the **final wave never got one**, so `record-final-wave.mjs` demanded F2/F4 artifacts from a directory nothing in the toolchain could write. The shakedown run had to place them out-of-band through an MCP terminal.

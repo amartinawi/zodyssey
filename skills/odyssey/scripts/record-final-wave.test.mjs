@@ -198,6 +198,70 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
     `(${JSON.stringify(r.state?.final?.results?.F1?.test_integrity)})`);
 }
 
+// --- F1: inherited dirty state is not this run's fault -----------------------
+//
+// F1 measures `git diff --name-only <run_start_sha>` ∪ untracked, so a file left modified or
+// untracked BEFORE the run started lands in `actual`, is not in `declared`, and fails F1 as a
+// scope violation the run never committed. Shakedown round 2 died here: a stale uncommitted pair
+// from the previous run failed F1, and every sanctioned way to clean it (stash, checkout, edit)
+// was blocked by the scope gate — correctly, since those files were out of scope. The run was
+// unfinishable through any legitimate path.
+//
+// scaffold.mjs records the dirty set; F1 subtracts it from the scope-violation calculation ONLY.
+// The exploit cases below matter more than the happy path: this must not become a way to launder
+// real scope creep or hide a gutted test.
+{
+  const { repo } = mk({});
+  // A file that was already dirty before the run — and is NOT declared.
+  writeFileSync(join(repo, "src", "preexisting.js"), "// left over from a previous run\n");
+  const sp = join(repo, ".zcode", "state", "t.json");
+  const st0 = JSON.parse(readFileSync(sp, "utf8"));
+  st0.dirty_at_start = ["src/preexisting.js"];
+  writeFileSync(sp, JSON.stringify(st0, null, 2));
+
+  writeFileSync(join(repo, "src", "foo.js"), "// the actual work\n");
+  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  check("F1 PASSES despite an inherited dirty file", r.state?.final?.results?.F1?.passed === true,
+    `(${JSON.stringify(r.state?.final?.results?.F1).slice(0, 300)})`);
+  check("F1 reports what it ignored rather than hiding it",
+    (r.state?.final?.results?.F1?.inherited_dirty_ignored || []).includes("src/preexisting.js"));
+}
+{
+  // NOT a laundering channel: a file dirtied DURING the run is still scope creep.
+  const { repo } = mk({});
+  const sp = join(repo, ".zcode", "state", "t.json");
+  const st0 = JSON.parse(readFileSync(sp, "utf8"));
+  st0.dirty_at_start = ["src/preexisting.js"];   // something else was dirty
+  writeFileSync(sp, JSON.stringify(st0, null, 2));
+  writeFileSync(join(repo, "src", "foo.js"), "// work\n");
+  writeFileSync(join(repo, "src", "stray.js"), "// created DURING the run\n");
+  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  check("F1 still FAILS on a file created during the run", r.state?.final?.results?.F1?.passed === false);
+  check("...and names it", (r.state?.final?.results?.F1?.out_of_scope || []).includes("src/stray.js"));
+}
+{
+  // The carve-out must not hide a gutted test: test-integrity reads the diff, not `outOfScope`.
+  const { repo } = mk({ declared: ["src/foo.js", "test/foo.test.js"], withTest: true });
+  const sp = join(repo, ".zcode", "state", "t.json");
+  const st0 = JSON.parse(readFileSync(sp, "utf8"));
+  st0.dirty_at_start = ["test/foo.test.js"];     // claim the test was already dirty
+  writeFileSync(sp, JSON.stringify(st0, null, 2));
+  writeFileSync(join(repo, "src", "foo.js"), "// work\n");
+  rmSync(join(repo, "test", "foo.test.js"));      // ...then delete it
+  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  check("F1 STILL fails on a deleted test even if marked dirty-at-start",
+    r.state?.final?.results?.F1?.passed === false);
+}
+{
+  // Runs scaffolded before this field existed must behave exactly as before.
+  const { repo } = mk({});
+  writeFileSync(join(repo, "src", "foo.js"), "// work\n");
+  writeFileSync(join(repo, "src", "stray.js"), "// out of scope\n");
+  const r = run(repo, ["--skip", "F2,F3,F4"]);   // no dirty_at_start field at all
+  check("absent dirty_at_start = old behaviour (still fails on scope creep)",
+    r.state?.final?.results?.F1?.passed === false);
+}
+
 for (const d of cleanup) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

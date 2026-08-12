@@ -195,51 +195,25 @@ function declaredScopeForRun(st) {
       }
     }
   }
-  // SEC-M7 (external audit #9): the OLD second pass harvested backtick paths from the ENTIRE plan,
-  // so a prohibition (`Must NOT do: touch \`config/prod.yaml\``) GRANTED access to that forbidden
-  // file. Now restricted to the `## Scope` section only (Must-have deliverables live there); the
-  // `Must NOT do`/`MUST NOT DO` lines under each todo are excluded, so a forbidden path can no
-  // longer widen scope.
-  const scopeSection = extractSection(planText, "Scope");
-  if (scopeSection) {
-    // SEC-M7b (2026-08-12, found by the first end-to-end shakedown run): a PROHIBITION still
-    // granted access. SEC-M7 moved the harvest into `## Scope` to stop per-todo "Must NOT do"
-    // lines widening scope — but a plan-level `### Must NOT have` subsection lives INSIDE
-    // `## Scope`, so the sentence
-    //
-    //     - `src/unrelated.js` MUST NOT be touched by any todo.
-    //
-    // added src/unrelated.js to the declared set. The gate inverted: the more emphatically a plan
-    // forbade a file, the more certainly it authorised writing to it. Verified live — a probe
-    // expecting a scope violation was ALLOWED.
-    //
-    // Strip prohibition content before harvesting: whole `###` subsections whose heading mentions
-    // "must not"/"never"/"out of scope", and any individual line saying must-not. Both, because a
-    // prohibition can be written either way and a path only needs to be read once to be granted.
-    const positiveScope = scopeSection
-      .split(/^(?=###\s)/m)
-      .filter((block) => !/^###\s.*\b(?:must\s*not|mustn't|never|do\s*not|don't|out[- ]of[- ]scope|excluded?|forbidden)\b/im.test(block))
-      .join("\n")
-      .split("\n")
-      .filter((line) => !/\b(?:must\s*not|mustn't|never|do\s*not|don't|out[- ]of[- ]scope|forbidden)\b/i.test(line))
-      .join("\n");
-    for (const m of positiveScope.matchAll(/`([^`]+\.(?:md|py|ts|js|sh|json|yaml|yml|toml|html|css|png|jpg|webp))`/g)) {
-      const p = m[1].trim();
-      if (p && !/\s/.test(p)) declared.add(p);
-    }
-  }
+  // SEC-M7c (2026-08-12): the `## Scope` prose harvest is GONE. `Files:` is now the single source
+  // of truth for the declared set, in both this gate and F1.
+  //
+  // Its history is the argument against it. SEC-M7 narrowed a whole-plan harvest to `## Scope`
+  // after a prohibition granted access; SEC-M7b then had to strip Must-NOT subsections *inside*
+  // `## Scope` after the same bug reappeared one level down. Two fixes, same shape, because
+  // harvesting paths out of prose cannot tell "edit this" from "do not edit this" or from
+  // "this is what the style looks like".
+  //
+  // The second shakedown run made the cost concrete: a plan that mentioned `test/text.test.js` as
+  // a STYLE REFERENCE thereby granted write access to it. And F1 never honoured this harvest at
+  // all — it derives `declared` from `Files:` only. So a Scope-granted file passed the gate and
+  // then guaranteed an F1 failure at the end of the run. The gate authorised precisely what the
+  // final wave would reject.
+  //
+  // A plan that needs a file in scope declares it in `Files:` — which F1 requires anyway. One
+  // source, two consumers, no disagreement, and prose goes back to being prose.
   return { declared, planText, planPath };
 }
-// helper: return the body of a `## <name>` section (up to the next `## ` header)
-function extractSection(text, name) {
-  const re = new RegExp(`^## ${name}\\s*$`, "m");
-  const start = text.search(re);
-  if (start === -1) return "";
-  const after = text.slice(start + text.slice(start).indexOf("\n") + 1);
-  const next = after.search(/^## /m);
-  return (next === -1 ? after : after.slice(0, next)).trim();
-}
-
 // --- parallel-dispatch ledger (audit gap #3) ---
 // The orchestrator CANNOT bump state.in_flight_dispatches between tool calls in one turn,
 // so the hook must count. Ledger = .zcode/state/<slug>.inflight.json: [{id, at}].
