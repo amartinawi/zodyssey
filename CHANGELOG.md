@@ -4,6 +4,18 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Fixed — two failures found by the first end-to-end shakedown run (2026-08-12)
+
+Both survived every unit test in the repo, because both are properties of how the pieces combine rather than of any single piece. Neither is reachable by testing a gate in isolation.
+
+- **SEC-M7b — a prohibition GRANTED access.** `declaredScopeForRun` harvested backtick-quoted paths from the whole `## Scope` section, and a plan-level `### Must NOT have` subsection lives *inside* `## Scope`. So the sentence ``- `src/unrelated.js` MUST NOT be touched by any todo.`` added that file to the declared set. **The scope gate inverted: the more emphatically a plan forbade a file, the more certainly it authorised writing to it.** Caught live — a shakedown probe expecting a scope violation was ALLOWED. SEC-M7 had fixed only the per-todo `Must NOT do` case and missed the plan-level subsection. Prohibition content (`### Must NOT` / `### Out of scope` / `### Never` subsections, and inline must-not lines) is now stripped before the harvest; positive Scope mentions still widen scope, which is asserted explicitly so the fix cannot over-correct into "Scope grants nothing".
+
+- **SEC-6b — phase 3 was deadlocked under a gated Bash.** Reaching `execute` requires `review.verdict === OKAY`, which only `record-review.mjs` sets, which requires an artifact from `record-momus-artifact.mjs`, which takes the verdict via `--from` or stdin. Pre-OKAY every route was closed: SEC-6 refuses `--from` under `plans/` and `notepads/`; the Write gate allowed **only** `plans/` and `notepads/`; and any stdin pipe contains a metacharacter, so it is not a trusted-script invoke and falls through to the write-capable gate, which blocks pre-OKAY. **No gated run could leave phase 3 at all.**
+
+  It hid because the Bash gate was deleted from v0.1.1 through v0.3.1. SEC-6 landed 2026-08-04 while the gate was off, so the two were never armed together until the gate was restored on 2026-08-11 — restoring a dormant guard woke a deadlock that had been latent the whole time. `.zcode/staging/` is now bookkeeping: writable pre-OKAY and accepted as a `--from` source. It is not a security boundary on its own — SEC-6's real value is keeping the verdict out of the dirs the *planner* writes, and the artifact's actual protection is the hook-minted nonce plus the sha binding.
+
+Also recorded from the same run: F1 in `record-final-wave.mjs` derives `declared` from `Files:` only and never harvested `## Scope`, so the hook and F1 disagreed about what was in scope — a file granted by the Scope harvest would pass the hook and then fail F1. Narrowing the harvest brings them closer; making them share one implementation is still open.
+
 ### Security — the Bash write-gate was deleted a SECOND time and shipped in v0.2.0
 
 `e57b01b` (PR #1, the v0.2.0 cycle) replaced ~170 lines of Bash gate with `if (isBash) exit(0);`, re-breaking the exact fix `433c037` (v0.1.2) had made two releases earlier and published a post-mortem about. **Three independent external audits ran on v0.2.0 and none of them noticed.**
