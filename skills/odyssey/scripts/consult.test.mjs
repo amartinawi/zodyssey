@@ -402,5 +402,40 @@ console.log("consult.mjs --multi-auditor mode tests\n");
   check("(m5) scoreOf(ACCEPT) = 1.0", scoreOf({ verdict: "ACCEPT", gaps: [] }) === 1.0);
 }
 
+
+// --- EPIPE is not a process error -------------------------------------------
+//
+// spawnSync reports EPIPE when the child stops reading stdin before the parent finishes writing.
+// The child exiting early is not the spawn failing — and if it exited 0 with usable stdout, the
+// audit is valid. Treating EPIPE as fatal both discarded good results and hid the real cause: you
+// saw "process error: EPIPE" when the truth was "the auditor exited 1 because of a bad flag".
+//
+// It also made THIS suite flaky. The stub below does not drain stdin, so under CI load the write
+// raced the exit and a run went red on a file the change never touched. A gate that fails randomly
+// teaches people to re-run red instead of reading it.
+{
+  const dir = mkdtempSync(join(tmpdir(), "zod-epipe-"));
+  try {
+    // A stub that answers immediately and never reads stdin — the exact race.
+    const stub = join(dir, "stub.sh");
+    writeFileSync(stub, `#!/bin/sh\nprintf %s '{"result":"{\\"verdict\\":\\"ACCEPT\\"}"}'\nexit 0\n`);
+    spawnSync("chmod", ["+x", stub]);
+    const res = spawnSync(stub, [], { encoding: "utf8", input: "x".repeat(5 * 1024 * 1024) });
+
+    check("(e) the race reproduces: EPIPE with a usable exit-0 result",
+      res.error && res.error.code === "EPIPE" && res.status === 0 && !!res.stdout,
+      `(error=${res.error && res.error.code} status=${res.status} stdout=${(res.stdout || "").length})`);
+
+    // Mirror isFatalSpawnError's contract.
+    const fatal = (r) => r.status === null ? true : (!r.error ? false : r.error.code !== "EPIPE");
+    check("(e) EPIPE + exit 0 is NOT fatal", fatal(res) === false);
+    check("(e) a real spawn failure IS fatal", fatal({ error: { code: "ENOENT" }, status: null }) === true);
+    check("(e) killed-by-signal IS fatal", fatal({ status: null }) === true);
+    check("(e) clean run is not fatal", fatal({ status: 0, stdout: "x" }) === false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 console.log(`\n${pass}/${pass + fail} passed`);
 process.exit(fail === 0 ? 0 : 1);

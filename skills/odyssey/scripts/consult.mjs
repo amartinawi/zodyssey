@@ -43,6 +43,27 @@ import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit, env } from "node:process";
 import { execFileSync, spawnSync } from "node:child_process";
+
+// EPIPE IS NOT A PROCESS ERROR (2026-08-12). spawnSync reports EPIPE when the child stops reading
+// stdin before the parent finishes writing the prompt — the child exiting early, not the spawn
+// failing. Treating it as a hard error hides the real cause: you get "process error: EPIPE" when
+// the truth is "the auditor exited 1 because of a bad flag / auth failure", which is what the next
+// two checks would have told you.
+//
+// It also made the suite flaky. consult.test.mjs's stub auditor does not drain stdin, so under CI
+// load the write raced the exit and the run went red on a file the change never touched. A gate
+// that fails randomly teaches people to re-run red instead of reading it, which is worse than the
+// bug it was reporting. (This project already hit EPIPE once from an oversized prompt on
+// 2026-08-02 — see the generated-file exclusion below.)
+//
+// So: EPIPE alone falls through to the status/stdout checks. If the child still exited 0 with
+// usable output, the audit is valid. If it did not, the error message now names the real failure.
+function isFatalSpawnError(res) {
+  if (res.status === null) return true;                 // killed by signal / never ran
+  if (!res.error) return false;
+  return res.error.code !== "EPIPE";
+}
+
 import { normalizeConsultVerdict } from "./lib/verdict-schema.mjs";
 // Memory bridge (todo 2 / memory-schema.mjs): multi-auditor mode (below) uses outcomeToGraphEntity
 // to record auditor disagreements into the knowledge graph so future runs can recall them, and
@@ -230,7 +251,7 @@ export async function runPlanAudit({ repoRoot, slug, spawn }) {
     timeout: 10 * 60 * 1000,
   });
 
-  if (res.error || res.status === null) {
+  if (isFatalSpawnError(res)) {
     console.error("plan-auditor process error: " + (res.error ? res.error.message : "killed by signal " + res.signal));
     exit(4);
   }
@@ -482,7 +503,7 @@ Return the JSON verdict object now.`;
     timeout: 10 * 60 * 1000,
   });
 
-  if (res.error || res.status === null) {
+  if (isFatalSpawnError(res)) {
     const msg = "auditor process error (" + claudeBin + "): " + (res.error ? res.error.message : "killed by signal " + res.signal);
     console.error(msg);
     throw new Error(msg);
@@ -1002,7 +1023,7 @@ const res = spawnSync(claudeBin, args, {
   timeout: 10 * 60 * 1000, // 10 min hard cap; auditor rarely exceeds 3
 });
 
-if (res.error || res.status === null) {
+if (isFatalSpawnError(res)) {
   console.error("auditor process error: " + (res.error ? res.error.message : "killed by signal " + res.signal));
   exit(4);
 }
