@@ -306,8 +306,46 @@ function apply(st) {
   // orchestrator reading SKILL.md's skip-on-pass guidance would prematurely skip the todo.
   const allForTodo = st.verify.history.filter((h) => h.todo_id === todoId);
   const todoStatus = (st.todos && st.todos[todoId] && st.todos[todoId].status) || null;
-  const allPass = todoStatus === 'done' && allForTodo.length > 0 && allForTodo.every((h) => h.passed);
-  st.acceptance[todoId] = { pass: allPass, at: evidence.recorded_at, evidence: artifactPath };
+
+  // COMPLETENESS, NOT STATUS (2026-08-12, from the first end-to-end shakedown run).
+  //
+  // The old rule was `todoStatus === 'done'`. It closed a real race — pass must not flip true
+  // after criterion N while N+1..M are still unrun — but it did so with the wrong proxy, and the
+  // natural call order is verify-then-done, so `acceptance[id].pass` read FALSE on every
+  // successfully verified todo. The shakedown observed exactly that: verify.history 4/4 passed,
+  // todos.verified true, and acceptance[1|2].pass false. A field that is always false is worse
+  // than absent, because a resuming orchestrator reads it as "not yet accepted" and redoes work
+  // that is already done.
+  //
+  // The honest question is not "is the todo marked done" but "have ALL of this todo's criteria
+  // been run and passed". So count what the PLAN declares for this todo and require the recorded
+  // criteria to cover it. That closes the same race without depending on call order.
+  //
+  // Fail closed: if the plan cannot be read or the todo is not in it, fall back to the old
+  // status gate rather than assuming completeness from an unknown denominator.
+  let expectedCriteria = null;
+  try {
+    const planPath = st.plan_path || join(repoAbs, ".zcode", "plans", `${slug}.md`);
+    const parsed = JSON.parse(execFileSync(process.execPath,
+      [new URL("./parse-plan.mjs", import.meta.url).pathname, planPath],
+      { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 }));
+    const todo = (parsed.todos || []).find((t) => String(t.id) === String(todoId));
+    if (todo && Array.isArray(todo.acceptance)) expectedCriteria = todo.acceptance.length;
+  } catch { expectedCriteria = null; }
+
+  const distinctRun = new Set(allForTodo.map((h) => h.criterion_index)).size;
+  const allRecordedPassed = allForTodo.length > 0 && allForTodo.every((h) => h.passed);
+  const allPass = expectedCriteria === null
+    ? (todoStatus === "done" && allRecordedPassed)              // unknown denominator → old gate
+    : (allRecordedPassed && distinctRun >= expectedCriteria);   // every declared criterion ran and passed
+
+  st.acceptance[todoId] = {
+    pass: allPass,
+    at: evidence.recorded_at,
+    evidence: artifactPath,
+    criteria_run: distinctRun,
+    ...(expectedCriteria !== null ? { criteria_declared: expectedCriteria } : {}),
+  };
 
   st.notepad_pointers = st.notepad_pointers || {};
   const notepadPath = join(repoAbs, ".zcode", "notepads", slug, `${todoId}.md`);

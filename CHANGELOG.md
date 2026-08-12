@@ -4,6 +4,23 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added — `record-final-artifact.mjs`, the missing trusted writer (2026-08-12)
+
+`.zcode/reviews/` is deliberately not bookkeeping, so no agent can `Write` there — that is what makes a review artifact unforgeable. The review lane has had a trusted writer since W7-2 (`record-momus-artifact.mjs`); the **final wave never got one**, so `record-final-wave.mjs` demanded F2/F4 artifacts from a directory nothing in the toolchain could write. The shakedown run had to place them out-of-band through an MCP terminal.
+
+- `record-final-artifact.mjs <repo> <slug> <F2|F4> [--nonce N] [--from <file>]` — places the artifact, stamps provenance, and **does not consume the nonce** (that stays with `record-final-wave`, which sha-binds it to the artifact bytes). SEC-6 parity: `--from` is refused under `plans/`/`notepads/`; `.zcode/staging/` and stdin are the intended paths.
+- It **rejects an unrecognized verdict at write time**. `record-final-wave` resolves anything ambiguous to `missing` and fails closed, which is correct but arrives after the nonce is spent.
+
+### Fixed — a failed F1 no longer burns the F2/F4 nonces
+
+F2/F4 nonces are one-time, and `consumeFinalNonce` spent them even when F1 had already failed and the call could not reach `pass`. Observed cost in the shakedown: F1 tripped on stray untracked files (an MCP tool's session state inside the repo), which burned both nonces, so fixing that trivial problem required **re-dispatching both reviewers purely to mint replacements**. When F1 has already failed, F2/F4 are now recorded as `not_evaluated` and their nonces are left intact for the retry. Not a weakening: `not_evaluated` is not `passed`, so the call still fails — it just stops setting fire to the evidence chain on its way out.
+
+### Fixed — `acceptance[id].pass` was always false
+
+It was gated on `todos[id].status === 'done'`. That closed a real mid-verify race (pass must not flip true after criterion N while N+1..M are unrun) but used the wrong proxy: the natural call order is verify-then-done, so **every successfully verified todo recorded `pass: false`**. The shakedown saw `verify.history` 4/4 passed, `todos.verified: true`, and `acceptance.pass: false`. A field that is always false is worse than an absent one — a resuming orchestrator reads it as "not accepted" and redoes finished work.
+
+Now derived from completeness instead of status: the plan's declared criteria count for that todo is compared against what actually ran, so `pass` is true only when **every declared criterion ran and passed** — independent of call order, with the race still closed. `criteria_run` / `criteria_declared` are recorded alongside. Falls back to the old status gate when the plan cannot be read, rather than assuming completeness from an unknown denominator.
+
 ### Fixed — two failures found by the first end-to-end shakedown run (2026-08-12)
 
 Both survived every unit test in the repo, because both are properties of how the pieces combine rather than of any single piece. Neither is reachable by testing a gate in isolation.
