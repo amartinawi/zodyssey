@@ -294,8 +294,36 @@ function consumeFinalNonce(field, argvNonce, artifactAbs) {
   }
 }
 
+// NONCE ECONOMY (2026-08-12, from the first end-to-end shakedown run): F2/F4 nonces are ONE-TIME.
+// consumeFinalNonce burns them the moment it validates an artifact — even when F1 has already
+// failed and the run cannot pass regardless. The observed cost: a run whose F1 tripped on stray
+// untracked files (an MCP tool's session state) burned both nonces, so fixing the trivial F1
+// problem then required RE-DISPATCHING both reviewers purely to mint replacements.
+//
+// The nonces exist to prove a reviewer was dispatched. Spending them on a call that cannot
+// possibly reach `pass` proves nothing and costs two agent dispatches. So when F1 has already
+// failed, F2/F4 are reported as not-evaluated and their nonces are left intact for the retry.
+//
+// Deliberately NOT a weakening: nothing becomes passable that was not before. `allPass` requires
+// every item to be `passed`, and `not_evaluated` is not `passed`, so this call still fails — it
+// just fails without setting fire to the evidence chain on the way out.
+const f1AlreadyFailed = results.F1 && results.F1.passed === false;
+if (f1AlreadyFailed) {
+  for (const [k, need] of [["F2", !skip.has("F2")], ["F4", !skip.has("F4")]]) {
+    if (need) {
+      results[k] = {
+        passed: false,
+        not_evaluated: true,
+        reason: `${k} not evaluated — F1 failed first, so the ${k} nonce was left unconsumed for the retry. Fix F1 and re-run; the same artifact and nonce remain valid.`,
+      };
+    }
+  }
+}
+
 // --- F2: code-quality review artifact + nonce (skip if not required, e.g. no code changed) ---
-if (skip.has("F2")) {
+if (f1AlreadyFailed && !skip.has("F2")) {
+  // already recorded as not_evaluated above
+} else if (skip.has("F2")) {
   results.F2 = { passed: true, skipped: true };
 } else {
   const reviewsDir = join(repoAbs, ".zcode", "reviews");
@@ -344,7 +372,9 @@ if (skip.has("F3")) {
 }
 
 // --- F4: scope-fidelity artifact + nonce (Task(oracle)) ---
-if (skip.has("F4")) {
+if (f1AlreadyFailed && !skip.has("F4")) {
+  // already recorded as not_evaluated above — nonce left intact for the retry
+} else if (skip.has("F4")) {
   results.F4 = { passed: true, skipped: true };
 } else {
   const reviewsDir = join(repoAbs, ".zcode", "reviews");

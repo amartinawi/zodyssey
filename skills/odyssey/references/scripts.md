@@ -58,3 +58,10 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY non-forgeable: an agent can't fabricate the artifact because the nonce only exists after a real `Task(zodyssey:momus)` call the hook witnessed. *(The 2026-08-04 review-lane hole referenced here was closed by `record-review.mjs`'s nonce binding; the caveat is removed as obsolete.)*
 
 **What the chain does and does not prove.** It proves a reviewer was **dispatched** and that the artifact bytes are the ones the nonce was bound to. Until 2026-08-11 that was the entire final-wave check — F2/F4 never opened the artifact, so one reading `{"verdict":"REJECT"}` passed both. The verdict is now parsed (see `record-final-wave.mjs` above), which closes the gap between "a review happened" and "the review approved". Phase 3's `record-review.mjs` already compared the artifact's verdict against argv; the final wave now matches that standard.
+
+## Final-wave artifacts (added 2026-08-12)
+
+- `scripts/record-final-artifact.mjs <repo> <slug> <F2|F4> [--nonce N] [--from <file>]` — the trusted writer for F2/F4 artifacts, mirroring `record-momus-artifact.mjs` for the review lane. `.zcode/reviews/` is not bookkeeping, so this is the only sanctioned way to put an artifact there. Verdict comes from `--from` (not under `plans/`/`notepads/` — use `.zcode/staging/`) or stdin. Prints the artifact path.
+  - It does **not** consume the nonce: `record-final-wave.mjs` does that, binding it to the artifact's bytes. Passing `--nonce` here just checks it against `state.final_f2|final_f4.pending_nonce` so a mismatch surfaces immediately instead of at the gate.
+  - An unrecognized `verdict` value is refused at write time. The gate would resolve it to `missing` and fail closed anyway, but by then the one-time nonce is spent.
+- **A failed F1 no longer consumes the F2/F4 nonces.** They are recorded as `not_evaluated` and left intact, so fixing an F1 problem and re-running does not require re-dispatching both reviewers.
