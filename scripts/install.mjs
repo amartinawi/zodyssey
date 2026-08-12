@@ -29,6 +29,7 @@
 //   node scripts/install.mjs --uninstall          # remove ZOdyssey config (marketplace uninstall via GUI)
 //   node scripts/install.mjs --dry-run            # show what would happen, change nothing
 //   node scripts/install.mjs --verify             # health-check the install
+//   node scripts/install.mjs --sync-cache         # copy this tree into the plugin cache (what actually executes)
 //
 // All paths derive from os.homedir() and the repo's own .zcode-plugin/plugin.json
 // version field — ZERO hard-coded /home/... or literal "~" paths.
@@ -91,6 +92,7 @@ const REPO_AGENTS = [
 const DRY = argv.includes("--dry-run");
 const UNINSTALL = argv.includes("--uninstall");
 const VERIFY = argv.includes("--verify");
+const SYNC_CACHE = argv.includes("--sync-cache");
 
 const log = (m) => console.log(DRY ? `[dry-run] ${m}` : m);
 const logDim = (m) => console.log(DRY ? `[dry-run]   ${m}` : `   ${m}`);
@@ -162,6 +164,75 @@ function resolveInstallPath() {
 }
 
 const RESOLVED_INSTALL_PATH = resolveInstallPath();
+
+// ---------- --sync-cache ----------
+//
+// WHY THIS EXISTS: shakedown round 2 found that NONE of the shipped fixes were live. They were in
+// the repo and in the marketplace tree; the CACHE — which is what ${CLAUDE_PLUGIN_ROOT} resolves
+// to and what actually executes — still held the previous versions. The tester had to hand-roll a
+// `cp -rT` to make the code under test be the code that runs.
+//
+// Worse, the drift check pointed the wrong way: it said "Re-run install.mjs + Update the plugin",
+// but this installer has never copied anything to the cache (the marketplace subsystem owns it),
+// and "Update" is a GUI action in an Electron app. So the one tool that detects the problem named
+// a command that cannot fix it. A detector with a wrong remedy is barely better than no detector —
+// it sends people in a circle.
+//
+// This makes the manual workaround a supported, testable command. It does exactly what the
+// marketplace Update does to the cached tree, and nothing else: no registry writes, no config
+// edits. Idempotent, and safe to run before a session.
+function syncCache() {
+  const dest = RESOLVED_INSTALL_PATH;
+  if (!dest) {
+    console.error("--sync-cache: zodyssey is not marketplace-installed (no installPath in installed_plugins.json).\n" +
+      "  Install it first: Settings → Plugin Management → Discover → add this repo → Get.");
+    exit(1);
+  }
+  // Refuse mid-run: swapping the hooks under an active orchestration would change the rules
+  // between one tool call and the next, and the state file would no longer describe the code
+  // enforcing it.
+  const active = [];
+  try {
+    const stateDir = join(REPO_ROOT, ".zcode", "state");
+    if (existsSync(stateDir)) {
+      for (const f of readdirSync(stateDir)) {
+        if (!f.endsWith(".json") || f.endsWith(".inflight.json")) continue;
+        try {
+          const st = JSON.parse(readFileSync(join(stateDir, f), "utf8"));
+          if (st.phase && !["done", "audited", "abandoned"].includes(st.phase)) active.push(`${f} (${st.phase})`);
+        } catch {}
+      }
+    }
+  } catch {}
+  if (active.length) {
+    console.error(`--sync-cache: refusing — an orchestration run is active in this repo: ${active.join(", ")}.\n` +
+      "  Swapping the hooks mid-run would change the rules between tool calls. Finish or abandon it first.");
+    exit(1);
+  }
+
+  const entries = ["skills", "agents", "commands", ".zcode-plugin", "scripts", "docs"];
+  console.log(`sync-cache: ${REPO_ROOT}\n         -> ${dest}`);
+  let copied = 0;
+  for (const e of entries) {
+    const src = join(REPO_ROOT, e);
+    if (!existsSync(src)) continue;
+    if (DRY) { console.log(`[dry-run]   would copy ${e}/`); copied++; continue; }
+    try {
+      cpSync(src, join(dest, e), { recursive: true, force: true });
+      console.log(`   ✓ ${e}/`);
+      copied++;
+    } catch (err) {
+      console.error(`   ✗ ${e}/ — ${err.message}`);
+      exit(1);
+    }
+  }
+  if (!DRY) {
+    console.log(`\ncopied ${copied} tree(s). Start a NEW ZCode session — hooks load at session start.`);
+    console.log("Confirm with: node scripts/install.mjs --verify   (or: node scripts/smoke-gate.mjs)");
+  }
+  exit(0);
+}
+if (SYNC_CACHE) syncCache();
 
 // ---------- hook helpers ----------
 
@@ -600,10 +671,11 @@ function verify() {
               }
             }
             check(`${ev} deployed == repo source`, drift === null,
-              drift ? `${drift} — the running hook is NOT your source. Update via the marketplace ` +
-                      `(Settings → Plugin Management → Discover → Update). If drift persists, the ` +
-                      `marketplace source itself is stale: ` +
-                      `git -C ~/.zcode/cli/plugins/marketplaces/<mp> pull` : "");
+              drift ? `${drift} — the running hook is NOT your source. Fix with:\n` +
+                      `        node scripts/install.mjs --sync-cache\n` +
+                      `      (or Settings → Plugin Management → Discover → Update). NOTE: a plain ` +
+                      `\`install.mjs\` run does NOT refresh the cache — it never has — so re-running it ` +
+                      `will not clear this.` : "");
           }
         }
       }

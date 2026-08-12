@@ -114,7 +114,9 @@ if (installPath && existsSync(installPath)) {
     if (!existsSync(repo)) { bad(`${name} present in repo`, "cached hook has no repo counterpart"); continue; }
     sha(cached) === sha(repo)
       ? ok(`${name} cached == repo`)
-      : bad(`${name} cached == repo`, "DRIFT: the deployed hook is not your source. Re-run install.mjs + Update the plugin");
+      : bad(`${name} cached == repo`,
+          "DRIFT: the deployed hook is not your source. Fix: node scripts/install.mjs --sync-cache " +
+          "(a plain install.mjs run does NOT refresh the cache — it never has).");
   }
 } else {
   bad("cached hooks", "skipped — no install path");
