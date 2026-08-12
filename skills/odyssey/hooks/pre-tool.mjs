@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
 import { exit, env } from "node:process";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { findActiveRuns, selectByTarget } from "./lib/find-run.mjs";
 
 // W5-minor: realpath the project dir so a symlinked/env-logical path resolves consistently
@@ -59,6 +60,7 @@ const TERMINAL = new Set(["done", "audited", "abandoned"]);
 // is purged by Phase 2 of install.mjs, and the script lives under the plugin cache
 // at <cache>/skills/odyssey/scripts/set-phase.mjs (this hook is at .../hooks/).
 const SET_PHASE_PATH = join(dirname(dirname(fileURLToPath(import.meta.url))), "scripts", "set-phase.mjs");
+const PARSE_PLAN_PATH = join(dirname(dirname(fileURLToPath(import.meta.url))), "scripts", "parse-plan.mjs");
 
 // --- helpers (declared at top level, BEFORE any dispatch code that calls them —
 //     `const` has a temporal-dead-zone, so this ordering is load-bearing) ---
@@ -1154,6 +1156,40 @@ if (isDispatch) {
           `(slug=${state.slug})`
       );
     }
+
+    // LINT BEFORE THE DISPATCH, NOT AFTER (2026-08-12, shakedown round 3).
+    //
+    // record-review.mjs gates OKAY on a clean `parse-plan --lint`, but the lint ran at the END of
+    // the review — after momus had been dispatched, read the plan, and returned a verdict. Round 3
+    // hit it: momus approved, record-review rejected the plan on criteria that were not executable
+    // commands, the plan had to be rewritten, which changed the plan-sha, which invalidated the
+    // review, which required dispatching momus AGAIN. A whole review round spent discovering
+    // something a parser knew before it started.
+    //
+    // Checking here costs one fast subprocess on a rare call and converts a wasted agent round
+    // into an immediate, specific error. Fails OPEN: if the lint cannot be run at all (missing
+    // plan, parser error, timeout) the dispatch proceeds, because this is an ergonomic guard and
+    // record-review still enforces the real gate.
+    try {
+      const planPath = state.plan_path || join(PROJECT_DIR, ".zcode", "plans", `${state.slug}.md`);
+      if (existsSync(planPath)) {
+        const r = spawnSync(process.execPath, [PARSE_PLAN_PATH, planPath, "--lint"],
+          { encoding: "utf8", timeout: 10000 });
+        if (r.status === 6) {
+          let problems = [];
+          try { problems = (JSON.parse(r.stdout || "{}").problems || []); } catch {}
+          const lines = problems.slice(0, 6).map((p) =>
+            `    - todo ${p.todo}${p.criterion_index ? ` criterion ${p.criterion_index}` : ""}: ${p.issue}`);
+          block(
+            `the plan does not pass \`parse-plan --lint\`, so record-review would REJECT this verdict even if momus approves it.\n` +
+            `  Fix the plan first — dispatching momus now spends a review round to learn something the parser already knows,\n` +
+            `  and the fix changes the plan-sha, which invalidates the review anyway.\n` +
+            (lines.length ? `  Problems:\n${lines.join("\n")}\n` : "") +
+            `  Re-check with: node ${PARSE_PLAN_PATH} ${planPath} --lint   (slug=${state.slug})`
+          );
+        }
+      }
+    } catch { /* lint unavailable → let the dispatch through; record-review still gates OKAY */ }
   }
   // BUG FIX 2026-08-03 (run upgrade-lifecycle-validation on IMS): the phase condition here
   // deadlocked runs where momus was dispatched while state.phase was still "plan" (e.g. when no

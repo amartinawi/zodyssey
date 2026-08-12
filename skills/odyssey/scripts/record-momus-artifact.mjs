@@ -7,7 +7,8 @@
 // stamped with the writer's session id so record-review can verify provenance.
 //
 // Usage:
-//   record-momus-artifact.mjs <repo> <slug> <round> [--momus-session S] [--from <file>]
+//   record-momus-artifact.mjs <repo> <slug> [<round>] [--momus-session S] [--from <file>]
+//     <round> is OPTIONAL and 1-indexed; omit it and it is computed from state.review.round.
 //   (verdict JSON on stdin if no --from)
 //   exit: 0 ok · 2 bad args · 3 no state file · 6 invalid verdict JSON
 //
@@ -18,13 +19,46 @@ import { join } from "node:path";
 import { argv, exit, stdin } from "node:process";
 import { createHash } from "node:crypto";
 
-const [repo, slug, roundStr, ...rest] = argv.slice(2);
-if (!repo || !slug || !roundStr) {
-  console.error("usage: record-momus-artifact.mjs <repo> <slug> <round> [--momus-session S] [--from <file>]");
+const [repo, slug, ...tail] = argv.slice(2);
+// <round> is optional, so the third positional may actually be the first FLAG. Only treat it as a
+// round when it does not start with `--`; otherwise it belongs to rest. (Without this, omitting
+// the round made `--nonce` parse as the round value.)
+const roundStr = (tail[0] !== undefined && !String(tail[0]).startsWith("--")) ? tail[0] : undefined;
+const rest = roundStr === undefined ? tail : tail.slice(1);
+if (!repo || !slug) {
+  console.error("usage: record-momus-artifact.mjs <repo> <slug> [<round>] [--momus-session S] [--from <file>]");
   exit(2);
 }
-const round = parseInt(roundStr, 10);
-if (!Number.isInteger(round) || round < 1) { console.error("round must be a positive integer"); exit(2); }
+// ROUND IS NOW OPTIONAL (2026-08-12). `state.review.round` counts COMPLETED rounds and starts at
+// 0; this argument is the 1-indexed round being recorded. That off-by-one tripped shakedown runs 1
+// and 3 — both passed the state's `round` verbatim, got "round must be a positive integer" or a
+// mismatch, and had to re-dispatch momus to recover. An index convention that has to be explained
+// is one the tool should just compute.
+//
+// Omit it and the correct round is derived. Pass it and it is checked, with an error that names
+// both numbers rather than leaving you to work out which end is off by one.
+let round;
+{
+  let completed = 0;
+  try {
+    const st0 = JSON.parse(readFileSync(join(repo, ".zcode", "state", `${slug}.json`), "utf8"));
+    completed = Number.isInteger(st0.review && st0.review.round) ? st0.review.round : 0;
+  } catch { completed = 0; }
+  const computed = completed + 1;
+  if (roundStr === undefined) {
+    round = computed;
+  } else {
+    round = parseInt(roundStr, 10);
+    if (!Number.isInteger(round) || round < 1) {
+      console.error(`round must be a positive integer (got ${JSON.stringify(roundStr)}). It is 1-indexed, while state.review.round counts COMPLETED rounds and starts at 0 — for the first review pass ${computed}. You can omit it entirely and it will be computed.`);
+      exit(2);
+    }
+    if (round !== computed) {
+      console.error(`round ${round} does not match the expected round ${computed} (state.review.round is ${completed}, i.e. ${completed} completed round(s)). Pass ${computed}, or omit the argument and let it be computed.`);
+      exit(2);
+    }
+  }
+}
 let momusSession, fromFile, nonceArg;
 for (let i = 0; i < rest.length; i++) {
   if (rest[i] === "--momus-session") momusSession = rest[++i];

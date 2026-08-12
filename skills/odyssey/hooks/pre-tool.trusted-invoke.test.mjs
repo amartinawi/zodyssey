@@ -15,7 +15,7 @@
 //
 // Run:  node pre-tool.trusted-invoke.test.mjs   (exit 0 = pass, 1 = fail)
 
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -103,6 +103,38 @@ console.log("\n  end-to-end:");
     [RV, repo, "t", "1", "--criterion", `node -e "process.exit(0)"`, "--n", "9"],
     { encoding: "utf8" });
   check("    record-verify executes a metachar criterion", r.status === 0, `(exit ${r.status})`);
+}
+
+// --- lint-before-dispatch: do not spend a review round on a doomed plan ------
+//
+// record-review gates OKAY on a clean `parse-plan --lint`, but that ran at the END of the review.
+// Round 3: momus approved, record-review rejected on non-executable criteria, the fix changed the
+// plan-sha, the review was invalidated, and momus had to be dispatched again — a full round spent
+// learning something the parser knew before it started.
+{
+  const planPath2 = join(repo, ".zcode", "plans", "t.md");
+  const setPhase = (phase) => {
+    const sp = join(repo, ".zcode", "state", "t.json");
+    const st = JSON.parse(readFileSync(sp, "utf8"));
+    st.phase = phase; st.review = { verdict: null, round: 0, max_rounds: 3 };
+    writeFileSync(sp, JSON.stringify(st, null, 2));
+  };
+  const dispatchMomus = () => spawnSync(process.execPath, [HOOK], {
+    input: JSON.stringify({ tool_name: "Task", tool_input: { subagent_type: "zodyssey:momus", prompt: "review" } }),
+    encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: repo, ZODYSSEY_UNGATE_BASH: "" },
+  });
+
+  writeFileSync(planPath2, "# t\n\n## Todos\n\n- [ ] 1. go\n  - Files: [`src/a.js`]\n  - Acceptance criteria:\n    - The thing returns 200.\n\n## Final verification wave\n");
+  setPhase("review");
+  let r = dispatchMomus();
+  check("    momus dispatch BLOCKED when the plan fails lint", r.status === 2, `(exit ${r.status})`);
+  check("    ...and names the specific problem", /not an executable command/.test(r.stdout + r.stderr));
+
+  writeFileSync(planPath2, "# t\n\n## Todos\n\n- [ ] 1. go\n  - Files: [`src/a.js`]\n  - Acceptance criteria:\n    - `node --check src/a.js` exits 0\n\n## Final verification wave\n");
+  setPhase("review");
+  r = dispatchMomus();
+  check("    momus dispatch ALLOWED when the plan lints clean", r.status === 0, `(exit ${r.status})`);
+  check("    ...and the nonce is still minted", /pending_nonce/.test(r.stderr));
 }
 
 rmSync(repo, { recursive: true, force: true });

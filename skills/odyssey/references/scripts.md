@@ -51,6 +51,12 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 ## Phase 3 (REVIEW) — exact order to record a verdict
 
 1. Dispatch zodyssey:momus via `Task(subagent_type="zodyssey:momus")`. The enforcement hook observes this and mints a one-time **nonce** into `state.review.pending_nonce` (read it from there, or from the hook's stderr line). NOTE: SKILL.md older prose said `pending_momus` — that field does not exist; the real field is `pending_nonce`.
+> **The hook lints the plan BEFORE it will dispatch momus.** If `parse-plan --lint` fails, the
+> `Task(zodyssey:momus)` dispatch is blocked with the specific problems listed. Fix the plan, then
+> dispatch. This exists because the lint used to run at the *end* of the review: momus would
+> approve, `record-review` would reject on a criterion the parser could have flagged first, and
+> fixing it changed the plan-sha — which invalidated the review and cost another momus round.
+
 2. zodyssey:momus returns her verdict JSON. Write it to a bookkeeping file (`.zcode/plans/` or `.zcode/notepads/`), then `record-momus-artifact.mjs <repo> <slug> <round> --nonce <nonce> --from <that file>` → prints the artifact path under `.zcode/reviews/`. (Stdin piping via `<<EOF |` is blocked by the Bash gate's metachar denylist pre-verdict — the gate was restored 2026-08-11 after having been deleted in v0.2.0, so this constraint is live again.)
    Note: notepads are **append-only**. `Write` over an existing notepad is blocked; use `Edit`, or write a new file. Notepads are what F1–F4 read, so replacing one wholesale destroys the evidence behind the verdict.
 3. `record-review.mjs <repo> <slug> <OKAY|REJECT> --momus-artifact <that path> --plan-sha $(sha256sum <plan> | cut -d' ' -f1) [--blockers <file>]`.
@@ -65,3 +71,28 @@ The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY n
   - It does **not** consume the nonce: `record-final-wave.mjs` does that, binding it to the artifact's bytes. Passing `--nonce` here just checks it against `state.final_f2|final_f4.pending_nonce` so a mismatch surfaces immediately instead of at the gate.
   - An unrecognized `verdict` value is refused at write time. The gate would resolve it to `missing` and fail closed anyway, but by then the one-time nonce is spent.
 - **A failed F1 no longer consumes the F2/F4 nonces.** They are recorded as `not_evaluated` and left intact, so fixing an F1 problem and re-running does not require re-dispatching both reviewers.
+
+
+## Recovering from a failed final wave
+
+F1 can fail on something you can still fix — most often test-integrity, when a test file ended the
+run net-negative. The recovery is legal but not obvious, because test files are read-only in
+`verify` and `final` (B5), and the DAG has no `final → execute` edge:
+
+```
+final → verify → execute     # both transitions are DAG-legal
+```
+
+In `execute`, test edits are permitted again (that phase is where writing tests is the job). Restore
+the assertions, then `execute → verify → final` and re-run `record-final-wave.mjs` **with the same
+F2/F4 nonces** — a failed F1 leaves them unconsumed, so no reviewer needs re-dispatching.
+
+If the F2/F4 artifacts need updating too (say F4 rejected over the very thing you just fixed),
+re-place them with `record-final-artifact.mjs` before the retry; the pending nonce is still valid.
+
+## Round numbers
+
+`record-momus-artifact.mjs`'s `<round>` argument is **optional**. It is 1-indexed, while
+`state.review.round` counts *completed* rounds and starts at 0 — an off-by-one that cost two
+shakedown runs a re-dispatch each. Omit it and the correct round is computed; pass it and a
+mismatch names both numbers.

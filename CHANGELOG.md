@@ -4,6 +4,14 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Changed — three ergonomics fixes from shakedown round 3
+
+None of these are correctness bugs. All three cost real time in a live run, and each has now cost it twice.
+
+- **The plan is linted BEFORE momus is dispatched.** `record-review` gates OKAY on a clean `parse-plan --lint`, but that ran at the *end* of the review: momus approved, `record-review` rejected on criteria the parser could have flagged first, fixing them changed the plan-sha, that invalidated the review, and momus had to be dispatched again. A whole review round spent learning something a parser knew before it started. The hook now blocks the dispatch and lists the specific problems. Fails **open** if the lint cannot run — it is an ergonomic guard, and `record-review` still enforces the real gate.
+- **`record-momus-artifact`'s `<round>` is optional.** It is 1-indexed while `state.review.round` counts *completed* rounds from 0. That off-by-one cost rounds 1 and 3 a re-dispatch each. Omit it and the round is computed; pass it and a mismatch names both numbers instead of leaving you to work out which end is off. An index convention that has to be explained is one the tool should compute.
+- **The failed-final-wave recovery path is documented.** F1 can fail on something still fixable — usually test-integrity — but test files are read-only in `verify`/`final` and the DAG has no `final → execute` edge. The legal route is `final → verify → execute`, restore, then back. It works; nobody would find it under pressure. Now in `references/scripts.md` along with the note that a failed F1 leaves the F2/F4 nonces unconsumed, so the retry needs no re-dispatch.
+
 ### Fixed — the trusted-script allowlist rejected quoted data as shell syntax (round 3)
 
 `isTrustedScriptInvoke` tested the whole command for ``; & | ` $ < > ( )`` and refused on any hit — including metacharacters **inside a quoted argument**, where the shell never acts on them.
