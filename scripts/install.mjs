@@ -210,6 +210,29 @@ function syncCache() {
     exit(1);
   }
 
+  // A VERSION BUMP is not a content drift, and this command cannot fix it. The cache is laid out
+  // per version (.../zodyssey/<version>/) and installed_plugins.json records which one is live, so
+  // after a bump this would copy the new content into the OLD version's directory and leave the
+  // registry pointing at a version that no longer matches the repo. Half-done and silent.
+  //
+  // Hand-writing installed_plugins.json is NOT the fix — that was precisely the v0.3.0 bug (a
+  // hand-written marketplace:"local" entry the loader skipped while the hooks orphaned). The
+  // marketplace owns the versioned directory and the registry entry. So: say so, do the copy
+  // anyway (it is still the right content for the currently-registered version), and be explicit
+  // that a GUI Update is required to finish.
+  const entry = findInstalledEntry();
+  const registeredVersion = entry && entry.version;
+  const versionBump = registeredVersion && registeredVersion !== VERSION;
+  if (versionBump) {
+    console.log(
+      `NOTE: the repo is at ${VERSION} but the installed plugin is registered at ${registeredVersion}.\n` +
+      `      --sync-cache refreshes CONTENT in the registered version's directory; it cannot move the\n` +
+      `      install to a new version, because the marketplace owns the versioned cache dir and the\n` +
+      `      installed_plugins.json entry. (Hand-writing that registry was the v0.3.0 bug.)\n` +
+      `      To complete a version bump: Settings → Plugin Management → Discover → Update on zodyssey.\n`
+    );
+  }
+
   const entries = ["skills", "agents", "commands", ".zcode-plugin", "scripts", "docs"];
   console.log(`sync-cache: ${REPO_ROOT}\n         -> ${dest}`);
   let copied = 0;
@@ -228,6 +251,9 @@ function syncCache() {
   }
   if (!DRY) {
     console.log(`\ncopied ${copied} tree(s). Start a NEW ZCode session — hooks load at session start.`);
+    if (versionBump) {
+      console.log(`STILL REQUIRED: a marketplace Update, to move the install from ${registeredVersion} to ${VERSION}.`);
+    }
     console.log("Confirm with: node scripts/install.mjs --verify   (or: node scripts/smoke-gate.mjs)");
   }
   exit(0);

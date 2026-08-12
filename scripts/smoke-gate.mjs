@@ -78,7 +78,11 @@ try {
 try {
   const repoVersion = JSON.parse(readFileSync(join(REPO, ".zcode-plugin", "plugin.json"), "utf8")).version;
   if (registeredVersion && repoVersion !== registeredVersion) {
-    bad("deployed version matches repo", `repo ${repoVersion} vs deployed ${registeredVersion} — run install.mjs then Update in Plugin Management`);
+    bad("deployed version matches repo",
+      `repo ${repoVersion} vs deployed ${registeredVersion}. A VERSION BUMP needs a marketplace Update ` +
+      `(Settings → Plugin Management → Discover → Update on zodyssey) — the marketplace owns the ` +
+      `versioned cache dir and the registry. --sync-cache refreshes content within a version; it ` +
+      `cannot move the install to a new one.`);
   } else if (registeredVersion) ok("deployed version matches repo", repoVersion);
 } catch (e) { bad("repo plugin.json readable", e.code || e.message); }
 

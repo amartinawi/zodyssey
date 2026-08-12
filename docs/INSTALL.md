@@ -217,3 +217,24 @@ The cross-run eval ledger (optional, for the harness) lives globally at `~/.zcod
 ## Node version
 
 The hooks and scripts are ESM (`.mjs`) and use `cpSync` (Node 16.7+). **Node 18+ recommended.** Check with `node --version`.
+
+
+## Upgrading after a release
+
+Two different situations, and only one of them `--sync-cache` can fix:
+
+| Situation | Fix |
+|---|---|
+| **Content drift** — same version, cached hooks differ from your source | `node scripts/install.mjs --sync-cache` |
+| **Version bump** — repo is at a new version, install registered at the old one | **Settings → Plugin Management → Discover → Update on zodyssey** |
+
+The cache is laid out per version (`.../zodyssey/<version>/`) and `installed_plugins.json` records
+which one is live. `--sync-cache` refreshes content *inside the registered version's directory* —
+it cannot move the install to a new version, and it deliberately will not try. Hand-writing
+`installed_plugins.json` is exactly the v0.3.0 bug: a hand-written `marketplace: "local"` entry the
+loader skipped while the hooks orphaned against a dead path. The marketplace owns the versioned
+directory and the registry entry.
+
+On a version bump `--sync-cache` says so, still copies (the content is right for the version that
+*is* registered), and tells you an Update is still required. Confirm either way with
+`node scripts/smoke-gate.mjs`.
