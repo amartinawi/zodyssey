@@ -35,10 +35,16 @@ Set the local git identity (don't rely on global) so commits are attributed corr
 
 When main has accumulated enough changes:
 
-1. Update `CHANGELOG.md` with a new `## [0.x.0] — YYYY-MM-DD` entry (see Keep a Changelog format at the top).
-2. Commit: `git commit -m "docs(changelog): v0.x.0"`.
-3. Tag: `git tag v0.x.0 && git push origin v0.x.0`.
-4. (Optional) `gh release create v0.x.0 --notes-from-tag`.
+1. Bump the version in **all three** files that declare it — they are read by different consumers and nothing else keeps them in sync:
+   - `.zcode-plugin/plugin.json` — the LOADER (identity, namespace, hooks)
+   - `marketplace.json` — the MARKETPLACE, when resolving what to install
+   - `package.json` — npm / CI tooling
+2. Update `CHANGELOG.md` with a new `## [0.x.0] — YYYY-MM-DD` entry (see Keep a Changelog format at the top).
+3. `npm test` — `version-consistency.test.mjs` fails if any of the three disagree, or if the CHANGELOG has no entry for the version being shipped. v0.3.2 was tagged and released **uninstallable** because `marketplace.json` was missed: the marketplace serves what its own index advertises, so Update kept installing 0.3.1 no matter what the plugin manifest said.
+4. Commit: `git commit -m "docs(changelog): v0.x.0"`.
+5. Tag: `git tag v0.x.0 && git push origin v0.x.0`.
+6. (Optional) `gh release create v0.x.0 --notes-from-tag`.
+7. Upgrade the local install: **Settings → Plugin Management → Discover → Update on zodyssey** (a version bump needs the marketplace — `--sync-cache` only refreshes content *within* the registered version). Confirm with `node scripts/smoke-gate.mjs`.
 
 ## Upgrading the active install (~/.zcode)
 
