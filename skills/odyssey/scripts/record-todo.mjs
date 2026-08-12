@@ -15,6 +15,7 @@
 import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSync, renameSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
+import { execFileSync } from "node:child_process";
 
 const [repo, slug, id, status, ...rest] = argv.slice(2);
 if (!repo || !slug || !id || !status) {
@@ -65,6 +66,32 @@ function verifyEvidenceFor(st, todoId) {
   const flaky = mine.filter((h) => h.flaky);
   if (failed.length) return { ok: false, reason: `${failed.length} of ${mine.length} acceptance criteria FAILED (exit codes: ${failed.map((h) => h.exit_code).join(", ")})` };
   if (flaky.length) return { ok: false, reason: `${flaky.length} criterion/criteria are FLAKY (disagreed across two runs) — neither passed nor failed` };
+
+  // COMPLETENESS (2026-08-12, shakedown round 3): "some criteria passed" is not "the todo is
+  // verified". The old guard accepted any todo with ≥1 passing record and no failures, so round 3
+  // reached `done` with acceptance {pass:false, criteria_run:1, criteria_declared:4} — three
+  // quarters of the exam unwritten, and the run finished anyway. The state file even said so; the
+  // gate just wasn't reading it.
+  //
+  // Count what the PLAN declares and require the recorded criteria to cover it. Same source of
+  // truth record-verify uses for acceptance[].pass, so the two can no longer disagree.
+  // Fail OPEN on an unreadable plan (keep the old behaviour) rather than blocking every run in a
+  // repo whose plan cannot be parsed — the ≥1-passing floor still applies there.
+  try {
+    const planPath = st.plan_path || join(repo, ".zcode", "plans", `${slug}.md`);
+    const parsed = JSON.parse(execFileSync(process.execPath,
+      [new URL("./parse-plan.mjs", import.meta.url).pathname, planPath],
+      { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 }));
+    const todo = (parsed.todos || []).find((t) => String(t.id) === String(todoId));
+    const declared = todo && Array.isArray(todo.acceptance) ? todo.acceptance.length : null;
+    if (declared !== null) {
+      const distinct = new Set(mine.map((h) => h.criterion_index)).size;
+      if (distinct < declared) {
+        return { ok: false, reason: `only ${distinct} of ${declared} declared acceptance criteria have been verified — run the rest through record-verify.mjs first` };
+      }
+    }
+  } catch { /* plan unreadable → keep the ≥1-passing floor */ }
+
   return { ok: true, count: mine.length };
 }
 

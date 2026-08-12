@@ -828,10 +828,49 @@ if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1") exit(0);
 // Both were unreachable anyway once the self-relative path resolves (it always does — this
 // very file proves the directory exists), so removing them costs nothing and closes the hole.
 const SCRIPTS_DIR = pathResolve(new URL(".", import.meta.url).pathname, "..", "scripts");
+// Quote-aware metacharacter scan for the trusted-script allowlist. Returns false (untrusted) on
+// anything the SHELL could act on to start a second command, substitute output, or redirect.
+// Deliberately conservative: any doubt returns false, and it is only ever used to GRANT trust to
+// an already-narrow form (`node <path-inside-scripts-dir> ...`).
+function shellSafeForTrustedInvoke(cmd) {
+  if (typeof cmd !== "string" || !cmd) return false;
+  let quote = null; // null | "'" | '"'
+  for (let i = 0; i < cmd.length; i++) {
+    const c = cmd[i];
+    if (c === "\\" && quote !== "'") { i++; continue; } // escaped char (not special inside '')
+    if (quote === null) {
+      if (c === "'" || c === '"') { quote = c; continue; }
+      if (";&|`$<>()".includes(c)) return false;          // live metacharacter
+    } else if (quote === '"') {
+      if (c === '"') { quote = null; continue; }
+      if (c === "$" || c === "`") return false;            // expansion / substitution inside ""
+    } else { // inside '' — nothing is special except the closing quote
+      if (c === "'") { quote = null; continue; }
+    }
+  }
+  return quote === null; // unterminated quote → untrusted
+}
+
 function isTrustedScriptInvoke(cmd) {
   if (!SCRIPTS_DIR) return false;
-  // Fail closed on ANY shell metacharacter that could inject a second command or redirect.
-  if (/[;&|`$<>()]/.test(cmd)) return false;
+  // Metacharacters are dangerous where the SHELL will act on them — not where they are quoted
+  // data. The original rule tested the whole string, so a metachar inside a quoted argument
+  // rejected the invoke even though the shell would never interpret it.
+  //
+  // Shakedown round 3 paid for that: `record-verify.mjs --criterion "node -e 'process.exit(0)'"`
+  // was blocked because of the parens INSIDE the criterion. The tester could record only 1 of 4
+  // acceptance criteria, so the run reached `done` with acceptance {pass:false, criteria_run:1,
+  // criteria_declared:4}. A hook rule meant to protect the evidence chain was degrading it, and
+  // it silently rules out every criterion containing (), $, quotes — a large share of real ones.
+  //
+  // The rule now follows actual shell quoting semantics:
+  //   · unquoted      — every metachar is live: ; & | ` $ < > ( )
+  //   · double quotes — only $ and ` are live (command substitution / expansion). ( ) ; & | < >
+  //                     are literal characters there, and cannot start a second command.
+  //   · single quotes — nothing is live.
+  // Backslash escapes are honoured outside single quotes. An unterminated quote is untrusted:
+  // the shell would consume the following text in ways this scan cannot predict.
+  if (!shellSafeForTrustedInvoke(cmd)) return false;
   // Strip a leading env-var assignment prefix (FOO=bar node ...) so the command-word scan sees node.
   const stripped = cmd.replace(/^\s*(?:[A-Za-z_]\w*=\S*\s+)*/, "");
   // Must START with `node` (optional flags) then a single positional operand. Anchoring ^node

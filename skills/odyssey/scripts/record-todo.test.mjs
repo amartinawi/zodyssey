@@ -115,6 +115,50 @@ console.log("record-todo.mjs — the verify transition guard\n");
   check("verify → done completes without acceptance[] being pre-populated", r.code === 0);
 }
 
+// --- completeness: "some criteria passed" is not "verified" ------------------
+//
+// Round 3 reached `done` with acceptance {pass:false, criteria_run:1, criteria_declared:4}. The
+// old guard accepted any todo with >=1 passing record and no failures, so three quarters of the
+// exam went unwritten and the run finished anyway. The state file said so; the gate wasn't reading
+// it. Now the plan's declared criteria count is the denominator — the same source record-verify
+// uses for acceptance[].pass, so the two cannot disagree.
+{
+  const repo = mkdtempSync(join(tmpdir(), "zod-todo-c-"));
+  cleanup.push(repo);
+  mkdirSync(join(repo, ".zcode", "state"), { recursive: true });
+  mkdirSync(join(repo, ".zcode", "plans"), { recursive: true });
+  const planPath = join(repo, ".zcode", "plans", "t.md");
+  writeFileSync(planPath,
+    "# t\n\n## Todos\n\n- [ ] 1. go\n  - Files: [`a.js`]\n  - Acceptance criteria:\n" +
+    "    - `npm test` exits 0\n    - `node --check a.js` exits 0\n    - `npm run lint` exits 0\n\n" +
+    "## Final verification wave\n");
+  const write = (hist) => writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
+    slug: "t", phase: "verify", plan_path: planPath, todos: {},
+    verify: { total: hist.length, passed: hist.length, failed: 0, flaky: 0, history: hist },
+  }, null, 2));
+
+  write([{ todo_id: "1", criterion_index: 0, passed: true, exit_code: 0 }]);
+  let r = run(repo, "1", "done");
+  check("REFUSES done with 1 of 3 declared criteria verified", r.code === 7, `(exit ${r.code})`);
+  check("...and says how many are missing", /1 of 3/.test(r.err), r.err.slice(0, 120));
+
+  write([0, 1].map((i) => ({ todo_id: "1", criterion_index: i, passed: true, exit_code: 0 })));
+  check("still REFUSES at 2 of 3", run(repo, "1", "done").code === 7);
+
+  write([0, 1, 2].map((i) => ({ todo_id: "1", criterion_index: i, passed: true, exit_code: 0 })));
+  r = run(repo, "1", "done");
+  check("ALLOWS done once all 3 are verified", r.code === 0, `(exit ${r.code}) ${r.err.slice(0, 160)}`);
+
+  // Re-running the same criterion must not count as covering a different one.
+  write([0, 0, 0].map(() => ({ todo_id: "1", criterion_index: 0, passed: true, exit_code: 0 })));
+  check("re-running ONE criterion 3x does not satisfy 3 declared", run(repo, "1", "done").code === 7);
+}
+{
+  // Unreadable plan → keep the old >=1-passing floor rather than blocking every run.
+  const repo = makeRepo([{ todo_id: "1", criterion_index: 0, passed: true, exit_code: 0 }]);
+  check("no plan → falls back to the >=1-passing floor", run(repo, "1", "done").code === 0);
+}
+
 for (const d of cleanup) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

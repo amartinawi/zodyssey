@@ -4,6 +4,20 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Fixed — the trusted-script allowlist rejected quoted data as shell syntax (round 3)
+
+`isTrustedScriptInvoke` tested the whole command for ``; & | ` $ < > ( )`` and refused on any hit — including metacharacters **inside a quoted argument**, where the shell never acts on them.
+
+Round 3 paid for it: `record-verify.mjs --criterion "node -e 'process.exit(0)'"` was blocked over the parens *inside the criterion*. Only 1 of 4 acceptance criteria could be recorded, and the run reached `done` with `acceptance {pass:false, criteria_run:1, criteria_declared:4}`. **A rule written to protect the evidence chain was degrading it**, and it silently excluded most real-world criteria — anything containing `()`, `$`, or nested quotes.
+
+The scan now follows actual shell quoting: unquoted, every metacharacter is live; inside double quotes only `$` and `` ` `` are live; inside single quotes nothing is; backslash escapes are honoured outside single quotes; an unterminated quote is untrusted. 30 assertions, **19 of them injection attempts** — chaining, backgrounding, pipes, redirects, `$()` and backticks both bare and inside double quotes, subshells, escaped-quote-then-chain, unterminated quotes, non-node commands, scripts outside the scripts dir, and path traversal. Loosening a security rule is only defensible if what it exists to stop is still stopped.
+
+### Fixed — a todo could reach `done` with most of its exam unwritten
+
+The verify guard accepted any todo with ≥1 passing record and no failures. Round 3 finished with 1 of 4 declared criteria verified — the state file recorded `criteria_run: 1, criteria_declared: 4` and the gate simply wasn't reading it.
+
+`record-todo` now requires the recorded criteria to cover what the plan declares, using the same source `record-verify` uses for `acceptance[].pass`, so the two cannot disagree. Re-running one criterion three times does not satisfy three declared criteria. Fails **open** on an unreadable plan, keeping the ≥1-passing floor, rather than blocking every run in a repo whose plan cannot be parsed.
+
 ### Changed — `Files:` is now the only source of scope (SEC-M7c)
 
 **BREAKING for plans that widened scope in prose.** The `## Scope` prose harvest is deleted. The declared set comes from `Files:` blocks alone, in both the hook and F1.
