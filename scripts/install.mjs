@@ -233,6 +233,42 @@ function syncCache() {
     );
   }
 
+  // THE THIRD HOP. The upgrade chain is:
+  //     repo  ->  marketplaces/<name>/  ->  cache/<mp>/<plugin>/<version>/
+  // --sync-cache handles the second hop. NOTHING handled the first, and the marketplace clone is
+  // what a GUI Update actually reads. On 2026-08-12 that clone sat one commit behind with
+  // marketplace.json still advertising the previous version, so Update kept installing the OLD
+  // release no matter how many times it was clicked — and the repo looked correct throughout.
+  //
+  // Refreshing it is not this script's job (the marketplace subsystem owns it, and it may be a git
+  // clone with its own remote), but silently leaving it stale is how the last release became
+  // uninstallable. So: detect, report precisely, and give the one-line fix.
+  const mpDir = join(CLI_DIR, "plugins", "marketplaces");
+  if (existsSync(mpDir)) {
+    for (const name of readdirSync(mpDir)) {
+      const mp = join(mpDir, name);
+      const mpManifest = join(mp, "marketplace.json");
+      if (!existsSync(mpManifest)) continue;
+      let advertises = null;
+      try {
+        const m = JSON.parse(readFileSync(mpManifest, "utf8"));
+        const e = (m.plugins || []).find((pl) => pl && pl.name === PLUGIN_NAME);
+        advertises = e && e.version;
+      } catch { continue; }
+      if (!advertises) continue;
+      if (advertises !== VERSION) {
+        console.log(
+          `\nMARKETPLACE SOURCE IS STALE: ${mp}\n` +
+          `  advertises ${PLUGIN_NAME} ${advertises}, the repo is at ${VERSION}.\n` +
+          `  A GUI Update reads THIS, not the repo — so it will keep installing ${advertises}.\n` +
+          `  Refresh it first:  git -C ${mp} pull --ff-only\n`
+        );
+      } else {
+        console.log(`marketplace source OK: ${name} advertises ${advertises}`);
+      }
+    }
+  }
+
   const entries = ["skills", "agents", "commands", ".zcode-plugin", "scripts", "docs"];
   console.log(`sync-cache: ${REPO_ROOT}\n         -> ${dest}`);
   let copied = 0;
@@ -706,6 +742,43 @@ function verify() {
         }
       }
     }
+  }
+
+  // 3b. The WHOLE executable surface matches the repo, not just the hooks.
+  //
+  // The per-hook sha check above missed 4 drifted scripts on 2026-08-12 (consult.mjs,
+  // scaffold.mjs and two test files) and reported green. record-todo.mjs holds the verify
+  // transition guard, record-final-wave.mjs holds F1-F4, record-verify.mjs executes the criteria
+  // — a stale script runs OLD enforcement exactly as silently as a stale hook.
+  if (installPathOk) {
+    const SURFACES = [
+      join("skills", "odyssey", "hooks"),
+      join("skills", "odyssey", "scripts"),
+      join("skills", "odyssey", "scripts", "lib"),
+    ];
+    const drifted = [], missing = [];
+    let compared = 0;
+    for (const rel of SURFACES) {
+      const repoDir = join(REPO_ROOT, rel);
+      if (!existsSync(repoDir)) continue;
+      for (const name of readdirSync(repoDir)) {
+        if (!name.endsWith(".mjs")) continue;
+        const cached = join(installPath, rel, name);
+        compared++;
+        if (!existsSync(cached)) { missing.push(name); continue; }
+        try {
+          const a = createHash("sha256").update(readFileSync(cached)).digest("hex");
+          const b = createHash("sha256").update(readFileSync(join(repoDir, name))).digest("hex");
+          if (a !== b) drifted.push(name);
+        } catch { drifted.push(name); }
+      }
+    }
+    check(`all ${compared} plugin .mjs files deployed == repo`,
+      drifted.length === 0 && missing.length === 0,
+      [
+        drifted.length ? `${drifted.length} drifted (${drifted.slice(0, 4).join(", ")}${drifted.length > 4 ? ", …" : ""})` : "",
+        missing.length ? `${missing.length} missing (${missing.slice(0, 3).join(", ")})` : "",
+      ].filter(Boolean).join("; ") + " — run: node scripts/install.mjs --sync-cache");
   }
 
   // 4. NO orphaned zodyssey hooks remain in config.json (migration succeeded).

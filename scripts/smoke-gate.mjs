@@ -106,25 +106,53 @@ if (installPath && existsSync(installPath)) {
   bad("cached manifest", "skipped — no install path");
 }
 
-// --- 3. Cached hooks: exist, parse, AND are byte-identical to the repo --------
-console.log("\n3. Cached hook integrity (the check --verify still lacks)");
+// --- 3. Cached PLUGIN integrity: exists, parses, byte-identical to the repo ---
+//
+// This compared the 4 hooks only. That was a blind spot of exactly the kind this file exists to
+// close: on 2026-08-12 it reported ALL GREEN while consult.mjs, scaffold.mjs and two test files in
+// the running cache were behind the repo — the last commits happened to touch scripts, not hooks.
+//
+// The scripts are not less load-bearing. record-todo.mjs holds the verify transition guard,
+// record-final-wave.mjs holds F1-F4, record-verify.mjs executes the criteria, consult.mjs is the
+// external audit. A drifted script runs OLD enforcement just as silently as a drifted hook.
+console.log("\n3. Cached plugin integrity (the check --verify still lacks)");
 if (installPath && existsSync(installPath)) {
-  for (const name of HOOK_NAMES) {
-    const cached = join(installPath, "skills", "odyssey", "hooks", name);
-    const repo = join(REPO, "skills", "odyssey", "hooks", name);
-    if (!existsSync(cached)) { bad(`${name} present in cache`, "missing — hook spawn resolves nothing"); continue; }
-    const parse = spawnSync(process.execPath, ["--check", cached], { encoding: "utf8" });
-    if (parse.status !== 0) { bad(`${name} parses`, (parse.stderr || "").split("\n")[0]); continue; }
-    if (!existsSync(repo)) { bad(`${name} present in repo`, "cached hook has no repo counterpart"); continue; }
-    sha(cached) === sha(repo)
-      ? ok(`${name} cached == repo`)
-      : bad(`${name} cached == repo`,
-          "DRIFT: the deployed hook is not your source. Fix: node scripts/install.mjs --sync-cache " +
-          "(a plain install.mjs run does NOT refresh the cache — it never has).");
+  const SURFACES = [
+    join("skills", "odyssey", "hooks"),
+    join("skills", "odyssey", "scripts"),
+    join("skills", "odyssey", "scripts", "lib"),
+  ];
+  const drifted = [], missing = [], unparsed = [];
+  let compared = 0;
+  for (const rel of SURFACES) {
+    const repoDir = join(REPO, rel);
+    if (!existsSync(repoDir)) continue;
+    for (const name of readdirSync(repoDir)) {
+      if (!name.endsWith(".mjs")) continue;
+      const cachedFile = join(installPath, rel, name);
+      compared++;
+      if (!existsSync(cachedFile)) { missing.push(name); continue; }
+      const parse = spawnSync(process.execPath, ["--check", cachedFile], { encoding: "utf8" });
+      if (parse.status !== 0) { unparsed.push(name); continue; }
+      if (sha(cachedFile) !== sha(join(repoDir, name))) drifted.push(name);
+    }
+  }
+  if (drifted.length + missing.length + unparsed.length === 0) {
+    ok(`all ${compared} plugin .mjs files cached == repo`);
+  } else {
+    const detail = [
+      drifted.length ? `${drifted.length} drifted (${drifted.slice(0, 4).join(", ")}${drifted.length > 4 ? ", …" : ""})` : "",
+      missing.length ? `${missing.length} missing from cache` : "",
+      unparsed.length ? `${unparsed.length} fail to parse` : "",
+    ].filter(Boolean).join("; ");
+    bad(`all ${compared} plugin .mjs files cached == repo`,
+      `${detail}. The deployed plugin is not your source — it runs OLD enforcement. ` +
+      `Fix: node scripts/install.mjs --sync-cache (a plain install.mjs run does NOT refresh the cache).`);
   }
 } else {
-  bad("cached hooks", "skipped — no install path");
+  bad("cached plugin integrity", "skipped — no install path");
 }
+
 
 // --- 4. Orphaned config.json hook refs (the v0.3.1 migration) ----------------
 console.log("\n4. Orphaned hooks in config.json");
