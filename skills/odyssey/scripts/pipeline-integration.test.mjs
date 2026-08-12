@@ -219,6 +219,22 @@ Add a \`truncate\` helper to the text module, with tests.
   check("the fixture's own suite passes after the change", t.status === 0);
 }
 
+// --- the authoritative plan-sha is review.plan_sha256, and only that ---------
+//
+// scaffold used to stamp a top-level state.plan_sha256 that nothing read. It went stale the
+// moment the plan was edited (which happens on every REJECT-replan, and on any mid-review fix),
+// while sitting beside the real field looking equally official. Round 4 hit the drift and had to
+// reason out which one mattered. Removed; this asserts the remaining one is correct AFTER an edit,
+// since that is the case the stale copy got wrong.
+{
+  check("no vestigial top-level plan_sha256", state().plan_sha256 === undefined,
+    `(got ${state().plan_sha256})`);
+  const liveSha = createHash("sha256").update(readFileSync(planPath)).digest("hex");
+  check("review.plan_sha256 matches the plan ON DISK after a mid-review edit",
+    state().review?.plan_sha256 === liveSha,
+    `(state ${String(state().review?.plan_sha256).slice(0, 12)} vs disk ${liveSha.slice(0, 12)})`);
+}
+
 rmSync(repo, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

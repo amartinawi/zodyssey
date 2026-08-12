@@ -2,6 +2,15 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed — release plumbing and a stale duplicate (post-0.3.2)
+
+- **`marketplace.json` was missed in the v0.3.2 bump.** The version lives in three files read by three different consumers — `marketplace.json` (the marketplace, resolving what to install), `.zcode-plugin/plugin.json` (the loader), `package.json` (npm/CI) — and nothing compared them. The tag was pushed, the release published, CI green, and the plugin was **uninstallable at the new version**: clicking Update kept returning 0.3.1, because the marketplace serves what its own index advertises. `scripts/version-consistency.test.mjs` now runs in CI and fails on any disagreement, a non-semver version, a plugin missing from the marketplace index, or a version with no CHANGELOG entry.
+- **A third copy in the upgrade chain.** `repo → marketplaces/<name>/ → cache/<mp>/<plugin>/<version>/`. `--sync-cache` handles the second hop; nothing handled the first, so a stale marketplace clone kept serving the old version even after the repo was correct. Both fixes were needed — either alone still yielded 0.3.1.
+- **`--sync-cache` cannot complete a version bump, and now says so.** It copies into the *registered* version's directory; the marketplace owns the versioned dir and the registry. Hand-writing `installed_plugins.json` is not the fix — that was the v0.3.0 bug. It now detects the bump, states what it can and cannot do, and reports that an Update is still required.
+- **Removed the write-only `state.plan_sha256`.** `scaffold` stamped it; nothing read it. Every consumer — the hook's plan-tamper guard (two sites) and F1's tamper check — uses `state.review.plan_sha256`, which `record-review` re-binds per verdict. So the top-level copy went stale on any plan edit while sitting beside the authoritative field looking equally official. Shakedown round 4 hit the drift and had to work out which one mattered. Same shape as the version number in three files: it does not fail, it waits for someone to read the wrong one.
+
 ## [0.3.2] — 2026-08-12
 
 The release where the enforcement layer started being true.

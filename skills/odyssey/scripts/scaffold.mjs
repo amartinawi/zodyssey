@@ -27,7 +27,6 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync, openSync, closeSync
 import { join } from "node:path";
 import { makeReviewDefault } from "./lib/verdict-schema.mjs";
 import { argv, exit, cwd } from "node:process";
-import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
 
 // exit codes (T10g: de-overloaded — each failure mode is distinct so callers can react):
@@ -138,7 +137,6 @@ const body = `# ${title}
      the sequence of steps taken (paths are non-deterministic). -->
 `;
 
-const planSha = createHash("sha256").update(body).digest("hex");
 writeFileSync(planPath, body);
 
 // G5 (W5-minor): write the phase-−1 primed brief to <slug>.task.md under plans/ (bookkeeping —
@@ -218,7 +216,17 @@ const state = {
   slug,
   title,
   plan_path: planPath,
-  plan_sha256: planSha,
+  // NO top-level plan_sha256 (removed 2026-08-12, shakedown round 4).
+  //
+  // scaffold used to stamp one here, and nothing ever read it. Every real consumer — the hook's
+  // plan-tamper guard (two sites), F1's tamper check — uses state.review.plan_sha256, which
+  // record-review re-binds on each verdict. So the top-level copy was write-only and went stale
+  // the moment the plan was edited, while sitting beside the authoritative field looking equally
+  // official. Round 4 noticed the drift and had to reason out which one mattered.
+  //
+  // A duplicated value with one live consumer and one dead one is the same shape as the version
+  // number living in three files: it does not fail, it just waits for someone to read the wrong
+  // one. Deleted rather than kept fresh, because the correct field already exists.
   phase: "plan",
   intent,
   started_at: now,
