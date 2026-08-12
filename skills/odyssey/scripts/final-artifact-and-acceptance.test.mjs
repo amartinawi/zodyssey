@@ -40,7 +40,10 @@ function makeRun({ phase = "final", criteria = 2 } = {}) {
   mkdirSync(join(repo, ".zcode", "state"), { recursive: true });
   mkdirSync(join(repo, ".zcode", "plans"), { recursive: true });
   mkdirSync(join(repo, "src"), { recursive: true });
-  writeFileSync(join(repo, "src", "a.js"), "export const a = 1;\n");
+  // Deliberately CommonJS-compatible: `node --check` on a .js file with no package.json treats
+  // it as CJS, so `export` is a syntax error on node 18 while node 22+ auto-detects module
+  // syntax and passes. CI's node-18 leg caught that; a same-version-only run would not have.
+  writeFileSync(join(repo, "src", "a.js"), "const a = 1;\n");
   git(repo, "init", "-q"); git(repo, "config", "user.email", "t@t.t"); git(repo, "config", "user.name", "t");
   git(repo, "add", "-A"); git(repo, "commit", "-qm", "base");
   const sha = git(repo, "rev-parse", "HEAD").stdout.trim();
@@ -119,7 +122,7 @@ console.log("record-final-artifact + acceptance completeness\n");
   const repo = makeRun();
   // Make F1 fail: touch a file the plan never declared.
   writeFileSync(join(repo, "src", "stray.js"), "// out of scope\n");
-  writeFileSync(join(repo, "src", "a.js"), "export const a = 2;\n");
+  writeFileSync(join(repo, "src", "a.js"), "const a = 2;\n");
   for (const agent of ["feature-dev:code-reviewer", "zodyssey:oracle"]) dispatch(repo, agent);
   const before = { f2: state(repo).final_f2?.pending_nonce?.nonce, f4: state(repo).final_f4?.pending_nonce?.nonce };
   check("both nonces minted", !!before.f2 && !!before.f4);
