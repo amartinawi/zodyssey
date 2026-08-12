@@ -168,7 +168,7 @@ function quickClassify(abs, runRepo) {
   const runPrefix = runRepo + sep;
   if (abs === runRepo || abs.startsWith(runPrefix)) {
     const rel = abs === runRepo ? "" : abs.slice(runPrefix.length);
-    const bookkeeping = rel.startsWith(".zcode/plans/") || rel.startsWith(".zcode/notepads/");
+    const bookkeeping = rel.startsWith(".zcode/plans/") || rel.startsWith(".zcode/notepads/") || rel.startsWith(".zcode/staging/");
     return { rel, bookkeeping };
   }
   // outside the run repo entirely → treat as product code (will fail the inScope check, blocking it)
@@ -202,7 +202,28 @@ function declaredScopeForRun(st) {
   // longer widen scope.
   const scopeSection = extractSection(planText, "Scope");
   if (scopeSection) {
-    for (const m of scopeSection.matchAll(/`([^`]+\.(?:md|py|ts|js|sh|json|yaml|yml|toml|html|css|png|jpg|webp))`/g)) {
+    // SEC-M7b (2026-08-12, found by the first end-to-end shakedown run): a PROHIBITION still
+    // granted access. SEC-M7 moved the harvest into `## Scope` to stop per-todo "Must NOT do"
+    // lines widening scope — but a plan-level `### Must NOT have` subsection lives INSIDE
+    // `## Scope`, so the sentence
+    //
+    //     - `src/unrelated.js` MUST NOT be touched by any todo.
+    //
+    // added src/unrelated.js to the declared set. The gate inverted: the more emphatically a plan
+    // forbade a file, the more certainly it authorised writing to it. Verified live — a probe
+    // expecting a scope violation was ALLOWED.
+    //
+    // Strip prohibition content before harvesting: whole `###` subsections whose heading mentions
+    // "must not"/"never"/"out of scope", and any individual line saying must-not. Both, because a
+    // prohibition can be written either way and a path only needs to be read once to be granted.
+    const positiveScope = scopeSection
+      .split(/^(?=###\s)/m)
+      .filter((block) => !/^###\s.*\b(?:must\s*not|mustn't|never|do\s*not|don't|out[- ]of[- ]scope|excluded?|forbidden)\b/im.test(block))
+      .join("\n")
+      .split("\n")
+      .filter((line) => !/\b(?:must\s*not|mustn't|never|do\s*not|don't|out[- ]of[- ]scope|forbidden)\b/i.test(line))
+      .join("\n");
+    for (const m of positiveScope.matchAll(/`([^`]+\.(?:md|py|ts|js|sh|json|yaml|yml|toml|html|css|png|jpg|webp))`/g)) {
       const p = m[1].trim();
       if (p && !/\s/.test(p)) declared.add(p);
     }
@@ -536,7 +557,7 @@ function classifyTarget(p) {
     if (abs === runRepo || abs.startsWith(runPrefix)) {
       const runRel = abs === runRepo ? "" : abs.slice(runPrefix.length);
       rel = runRel;
-      if (runRel.startsWith(".zcode/plans/") || runRel.startsWith(".zcode/notepads/")) bookkeeping = true;
+      if (runRel.startsWith(".zcode/plans/") || runRel.startsWith(".zcode/notepads/") || runRel.startsWith(".zcode/staging/")) bookkeeping = true;
       if (runRel.startsWith(".zcode/state/")) isState = true;
     }
   }
@@ -545,7 +566,24 @@ function classifyTarget(p) {
   if (inside) {
     const projRel = abs === PROJECT_DIR ? "" : abs.slice(PROJECT_PREFIX.length);
     if (!rel) rel = projRel; // prefer the run-relative rel, fall back to PROJECT_DIR-relative
-    if (projRel.startsWith(".zcode/plans/") || projRel.startsWith(".zcode/notepads/")) bookkeeping = true;
+    // SEC-6b (2026-08-12): `.zcode/staging/` exists to break a total deadlock, found by the first
+    // end-to-end shakedown run. Pre-OKAY the ONLY writable paths were plans/ and notepads/ — and
+    // those are exactly the two SEC-6 refuses as `--from` sources for a verdict, while the Bash
+    // gate rejects any stdin pipe (a metachar means the command is not a trusted-script invoke, so
+    // it falls through to the write-capable gate and is blocked pre-OKAY). Every route to
+    // recording an OKAY was closed, so no gated run could leave phase 3 at all.
+    //
+    // It had never surfaced because the Bash gate was DELETED from v0.1.1 through v0.3.1; SEC-6
+    // landed 2026-08-04 while it was off, so the two had never been armed at the same time until
+    // the gate was restored on 2026-08-11.
+    //
+    // What this preserves and what it does not: SEC-6 stops a verdict being pre-staged in the
+    // dirs the PLANNER writes (plans/, notepads/), which is where a forged verdict would most
+    // cheaply be planted. `staging/` is not one of those. It is NOT a security boundary on its own
+    // — the artifact's real protection is the hook-minted nonce plus the sha binding, and
+    // record-momus-artifact.mjs's own header already concedes the content is caller-supplied
+    // ("the full fix needs the harness to hand momus's transcript hash to the hook").
+    if (projRel.startsWith(".zcode/plans/") || projRel.startsWith(".zcode/notepads/") || projRel.startsWith(".zcode/staging/")) bookkeeping = true;
     if (projRel.startsWith(".zcode/state/")) isState = true;
   }
   return { rel, bookkeeping, isState };
