@@ -71,6 +71,8 @@ The table is the summary; `capabilities.md` is the authoritative detail. **Tell 
         │ 1. CONSULT   Task(zodyssey:metis) phase: consult      │
         │    FIRST: read prior learnings from the `memory` MCP │
         │    (search_nodes for this repo + intent keywords).  │
+        │    `recall-outcomes.mjs <repo>` — blocked/failed runs│
+        │    `recall-corrections.mjs <repo>` — correction sigs.│
         │    Then hand zodyssey:metis: request + repo root +   │
         │    memories. She returns intent, risks, questions,   │
         │    directives. If she lists user-questions, surface  │
