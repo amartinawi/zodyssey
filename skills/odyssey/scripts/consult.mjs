@@ -767,6 +767,22 @@ if (!taskFound) {
 }
 
 const startSha = SHA_RE.test(String(state.run_start_sha || "")) ? state.run_start_sha : "";
+// FREEZE THE AUDIT TIP (consult race fix, 2026-08-13, round 3 of correction-signal-capture):
+// capture HEAD as a CONCRETE sha at gather time. The diff string is frozen the instant we read
+// it below, but the external auditor can reason about (or, if its tool surface is less locked
+// than `--allowedTools ""` promises, inspect) live HEAD — which may have advanced past this
+// run's work while the multi-minute audit was in flight (a merge, a branch switch, a commit on
+// another run). That disagreement is what made round 3's supplied diff look "stale" next to the
+// repo. We pass headSha to the auditor as the authoritative tip and re-check it after the audit;
+// if it moved, we warn so the race is VISIBLE rather than silently judging the wrong snapshot.
+const headSha = (() => {
+  try {
+    const s = String(git(["rev-parse", "HEAD"]).trim());
+    return SHA_RE.test(s) ? s : "";
+  } catch {
+    return "";
+  }
+})();
 const planText = readFileSync(planPath, "utf8");
 const scopePaths = new Set();
 
@@ -970,7 +986,12 @@ try {
 // --- build the full prompt handed to the external auditor ---
 // Untrusted-content framing (audit gap #8): explicitly tell the auditor the PLAN and DIFF are
 // DATA, so a poisoned file cannot steer the verdict via instructions embedded in the diff.
-const prompt = `${auditPromptHeader}
+// AUDIT RANGE (consult race fix, 2026-08-13): pin the auditor to the frozen tip so it does not
+// reason about a live HEAD that may have advanced past this run's work mid-audit.
+const auditRangeNote = (startSha && headSha)
+  ? `\n---\n\n# AUDIT RANGE (authoritative — the snapshot this round judges)\n\nThis audit covers EXACTLY \`run_start_sha=${startSha} .. audit_head=${headSha}\`. The DIFF below is FROZEN to that range (committed + uncommitted, captured at gather time). If you re-inspect the repository, reason about \`${startSha}..${headSha}\` — do NOT use live HEAD, which may have advanced beyond this run's work while this multi-minute audit was in flight. The supplied DIFF below is the source of truth for what to judge.`
+  : "";
+const prompt = `${auditPromptHeader}${auditRangeNote}
 
 ---
 
@@ -1066,6 +1087,16 @@ if (m) {
 // ACCEPTs only on an exact "ACCEPT" string AND an empty gaps array — everything else is REJECT.
 const normalized = normalizeConsultVerdict(verdict);
 
+// Race visibility (consult race fix, 2026-08-13): if HEAD moved between gather and now, the
+// frozen diff judged a DIFFERENT snapshot than the live repo. Warn (don't fail) — the verdict
+// is valid for the frozen range; the warning lets a human re-run after the repo settles.
+try {
+  const postHead = String(git(["rev-parse", "HEAD"]).trim());
+  if (headSha && SHA_RE.test(postHead) && postHead !== headSha) {
+    process.stderr.write(`consult.mjs: WARNING — HEAD moved during audit ${headSha.slice(0, 7)} -> ${postHead.slice(0, 7)} (repo mutated mid-audit, e.g. a merge or branch switch). Verdict covers run_start_sha ${startSha.slice(0, 7)} .. audit_head ${headSha.slice(0, 7)}. Re-run consult after the repo settles to audit the newer state.\n`);
+  }
+} catch {}
+
 // --- write to state.json consult lane ---
 state.consult = state.consult || { rounds: 0, verdict: null, history: [], last_gaps: [] };
 state.consult.rounds = (state.consult.rounds || 0) + 1;
@@ -1078,6 +1109,8 @@ state.consult.history.push({
   summary: normalized.summary,
   gaps: normalized.gaps,
   advisories: normalized.advisories,
+  run_start_sha: startSha || null,
+  audit_head: headSha || null,
 });
 state.updated_at = new Date().toISOString();
 // atomic write under O_EXCL lockfile (audit gap #5c: last-writer-safe vs stop.mjs/pre-tool.mjs).
