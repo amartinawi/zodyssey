@@ -34,7 +34,7 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 - `scripts/run-report.mjs <repo-root> <slug> [--json] [--log <path>]` — one-run efficiency scorecard. `success` derived from `state.final.verdict`.
 - `scripts/harness.mjs [--task <id>] [--arm zoedyssey|baseline] [--list]` — eval runner: fresh-copy → scaffold → (conductor drives) → auto-append. Prints the judge command.
 - `scripts/judge.mjs <run-repo> <slug> <seed-id> [--double]` — INDEPENDENT LLM-as-judge on the external CLI (not oracle). Scores against the seed's success_criteria. `--double` = two passes + >0.15 disagreement flag.
-- `scripts/consult.mjs <repo-root> <slug> [--task <file>]` — run ONE external audit round (the `/orchestrate-consult` gate). Fail-closed verdict, secret redaction, read-only auditor.
+- `scripts/consult.mjs <repo-root> <slug> [--task <file>]` — run ONE external audit round (the `/orchestrate-consult` gate). Fail-closed verdict, secret redaction, read-only auditor. **Freezes the audit tip** (race fix): captures `HEAD` as `audit_head` once at gather time, injects an `AUDIT RANGE` section into the prompt naming the exact frozen range `run_start_sha..audit_head` so the auditor reasons about THAT range (not live HEAD, which may advance past the run's work during the multi-minute external call), records `run_start_sha` + `audit_head` on each `consult.history` entry, and warns if HEAD moved during the round.
 
 ## Correctness gates (added 2026-08-11)
 

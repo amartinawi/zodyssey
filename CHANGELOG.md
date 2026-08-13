@@ -4,7 +4,7 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
 
 ## [0.3.4] — 2026-08-13
 
-Three changes accumulated on main since v0.3.3 — the first real increment of the measurement→improvement loop that v0.3.3's plumbing was built to support, a routing blind-spot fix, and a small run-artifact ignore leak.
+Four changes accumulated on main since v0.3.3 — the first real increment of the measurement→improvement loop that v0.3.3's plumbing was built to support, a routing blind-spot fix, a consult diff-base race fix, and a small run-artifact ignore leak.
 
 ### Added — correction-signal capture for consult (`recall-corrections.mjs`)
 
@@ -27,6 +27,13 @@ Docs/routing only — no hooks, no `SEC-*` interaction. Went through the full pi
 ### Fixed — run-artifact ignore leak
 
 - **`.zcode/staging/` and `.zcode/toolchain.json` leaked past `.gitignore`.** The granular `.zcode/` ignore list never added these two newer run-artifact paths, so a `git add -A` in a repo where `/orchestrate` had run would have staged final-wave intermediates (the f2/f3/f4 JSON, the PR-body draft, the verify script) and resolved toolchain state. Nothing under `.zcode/` is tracked, so plugging the two entries is safe; the granular one-path-per-artifact style is kept over a blanket ignore for now (#12).
+
+### Fixed — consult diff-base race (`audit_head` freeze)
+
+The diff is gathered into a frozen string at T1, but the external auditor can reason about (or, if its tool surface is less locked than `--allowedTools ""` promises, inspect) live HEAD, which may advance past the run's work during the multi-minute call — round 3 of `correction-signal-capture` hit this: PRs merged mid-audit, making the supplied diff look "stale" next to the repo. The auditor's round-3 advisory flagged the race; this closes it.
+
+- **`consult.mjs` (`runPostDoneConsult`) now freezes the audit tip.** It captures `HEAD` as a concrete SHA (`audit_head`) once at gather time; injects an `AUDIT RANGE` section into the prompt naming the exact frozen range `run_start_sha..audit_head` and instructing the auditor to reason about THAT range, not live HEAD; records `run_start_sha` + `audit_head` on each `consult.history` entry for traceability; and after the audit returns, warns if HEAD moved during the round (the verdict still covers the frozen range — the warning tells a human to re-run after the repo settles, so the race is visible rather than silent).
+- Validated end-to-end with a stub auditor against a throwaway smoke slug (recorded `audit_head` on the history round; `AUDIT RANGE` section present in the prompt), plus the existing 67 `consult.test.mjs` assertions and the full suite. `pre-tool.mjs` is untouched.
 
 ## [0.3.3] — 2026-08-12
 
