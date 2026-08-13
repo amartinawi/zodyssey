@@ -60,8 +60,9 @@ if (!existsSync(stateDir)) {
   console.error(`(no run state at ${stateDir} yet — this is the first run for this repo)`);
   exit(3);
 }
-// Glob every *.json state file (one per run slug). .inflight.json lock files also
-// match the glob but parse to `[]`; they are filtered out below as non-run objects.
+// Glob every *.json state file (one per run slug). *.inflight.json lock files also
+// match the glob; they are NON-EMPTY arrays of in-flight dispatch records (not run
+// objects) and are filtered out below by the Array.isArray guard.
 let stateFiles = [];
 try {
   stateFiles = readdirSync(stateDir)
@@ -94,7 +95,8 @@ for (const file of stateFiles) {
     process.stderr.write(`recall-corrections: skipping malformed state ${fname}\n`);
     continue;
   }
-  // inflight lock files are `[]`; anything not a non-array object is not a run.
+  // inflight lock files are non-empty arrays of dispatch records, not run objects;
+  // any non-object (or array) is skipped here.
   if (!state || typeof state !== "object" || Array.isArray(state)) continue;
   runCount += 1;
 
@@ -141,10 +143,15 @@ for (const file of stateFiles) {
   }
 }
 
-// No parseable run state objects (dir absent, empty, or only inflight locks) →
-// mirrors the sibling's first-run path.
+// No parseable run state objects. Distinguish "no state files" (genuinely the
+// first run — mirrors the sibling) from "files present but none parsed" (all
+// malformed or inflight locks) so the exit-3 message is not misleading.
 if (runCount === 0) {
-  console.error(`(no run state at ${stateDir} yet — this is the first run for this repo)`);
+  if (stateFiles.length === 0) {
+    console.error(`(no run state at ${stateDir} yet — this is the first run for this repo)`);
+  } else {
+    console.error(`(found ${stateFiles.length} state file(s) at ${stateDir} but none parsed as a run — all malformed or inflight locks; see warnings above)`);
+  }
   exit(3);
 }
 if (signals.length === 0) {
