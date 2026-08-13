@@ -2,6 +2,32 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.4] — 2026-08-13
+
+Three changes accumulated on main since v0.3.3 — the first real increment of the measurement→improvement loop that v0.3.3's plumbing was built to support, a routing blind-spot fix, and a small run-artifact ignore leak.
+
+### Added — correction-signal capture for consult (`recall-corrections.mjs`)
+
+The measurement loop scored every run (`judge.mjs`, `run-report.mjs`) and fed nothing back — the largest adaptation gap surfaced by the task-observer study. v0.3.4 adds the first read-only increment: a sibling to `recall-outcomes.mjs` that mines correction signals from on-disk run state and surfaces a bounded summary to Metis at consult.
+
+- **`recall-corrections.mjs` (NEW):** scans `<repo>/.zcode/state/*.json` for two correction signals — verify-fail (`state.verify.history[].passed === false`) and Momus-REJECT with blockers (`state.review.history[].verdict === 'REJECT' && blockers.length > 0`) — dedups, and prints top-K=5 (recency-first, REJECT > verify-fail) with a `(showing K of N)` footer and closing `Metis:` directive. Defensive reads throughout (`|| []`, `?.`); exit 0/2/3.
+- **Scope discipline:** read-only capture only. No part of this loop modifies live skill/agent files — the periodic-improvement-pass is explicitly EXCLUDED (staging-only, future work). Signal 3 (user mid-run corrections) is not recorded on disk today.
+- **Wiring:** `agents/metis.md` and `SKILL.md` (phase-1 consult box) now reference BOTH `recall-outcomes` and `recall-corrections` for premortem grounding — `recall-outcomes` was previously documented-but-unwired; this completes it. `references/scripts.md` gains the signature entry.
+- **Trusted-invoke regression:** `pre-tool.mjs` is NOT edited — the trusted-script allowlist is realpath-containment based, so the new sibling is auto-trusted. A new regression case in `pre-tool.trusted-invoke.test.mjs` proves it (35/0).
+
+### Changed — route the find-skills capability + external-skill quality discipline
+
+The conductor's routing table had no row for discovering skills the environment does not yet have — only an installed-only `find ~/.zcode -name SKILL.md` walk — and no quality/reputation gate anywhere. The already-installed `find-skills` skill was invisible to the conductor (`grep -rn find-skills skills/` returned zero hits).
+
+- **`capabilities.md`:** new Quick-matrix row — `Discover a skill not yet installed` → `find-skills` (local) / `npx skills find` (external), reinforcing `find ~/.zcode -name SKILL.md` (installed inventory).
+- **`SKILL.md`:** a lean external-skill quality bullet after the routing summary — prefer ≥1K installs and official sources (`vercel-labs`, `anthropics`, `microsoft`); be skeptical below ~100 GitHub stars; apply before recommending or auto-using any external skill. (Already-installed local skills are inventory, not reputation.)
+
+Docs/routing only — no hooks, no `SEC-*` interaction. Went through the full pipeline (consult → plan → gated review → execute → verify → final wave) and an independent external audit (`/orchestrate-consult`): ACCEPT, zero gaps.
+
+### Fixed — run-artifact ignore leak
+
+- **`.zcode/staging/` and `.zcode/toolchain.json` leaked past `.gitignore`.** The granular `.zcode/` ignore list never added these two newer run-artifact paths, so a `git add -A` in a repo where `/orchestrate` had run would have staged final-wave intermediates (the f2/f3/f4 JSON, the PR-body draft, the verify script) and resolved toolchain state. Nothing under `.zcode/` is tracked, so plugging the two entries is safe; the granular one-path-per-artifact style is kept over a blanket ignore for now (#12).
+
 ## [0.3.3] — 2026-08-12
 
 A release-plumbing release. **v0.3.2 was tagged uninstallable** — the version lives in three files read by three different consumers and only two were bumped, so the marketplace kept serving 0.3.1 no matter how many times Update was clicked. v0.3.3 supersedes it; there is no reason to install v0.3.2.
