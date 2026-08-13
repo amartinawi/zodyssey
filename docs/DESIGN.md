@@ -283,6 +283,17 @@ but that the in-session final-wave had marked `pass`). Implementation: `scripts/
 (§12 item 14) + `references/auditor-prompt.md`; the full remediation loop is documented in the
 odyssey skill's "External consult/audit gate" section.
 
+**The audit tip is frozen to a concrete SHA.** `consult.mjs` captures `HEAD` as `audit_head` once
+at gather time, gathers the diff against the frozen `run_start_sha..audit_head` range, and injects
+an `AUDIT RANGE` section into the prompt instructing the auditor to reason about that range — not
+live HEAD, which may advance past the run's work during the multi-minute external call (a merge or
+branch switch mid-audit is what made round 3 of `correction-signal-capture` see a "stale" diff).
+Each `consult.history` entry records both SHAs for traceability, and a warning is emitted if HEAD
+moved during the round (the verdict still covers the frozen range; the warning tells a human to
+re-run after the repo settles). The auditor itself is spawned read-only (`--permission-mode plan`,
+empty `--allowedTools`), so its verdict rests on the supplied diff + plan, not on live filesystem
+mutation.
+
 **The honest limitation that creates `remediate`:** because `done`/`audited` are terminal phases,
 the enforcement hooks (review gate, scope boundary, parallel cap, phase gate) are **disarmed**
 during consult-driven remediation. To keep the scope boundary governing gap-fix edits, the
