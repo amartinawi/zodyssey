@@ -46,6 +46,7 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 ## Diagnostics + cross-run learning
 - `scripts/resolve-capabilities.mjs [--check] [--agent <name>]` — reconciles agent `tools:` grants vs body references vs live inventory. Exits 6 on routed-but-not-granted violations.
 - `scripts/recall-outcomes.mjs <repo> [--failed]` — reads prior blocked/failed outcomes from `.zcode/memory/outcomes.jsonl` for phase-1 premortem grounding.
+- `scripts/recall-corrections.mjs <repo>` — mines correction signals (verify-fail re-dispatches, Momus REJECT + blockers) from `.zcode/state/*.json` (NOT `outcomes.jsonl`) for phase-1 Metis grounding; top-K bounded (default 5) for context economy. Exit 0 success · 2 bad args · 3 no state yet.
 - `scripts/parse-plan.test.mjs` — unit tests for the parser (10 cases; run after any parse-plan change).
 
 ## Phase 3 (REVIEW) — exact order to record a verdict

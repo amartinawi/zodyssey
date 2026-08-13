@@ -24,6 +24,7 @@ import { createHash } from "node:crypto";
 const HOOK = join(new URL(".", import.meta.url).pathname, "pre-tool.mjs");
 const SCRIPTS = join(new URL(".", import.meta.url).pathname, "..", "scripts");
 const RV = join(SCRIPTS, "record-verify.mjs");
+const RC = join(SCRIPTS, "recall-corrections.mjs");
 
 let pass = 0, fail = 0;
 const check = (n, c, d = "") => c ? (console.log(`  ✓ ${n}`), pass++) : (console.log(`  ✗ ${n} ${d}`), fail++);
@@ -94,6 +95,21 @@ for (const [label, cmd] of [
 ]) {
   check(`    ${label}`, allowed(cmd), `(exit ${run(cmd)})`);
 }
+
+// --- AUTO-TRUST PROOF: a new sibling under scripts/ is trusted by path containment -------
+//
+// isTrustedScriptInvoke is path-containment based, NOT a per-file list: SCRIPTS_DIR is the
+// realpath of scripts/ (pre-tool.mjs:832), and any `node <file-under-scripts-dir> ...` whose
+// realpath lands inside that prefix is trusted (pre-tool.mjs:885-893). A new sibling is therefore
+// auto-trusted the moment it exists — no allowlist edit is needed. This case proves that for
+// recall-corrections.mjs (created by Todo 2 of run correction-signal-capture) and guards against
+// a future regression to a per-file enumeration that would silently omit new siblings. Because
+// realpathSync.native cannot canonicalize a missing path (pre-tool.mjs:891, fail-closed), this
+// case transitively depends on Todo 2 having actually created the file: if it didn't, the case
+// correctly fails (exit 2 from the gate) rather than stubbing the file.
+console.log("\n  new sibling auto-trusted by path-containment allowlist:");
+check("    recall-corrections.mjs TRUSTED under an active PRE-OKAY run",
+  allowed(`node ${RC} ${repo} t`), `(exit ${run(`node ${RC} ${repo} t`)})`);
 
 // --- the end-to-end case round 3 actually hit --------------------------------
 console.log("\n  end-to-end:");
