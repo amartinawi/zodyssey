@@ -41,6 +41,8 @@ This is the orchestrator's core promise. This machine has 8 plugins, ~50 skills,
 
 The table is the summary; `capabilities.md` is the authoritative detail. **Tell every agent you dispatch which capability to use for its activity** — don't assume they'll reach for it on their own. The whole point is that the orchestrator is the thing that *knows* to load TDD, codegraph, a premortem.
 
+- **External-skill quality check:** before recommending or auto-using any external skill (discovered via `find-skills` / `npx skills find`), sanity-check it — prefer **≥1K installs** and official sources (`vercel-labs`, `anthropics`, `microsoft`, …); be skeptical below **~100 GitHub stars**. (Already-installed local skills are inventory, not reputation.)
+
 ## The state machine (8 phases: -1 priming → 0–6)
 
 ```

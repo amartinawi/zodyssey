@@ -30,6 +30,7 @@
 | **Plan the work** | `Task: zodyssey:prometheus` (ours) | `skill: writing-plans`, `skill: executing-plans` |
 | **Research the codebase** | `codegraph_explore` MCP (if `.codegraph/`) | `Task: zodyssey:explore` (ours), `Task: zodyssey:librarian` (docs/OSS) |
 | **Research libraries/docs** | `Context7` MCP + `Task: zodyssey:librarian` | `WebSearch` / `WebFetch` |
+| **Discover a skill not yet installed** | `find-skills` (local) / `npx skills find` (external) | `find ~/.zcode -name SKILL.md` (installed inventory) |
 | **Design / architecture** | `Task: zodyssey:oracle` (ours) + `skill: brainstorming` | `feature-dev:code-architect`, `skill: premortem`, `sequentialthinking` MCP |
 | **UI/UX design intelligence** | `skill: ui-ux-pro-max` | `Task: zodyssey:oracle` (design review), `playwright`/`chrome-devtools` MCPs (UI verify) |
 | **Implement (TDD)** | `skill: test-driven-development` | `skill: subagent-driven-development`, `Task: zodyssey:sisyphus-junior` |
