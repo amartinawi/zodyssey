@@ -6,6 +6,8 @@
 .zcode/memory/
 .zcode/teams/
 .zcode/reviews/
+.zcode/staging/
+.zcode/toolchain.json
 .zcode/capabilities.lock.json
 
 # The cross-run eval ledger (optional, local-only). Seeds ship in the repo.
