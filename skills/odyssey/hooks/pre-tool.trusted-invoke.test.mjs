@@ -75,6 +75,12 @@ for (const [label, cmd] of [
   ["not node",                  `python3 ${RV} ${repo} t 1`],
   ["node outside scripts dir",  `node /tmp/evil.mjs ${repo} t 1`],
   ["path traversal out",        `node ${SCRIPTS}/../hooks/pre-tool.mjs`],
+  // audit C1: the operand regex only reads the first line — a control char starts a second,
+  // ungated command that /bin/sh would run. Every control-char separator must stay BLOCKED.
+  ["newline second command",    `node ${RV} ${repo} t 1\nsed -i s/REJECT/OKAY/ .zcode/state/t.json`],
+  ["carriage-return second cmd", `node ${RV} ${repo} t 1\rsed -i s/a/b/ src/a.js`],
+  ["tab then second command",   `node ${RV} ${repo} t 1\tsed -i s/a/b/ src/a.js`],
+  ["leading newline before node", `\nnode ${RV} ${repo} t 1`],
 ]) {
   check(`    ${label}`, blocked(cmd), `(exit ${run(cmd)})`);
 }

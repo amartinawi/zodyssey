@@ -19,7 +19,7 @@ LOAD the odyssey skill — call `skill(name="zodyssey:odyssey")` — and read it
 
 ## Always use the best capability for planning (consult the routing table)
 
-Read `~/.zcode/skills/odyssey/references/capabilities.md` and reach for the best-fit tool rather than planning generically:
+Read `references/capabilities.md` (in the zodyssey plugin install) and reach for the best-fit tool rather than planning generically:
 
 - **Load `skill: writing-plans`** (superpowers) alongside the odyssey scaffold — it's the battle-tested plan-writing method and complements our plan contract.
 - **Research before drafting, using the right tool:** `codegraph_explore` MCP first if the repo has a `.codegraph/` index (one call maps structure that would take many greps); else dispatch `Task: zodyssey:explore`. For external libs/docs, `Context7` MCP + `Task: zodyssey:librarian`. Fan these out in parallel before you write a single plan line.

@@ -145,6 +145,25 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
     (r.state?.final?.results?.F1?.declared_untouched || []).includes("src/foo.js"));
 }
 
+// --- F1: PARTIAL completion fails, and --allow-untouched waives (audit M6) ----
+{
+  const { repo } = mk({ declared: ["src/foo.js", "src/bar.js"] });
+  writeFileSync(join(repo, "src", "foo.js"), "// changed\n"); // touch ONE of two declared files
+  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  check("F1 fails when a declared file was never touched (partial completion)",
+    r.state?.final?.results?.F1?.passed === false &&
+    (r.state?.final?.results?.F1?.declared_untouched || []).includes("src/bar.js"),
+    `(passed=${r.state?.final?.results?.F1?.passed})`);
+}
+{
+  const { repo } = mk({ declared: ["src/foo.js", "src/bar.js"] });
+  writeFileSync(join(repo, "src", "foo.js"), "// changed\n");
+  const r = run(repo, ["--skip", "F2,F3,F4", "--allow-untouched"]);
+  check("F1 --allow-untouched waives an untouched declared file",
+    r.state?.final?.results?.F1?.passed === true && r.state?.final?.results?.F1?.untouched_waived === true,
+    `(passed=${r.state?.final?.results?.F1?.passed})`);
+}
+
 // --- F1: scope creep still caught (no regression) ----------------------------
 {
   const { repo } = mk({});

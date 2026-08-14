@@ -42,6 +42,10 @@ approval_gate: open
 ## TL;DR
 Add a `GET /healthz` route returning `200 {ok:true}` and a jest test covering it.
 
+## Capability routing
+- `routed: skill:test-driven-development`
+- Evidence: logic todo (Express route + jest test) — TDD is the installed fit.
+
 ## Scope
 ### Must have
 - A route handler at `GET /healthz` → `200 { ok: true }`.
@@ -82,6 +86,7 @@ Add a `GET /healthz` route returning `200 {ok:true}` and a jest test covering it
 - [ ] F2. Code-quality review.
 - [ ] F3. Manual-QA: start the app, curl /healthz, confirm 200.
 - [ ] F4. Scope-fidelity: no file outside the 3 declared was touched.
+- [ ] F5. Capability-routing cross-check: observed skill:test-driven-development in state.capabilities[].
 
 ## Success criteria
 - `npm test` exits 0.
@@ -140,7 +145,18 @@ The orchestrator runs each todo's acceptance criteria:
     "1": { "status": "done", "attempts": 1 },
     "2": { "status": "done", "attempts": 1 }
   },
-  "final": { "F1": "pass", "F2": "pass", "F3": "pass", "F4": "pass", "verdict": "pass" }
+  "final": {
+    "verdict": "pass",
+    "at": "2026-08-09T10:14:00Z",
+    "results": {
+      "F1": { "passed": true },
+      "F2": { "passed": true },
+      "F3": { "passed": true },
+      "F4": { "passed": true },
+      "F5": { "passed": true }
+    },
+    "artifact": ".zcode/reviews/add-healthz-endpoint/final-wave.json"
+  }
 }
 ```
 

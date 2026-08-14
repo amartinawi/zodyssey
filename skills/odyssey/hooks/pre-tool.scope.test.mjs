@@ -127,6 +127,24 @@ console.log("pre-tool.mjs — scope prohibitions and the phase-3 staging path\n"
     hook(repo, "Write", { file_path: join(repo, ".zcode", "state", "forged.json") }) === 2);
 }
 
+// --- H3: non-native / MCP tools cannot write the trust-critical dirs ----------
+// The gate natively classifies Write/Edit/Bash/Task; every other tool (all mcp__*, unknown tools)
+// used to fall through to exit(0). A local-fs MCP could then write state.json or a reviews/ artifact
+// and forge a verdict ungated. These target the run's protected dirs and must be BLOCKED.
+{
+  const repo = repoWithScope("Edit `src/text.js`.", { phase: "execute", verdict: "OKAY" });
+  check("mcp__* tool writing .zcode/state is BLOCKED",
+    hook(repo, "mcp__fs__write_file", { path: join(repo, ".zcode", "state", "t.json") }) === 2);
+  check("mcp__* tool writing .zcode/reviews is BLOCKED",
+    hook(repo, "mcp__fs__write_file", { path: join(repo, ".zcode", "reviews", "t-r1.json") }) === 2);
+  check("unknown non-native tool targeting .zcode/state is BLOCKED",
+    hook(repo, "SomeOtherTool", { file: join(repo, ".zcode", "state", "t.json") }) === 2);
+  check("mcp__* tool touching a normal repo path is ALLOWED (not a blanket block)",
+    hook(repo, "mcp__fs__write_file", { path: join(repo, "src", "text.js") }) === 0);
+  check("mcp__* read-shaped call with no path is ALLOWED",
+    hook(repo, "mcp__codegraph__explore", { query: "how does auth work" }) === 0);
+}
+
 for (const d of cleanup) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

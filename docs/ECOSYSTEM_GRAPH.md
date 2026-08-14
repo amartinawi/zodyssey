@@ -127,7 +127,7 @@
                    │ 4. EXECUTE  sisyphus-jr │  ◄── TDD skill (non-negotiable for code)
                    │   (parallel-by-default) │      systematic-debugging on any failure
                    │   wave dispatch ≤4      │      sequentialthinking on hard problems
-                   │   ◄ HOOK: parallel cap  │      ticks  - [ ] → - [x]  per todo
+                   │   ◄ HOOK: parallel cap  │      records status per todo
                    │   ◄ HOOK: file locks    │      notepad per todo ─► inherited wisdom
                    └───────────┬─────────────┘
                                │

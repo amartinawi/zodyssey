@@ -10,9 +10,9 @@ Read [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) first — it is the authoritat
 - **The active install** is marketplace-owned, cached at `~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/` (the `<marketplace>` segment comes from `marketplace.json` — e.g. `zodyssey-local`). Edits here do **not** take effect until you **re-Get/Update the plugin via Settings → Plugin Management → Discover** (which re-caches from this dir, including the manifest-declared hooks) **and** start a new ZCode session. `node scripts/install.mjs` only configures surrounding user-scope state (MCPs, AGENTS.md, purge, v0.3.0 hook-orphan migration) — it does **not** touch the cache, `installed_plugins.json`, or the hooks (all manifest-driven now).
 - Run artifacts (state, plans, notepads) are per-repo under `<repo>/.zcode/` and are gitignored — never commit them.
 
-## Build / test / verify (no package.json, no build step)
+## Build / test / verify (package.json present, no build step)
 
-Everything is ESM `.mjs` (Node ≥18). There is no transpile, no lint config, no central test runner.
+Everything is ESM `.mjs` (Node ≥18). There is no transpile, no lint config, but there is a central test runner: `scripts/run-tests.mjs` (`npm test`).
 
 - **Syntax-check anything you touch:** `node --check path/to/file.mjs`
 - **Tests are per-file, run directly** (exit 0 = pass, 1 = fail). Run the test(s) relevant to your change:

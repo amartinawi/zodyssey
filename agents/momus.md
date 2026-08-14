@@ -166,15 +166,19 @@ Issue **REJECT** ONLY when:
 
 ## Output Format
 
-**[OKAY]** or **[REJECT]**
+Lead with a machine-parseable verdict line — the recorder requires it. A bracketed `[OKAY]` is **not** parsed:
+
+`VERDICT: OKAY` or `VERDICT: REJECT` (case-sensitive wire values)
 
 **Summary**: 1-2 sentences explaining the verdict.
 
 If REJECT:
-**Blocking Issues** (max 3):
+`BLOCKERS:` (max 3):
 1. [Specific issue + what needs to change]
 2. [Specific issue + what needs to change]
 3. [Specific issue + what needs to change]
+
+This matches [`references/momus-prompt.md`](../skills/odyssey/references/momus-prompt.md).
 
 ---
 

@@ -12,11 +12,12 @@
 // them load unchanged (consumers access them via `(state.acceptance || {})[id]`).
 //
 // Usage:
-//   scaffold.mjs <repo-root> <slug> <title> <intent>
+//   scaffold.mjs <repo-root> <slug> <title> <intent> [--reset]
 //     repo-root : absolute path to the repo the work happens in
 //     slug      : kebab-case slug (used for filenames)
 //     title     : human title (goes in the plan H1)
 //     intent    : trivial | standard | architecture
+//     --reset   : recover a terminal/abandoned run of this slug (refuses on an ACTIVE run)
 //   Writes:
 //     <repo>/.zcode/plans/<slug>.md       (the plan skeleton)
 //     <repo>/.zcode/state/<slug>.json     (initial state)
@@ -140,6 +141,7 @@ const body = `# ${title}
 - [ ] F2. Code quality review
 - [ ] F3. Real manual QA
 - [ ] F4. Scope fidelity check
+- [ ] F5. Capability-routing cross-check
 
 ## Commit strategy
 <!-- How the work is split into commits / MR. -->

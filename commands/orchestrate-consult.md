@@ -24,7 +24,7 @@ Follow the **Consult workflow** section of the zodyssey:odyssey skill exactly. S
 
 ## Remediation (on REJECT)
 1. Read `consult.last_gaps` from state.json — each gap has `{category, severity, issue, fix}`.
-2. Dispatch remediation work to `zodyssey:sisyphus-junior` — one dispatch per gap (parallel where independent), each carrying the gap's `issue` + `fix` as the task. Use the same dispatch discipline as phase 4 (parallel-by-default, the hook still caps at 4).
+2. Dispatch remediation work to `zodyssey:sisyphus-junior` — one dispatch per gap (parallel where independent), each carrying the gap's `issue` + `fix` as the task. Use the same dispatch discipline as phase 4 (parallel-by-default). In `done`/`audited` the enforcement hooks are **disarmed**, so the parallel cap does **not** apply during remediation — if you want it enforced during gap-fixes, first `set-phase <repo> <slug> remediate`, then restore `done`/`audited` after re-consult.
 3. After all gap-fixes return, re-verify (run any affected acceptance commands), then re-run the audit (`consult.mjs` again).
 4. Loop. There is **no hard cap** — you loop until ACCEPT.
 

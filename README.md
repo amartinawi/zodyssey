@@ -82,7 +82,7 @@ flowchart TD
    6  FINAL WAVE   F1 plan-compliance · F2 code-quality · F3 manual-QA · F4 scope-fidelity
 ```
 
-The orchestrator (main agent) drives this; the cast of sub-agents (`metis`, `prometheus`, `momus`, `sisyphus-junior`, plus read-only `explore`/`librarian`/`oracle`) does the work. The enforcement hooks in `~/.zcode/cli/config.json` hard-block the invariants.
+The orchestrator (main agent) drives this; the cast of sub-agents (`metis`, `prometheus`, `momus`, `sisyphus-junior`, plus read-only `explore`/`librarian`/`oracle`) does the work. The enforcement hooks are declared in `.zcode-plugin/plugin.json` under `hooks` (resolved via `${CLAUDE_PLUGIN_ROOT}`) and hard-block the invariants.
 
 ## What the hooks enforce (the delta)
 
@@ -120,18 +120,16 @@ flowchart TD
 | **Parallel dispatch within bounds** | not enforced | hook counts in-flight Tasks; blocks beyond cap (default 4) |
 | **Bash write-escape before review** | n/a | hook gates write-capable Bash (`sed -i`, `>`, `git apply`, …) the same as Edit. Secure by default; `ZODYSSEY_UNGATE_BASH=1` disables |
 | **Embedded-dispatch injection** (SEC-1s, [v0.2.0](CHANGELOG.md#020---2026-08-11)) | n/a | hook blocks a `Task()` dispatch whose prompt payload embeds a serialized nested tool call — both `{"tool_name":"Task"}` and Claude-native `{"type":"tool_use","name":"Task"}` shapes. Defense-in-depth behind the harness tool-grant boundary. |
-| **Review verdicts are read, not assumed** *(unreleased)* | prompt convention | F2/F4 parse the artifact's verdict. Ambiguous or absent → `missing` → **fails**. Previously they confirmed a nonce and never opened the file |
-| **Tests can't be weakened to pass** *(unreleased)* | not enforced | F1 fails on a deleted test file, a net-negative test-file line count, or a newly added `skip`/`only`/`xfail`. Test files are read-only during `verify`/`final` |
-| **The declared work actually happened** *(unreleased)* | not enforced | F1 checks the converse: a plan declaring files against an empty diff fails instead of passing vacuously |
-| **Evidence can't be destroyed** *(unreleased)* | not enforced | notepads are append-only — `Write` over an existing one is blocked, `Edit` is not |
-| **`done` requires executed evidence** *(unreleased)* | not enforced | `record-todo` refuses `done` without passing `verify.history` records; `--force-done` is allowed but stamps `forced: true` |
-| **No pass-to-pass regressions** *(unreleased)* | not enforced | the suite is snapshotted entering `execute` and re-run later; green→red blocks `done`. An already-red suite is never blamed on the run |
-| **Imports resolve** *(unreleased)* | not enforced | `check-imports.mjs` flags packages that are in neither the manifest nor `node_modules`. Offline |
-| **No retrying an unchanged workspace** *(unreleased)* | not enforced | `record-verify` refuses to re-run a criterion whose worktree is byte-identical to its last failure (exit `10`). Ported from prime-agent |
+| **Review verdicts are read, not assumed** | prompt convention | F2/F4 parse the artifact's verdict. Ambiguous or absent → `missing` → **fails**. Previously they confirmed a nonce and never opened the file |
+| **Tests can't be weakened to pass** | not enforced | F1 fails on a deleted test file, a net-negative test-file line count, or a newly added `skip`/`only`/`xfail`. Test files are read-only during `verify`/`final` |
+| **The declared work actually happened** | not enforced | F1 checks the converse: a plan declaring files against an empty diff fails instead of passing vacuously |
+| **Evidence can't be destroyed** | not enforced | notepads are append-only — `Write` over an existing one is blocked, `Edit` is not |
+| **`done` requires executed evidence** | not enforced | `record-todo` refuses `done` without passing `verify.history` records; `--force-done` is allowed but stamps `forced: true` |
+| **No pass-to-pass regressions** | not enforced | the suite is snapshotted entering `execute` and re-run later; green→red blocks `done`. An already-red suite is never blamed on the run |
+| **Imports resolve** | not enforced | `check-imports.mjs` flags packages that are in neither the manifest nor `node_modules`. Offline |
+| **No retrying an unchanged workspace** | not enforced | `record-verify` refuses to re-run a criterion whose worktree is byte-identical to its last failure (exit `10`). Ported from prime-agent |
 
 All hooks are **NO-OP unless an orchestration run is active**. Normal ZCode editing is never affected. A run is "active" only between `/orchestrate` and reaching a terminal phase (`done`/`audited`/`abandoned`), and only inside the repo where you invoked it.
-
-Rows marked *(unreleased)* are on `main` but not in a tagged release. Each was demonstrated failing against the pre-fix code before being accepted — see [CHANGELOG](CHANGELOG.md#unreleased) for what each replaced.
 
 ## The external consult gate (the strongest check)
 
@@ -149,7 +147,7 @@ flowchart LR
     class OK good;
 ```
 
-After a run reaches `done`, `/orchestrate-consult <slug>` hands the plan + the full git diff to a **separate Claude CLI process** (fresh context, independent model) for an ACCEPT/REJECT audit. It cannot inherit the run's assumptions, so it catches things in-session reviewers miss. On REJECT, ZOdyssey sets `phase: remediate` (re-arming the gates) and loops until ACCEPT. See [`docs/DESIGN.md` §6.1](docs/DESIGN.md).
+After a run reaches `done`, `/orchestrate-consult <slug>` hands the plan + the full git diff to a **separate Claude CLI process** (fresh context, independent model) for an ACCEPT/REJECT audit. It cannot inherit the run's assumptions, so it catches things in-session reviewers miss. Remediation runs after `done`, where the hooks are **disarmed**; the conductor loops per gap until ACCEPT and can optionally set `phase: remediate` (re-arming the gates) when it wants hard enforcement during gap-fixes. See [`docs/DESIGN.md` §6.1](docs/DESIGN.md).
 
 ## Prerequisites
 

@@ -7,15 +7,15 @@ A multi-agent orchestration pipeline for the ZCode harness. Phases: Prime→Tria
 - Skill (conductor's instructions): ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/SKILL.md
 - Enforcement hook (the gate — most bug-dense file): ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/hooks/pre-tool.mjs
 - Other hooks: ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/hooks/{stop,post-tool}.mjs
-- Trusted-writer scripts: ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/scripts/*.mjs  (scaffold, set-phase, record-review, record-momus-artifact, record-final-wave, record-verify, record-todo, record-capability, parse-plan, consult, run-report, harness, judge, status, resolve-capabilities, recall-outcomes)
+- Trusted-writer scripts: ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/scripts/*.mjs  (scaffold, set-phase, record-review, record-momus-artifact, record-final-wave, record-final-artifact, record-verify, record-todo, record-capability, parse-plan, consult, run-report, harness, judge, status, resolve-capabilities, recall-outcomes, recall-corrections, regression-gate, check-imports, codegraph-impact, compact, coverage-delta, dashboard, lint-untrusted, probe-toolchain, build-capsules)
 - Auditor prompt template: ~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/skills/odyssey/references/auditor-prompt.md
 - Harness config: ~/.zcode/cli/config.json
 - Per-run state shape: any <repo>/.zcode/state/<slug>.json
 
 # Known-open issues (DO NOT re-report these — build on them, look past them)
-1. No sanctioned recorder for F2/F4 final-wave artifacts under .zcode/reviews/ (record-momus-artifact is hardcoded to the review-lane nonce). record-final-wave --skip F2,F4 is the workaround.
-2. --note "<text>" is unusable on any pre-verdict trusted script because " is in isTrustedScriptInvoke's metachar denylist. Bare-argv calls work; quoted --note doesn't.
-3. status.mjs is neither in TRUSTED_SCRIPTS nor read-only-classified → blocked in the exact stuck states where diagnosis is most needed.
+1. RESOLVED: `record-final-artifact.mjs` is now the sanctioned F2/F4 final-wave artifact recorder (the earlier "no recorder, --skip F2,F4 is the workaround" gap is closed).
+2. RESOLVED: quoted `--note "<text>"` now works on trusted scripts (the scan is quote-aware; the metachar denylist no longer false-positives on `"`).
+3. RESOLVED: `status.mjs` is auto-trusted by realpath containment, so diagnosis is no longer blocked in stuck states.
 4. No prometheus agent registered in this env → orchestrator writes the plan directly → the plan→review transition is easy to skip (this was the trigger for the nonce-phase-coupling bug, now fixed).
 5. The catch-22: the gate blocks edits to the hook file while a run's verdict=null, and there is no recoverable in-run escape (only abandon→manual-rewrite→resume, or external rm).
 6. Recently fixed (verify the fix is complete/correct, don't re-find): (a) findActiveRun now recursively discovers nested-repo .zcode/state dirs; (b) classifyTarget now classifies bookkeeping against the run's repo dir, not only PROJECT_DIR; (c) the review/F2/F4 nonce mints were decoupled from the phase condition and now mint on dispatch regardless of phase + emit a warning.
@@ -31,7 +31,7 @@ A multi-agent orchestration pipeline for the ZCode harness. Phases: Prime→Tria
 14. WRITE_PATTERNS (pre-tool.mjs:61-87) false-negatives: bare `git stash` (only stash pop/drop caught), `git merge/pull/fetch/branch/tag/checkout<branch>`, `tar`, `unzip`, `gcc -o`, `make`, `docker run -v` all slip pre-verdict. Verify the git check was inverted to a safe-verb allowlist.
 15. File-lock owner (pre-tool.mjs:421) collapses to session_id — agent_id is ABSENT in this harness's payload (proven by a live payload-probe). Parallel executors on a shared file don't serialize (MEDIUM — requires plan-level file-overlap, not the default case). Verify the owner key uses tool_use_id or the orchestrator passes distinct agent_id.
 16. TRANSITIONS (set-phase.mjs:64-74) has no keys for abandoned/blocked → unrecoverable DAG dead-ends; --force does NOT help (the DAG check :93 runs before the --force branch :99). Verify abandoned/blocked now have re-entry edges.
-17. CLAUDE_CLI (consult.mjs:339, judge.mjs:109) is taken raw, unvalidated, despite SKILL.md:285 claiming "all validated". Verify it's validated or the SKILL.md claim is corrected.
+17. CLAUDE_CLI (consult.mjs:339, judge.mjs:109) is taken raw, unvalidated, despite the "Environment overrides" section of SKILL.md (SKILL.md:359) formerly claiming "all validated". Verify it's validated or the SKILL.md claim is corrected.
 
 # Adversarial questions — answer each with concrete evidence (file:line)
 

@@ -461,13 +461,24 @@ if (isEdit) {
     const _sel = selectByTarget(_all, _tp);
     if (_sel && _sel.state.slug !== state.slug) { state = _sel.state; RUN_STATE_DIR = _sel.stateDir; }
   }
+} else if (isDispatch) {
+  // SEC (audit M8): a Task dispatch carries no file target, so run-selection fell back to the
+  // globally most-recent active run. In a workspace with 2+ active runs, a legit momus dispatch
+  // could mint its review nonce into the WRONG run — deadlocking the intended one (its
+  // record-momus-artifact finds no pending_nonce → exit 6) while the other accrues a stray nonce.
+  // Re-select by the dispatch's working directory: the run whose repo root encloses cwd wins.
+  const _cwd = payload.cwd || process.cwd();
+  const _all = findActiveRuns({ projectDir: PROJECT_DIR, staleMs: STALE_MS });
+  const _sel = selectByTarget(_all, _cwd);
+  if (_sel && _sel.state.slug !== state.slug) { state = _sel.state; RUN_STATE_DIR = _sel.stateDir; }
 }
 
-// MAJOR-3 (operational-consult): OBSERVED capability recording. The old path was circular —
+// MAJOR-3 (operational-consult): capability recording. The old path was circular —
 // record-capability.mjs was called by the agent that CLAIMED the capability, so state.capabilities
-// was self-declared. The hook sees real Skill/MCP tool calls as they happen, so record them here
-// (best-effort append to state.capabilities; never blocks). This converts "TDD was used" from an
-// assertion into an observation.
+// was self-declared. The hook sees real Skill/MCP tool calls as they happen.
+// SEC (audit M7): PreToolUse fires on tool ATTEMPT, before the skill actually loads (a nonexistent
+// skill would still stamp here). So the PRE hook records only `attempted:true`; the successful-load
+// `observed:true` — the one F5 trusts — is stamped by post-tool.mjs after the load returns.
 if (toolName === "Skill" || toolName.startsWith("mcp__")) {
   try {
     const cap = toolName === "Skill" ? `skill:${toolInput.skill || toolInput.name || "unknown"}` : toolName;
@@ -485,7 +496,7 @@ if (toolName === "Skill" || toolName.startsWith("mcp__")) {
       try {
         let cs; try { cs = JSON.parse(readFileSync(capStatePath, "utf8")); } catch { cs = state; }
         cs.capabilities = Array.isArray(cs.capabilities) ? cs.capabilities : [];
-        cs.capabilities.push({ at: new Date().toISOString(), phase: state.phase, capability: cap, observed: true });
+        cs.capabilities.push({ at: new Date().toISOString(), phase: state.phase, capability: cap, attempted: true });
         cs.updated_at = new Date().toISOString();
         const ct = capStatePath + ".tmp." + process.pid;
         writeFileSync(ct, JSON.stringify(cs, null, 2) + "\n");
@@ -696,12 +707,16 @@ if (isEdit) {
   }
 
   // Verdict is OKAY. File-lock check (W7-1 v3): prevent two concurrent executors editing the
-  // SAME file. Owner = payload.agent_id || payload.session_id (stable per-dispatch; NOT
-  // tool_use_id which is per-call). Each in-flight executor registers in state.active_todos
-  // (a MAP, keyed by owner → todo id) via record-todo.mjs. The hook resolves myTodo from that
-  // map, stamps file_locks[rel].todo with it. Self-ownership requires the SAME owner (a shared
-  // global todo id was the W6 bug — every concurrent executor matched it).
-  const owner = payload.agent_id || payload.session_id || state.active_executor_session || "orchestrator";
+  // SAME file. Owner identity must be STABLE across one executor's calls but DISTINCT between
+  // parallel executors. Each in-flight executor registers in state.active_todos (a MAP, keyed by
+  // owner → todo id) via record-todo.mjs. Self-ownership requires the SAME owner.
+  // SEC (audit M9): agent_id is absent in this harness (payload probe), so the owner used to
+  // collapse to session_id — IDENTICAL across parallel sub-agents, so two executors editing the
+  // same file both saw the lock as self-owned and clobbered. parent_tool_use_id is the dispatching
+  // Task's id: shared by all of ONE executor's tool calls, distinct between parallel executors.
+  // Prefer it so parallel executors serialize; fall back to session_id when it is absent (no
+  // regression from the prior behavior).
+  const owner = payload.agent_id || payload.parent_tool_use_id || payload.session_id || state.active_executor_session || "orchestrator";
   const activeTodos = (state.active_todos && typeof state.active_todos === "object") ? state.active_todos : {};
   const myTodo = activeTodos[owner] || null;
   const locks = (state.file_locks && typeof state.file_locks === "object") ? state.file_locks : {};
@@ -839,6 +854,11 @@ function shellSafeForTrustedInvoke(cmd) {
   let quote = null; // null | "'" | '"'
   for (let i = 0; i < cmd.length; i++) {
     const c = cmd[i];
+    // SEC (audit C1): any control char (newline/CR/tab/…) is untrusted. The operand regex below
+    // only inspects the first line, so `node <script>\n<second-command>` would otherwise pass the
+    // scan and the shell would run the second command ungated. Reject the whole class up front —
+    // a trusted `node <script> <args>` invoke never legitimately contains a control character.
+    if (c.charCodeAt(0) < 0x20) return false;
     if (c === "\\" && quote !== "'") { i++; continue; } // escaped char (not special inside '')
     if (quote === null) {
       if (c === "'" || c === '"') { quote = c; continue; }
@@ -1225,6 +1245,44 @@ if (isDispatch) {
     mintNonceFor("final_f4");
   }
   exit(0);
+}
+
+// SEC (audit H3): the gate natively classifies only Write/Edit/…/Bash/Task. Every OTHER tool —
+// all mcp__* tools and any unknown write-capable tool — otherwise reaches this exit(0) ungated. A
+// local-filesystem MCP could write state.json or drop a .zcode/reviews/ artifact and forge a
+// verdict with NONE of the gates firing. Protect the two trust-critical dirs from any non-native
+// tool: if the tool input references a path under this run's .zcode/state or .zcode/reviews, block.
+// (Native Edit/Bash writes there are already gated by verdict+scope above; the trusted-writer
+// scripts reach these dirs only through the Bash allowlist. A read-only MCP that never names those
+// paths is unaffected — this is a targeted forge-surface guard, not a blanket MCP block.)
+if (!isEdit && !isBash && !isDispatch) {
+  try {
+    const runRepo = pathResolve(RUN_STATE_DIR, "..", "..");
+    const protectedDirs = [join(runRepo, ".zcode", "state"), join(runRepo, ".zcode", "reviews")];
+    const strings = [];
+    (function collect(v, depth) {
+      if (depth > 4 || v == null || strings.length > 200) return;
+      if (typeof v === "string") { strings.push(v); return; }
+      if (Array.isArray(v)) { for (const x of v) collect(x, depth + 1); return; }
+      if (typeof v === "object") { for (const k of Object.keys(v)) collect(v[k], depth + 1); }
+    })(toolInput, 0);
+    for (const s of strings) {
+      if (typeof s !== "string" || s.length > 4096) continue;
+      if (!s.includes("/") && !s.includes(sep)) continue; // not path-shaped
+      let resolved;
+      try { resolved = pathResolve(runRepo, s); } catch { continue; }
+      for (const d of protectedDirs) {
+        if (resolved === d || resolved.startsWith(d + sep)) {
+          block(
+            `tool ${toolName} targets a trust-critical path (${s.slice(0, 120)}). Writes under ` +
+              `.zcode/state and .zcode/reviews are reserved for the trusted-writer scripts — a ` +
+              `${toolName.startsWith("mcp__") ? "MCP" : "non-native"} tool cannot place a verdict, nonce, ` +
+              `or review artifact there. (slug=${state.slug})`
+          );
+        }
+      }
+    }
+  } catch { /* best-effort guard; never crash the hook on a weird tool_input shape */ }
 }
 
 exit(0); // any other tool: pass

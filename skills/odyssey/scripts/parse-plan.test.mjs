@@ -48,8 +48,8 @@ console.log("parse-plan.mjs unit tests\n");
     const nonFinal = todos.filter((t) => !t.final);
     check("freshly scaffolded plan → 0 non-final todos", nonFinal.length === 0,
       `(got ${nonFinal.length}: ${JSON.stringify(nonFinal.map((t) => t.id))})`);
-    // The 4 final-wave rows (F1–F4) ARE real todos and SHOULD parse.
-    check("scaffolded plan → 4 final-wave rows (F1–F4)", todos.length === 4,
+    // The 5 final-wave rows (F1–F5, F5 added v0.4.1) ARE real todos and SHOULD parse.
+    check("scaffolded plan → 5 final-wave rows (F1–F5)", todos.length === 5,
       `(got ${todos.length})`);
   } finally {
     rmSync(repoDir, { recursive: true, force: true });
@@ -389,9 +389,20 @@ console.log("parse-plan.mjs unit tests\n");
     check("routing: lint FAILS on the unfilled scaffold placeholder", r.code === 6 &&
       (r.out.problems || []).some((p) => /Capability routing/.test(p.issue || "")));
 
+    // audit M4: `routed:` must name a recognized kind (skill:/mcp:/agent:); a bare freeform value
+    // used to lint clean and then satisfy F5's declaration-only fallback.
+    writeFileSync(planPath, base("## Capability routing\n- `routed: just do it manually`\n- Evidence: none."));
+    r = lint();
+    check("routing: lint FAILS on a `routed:` value that is not skill:/mcp:/agent:", r.code === 6 &&
+      (r.out.problems || []).some((p) => /Capability routing/.test(p.issue || "")));
+
     writeFileSync(planPath, base("## Capability routing\n- `routed: skill:aws-serverless`\n- Evidence: fits per capabilities.md."));
     r = lint();
     check("routing: lint passes with a real routed token", r.code === 0, JSON.stringify(r.out.problems || []).slice(0, 160));
+
+    writeFileSync(planPath, base("## Capability routing\n- `routed: agent:zodyssey:oracle`\n- Evidence: architecture review."));
+    r = lint();
+    check("routing: lint passes with a real agent token", r.code === 0);
 
     writeFileSync(planPath, base("## Capability routing\n- `discovered: find-skills`\n- Evidence: searched helm; nothing ≥1K installs."));
     r = lint();

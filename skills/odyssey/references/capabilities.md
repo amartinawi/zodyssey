@@ -80,7 +80,7 @@
 ### Phase 4 — Execute (`zodyssey:sisyphus-junior`)
 - **`skill: test-driven-development`** — for any todo that adds or changes logic, the executor MUST follow TDD (write failing test → implement → green). This is non-negotiable for code todos; note it in the plan's Acceptance criteria.
 - **`skill: ui-ux-pro-max`** (UI/UX tasks only) — the ORCHESTRATOR loads this skill and runs the pre-delivery checklist (no emoji icons, proper contrast, no layout-shift hovers, responsive breakpoints, accessibility) BEFORE the executor's output is accepted. The skill's `references/pro-rules.md` is the binding standard for UI quality. Since the executor can't load skills (sub-agent limitation), the orchestrator passes the relevant design context + pro-rules into the dispatch prompt and validates the output against them.
-- **`skill: subagent-driven-development`** — when a todo is large, the executor splits it into sub-tasks delegated to further `zodyssey:sisyphus-junior` instances (parallel where independent).
+- **`skill: subagent-driven-development`** — when a todo is large, the executor splits it into sub-tasks and REQUESTS further `zodyssey:sisyphus-junior` dispatches THROUGH THE ORCHESTRATOR (parallel where independent) — the executor cannot spawn agents itself (no Task tool).
 - **`skill: executing-plans`** — the canonical plan-execution loop; complements our state machine.
 - **`skill: using-git-worktrees`** — if the plan called for isolation, create the worktree first.
 - **`feature-dev:code-architect` / `code-explorer`** — dispatch for design-heavy or navigation-heavy todos.

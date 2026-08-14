@@ -92,7 +92,8 @@ Attempt to refute the plan on whether "done" can actually be *proven* done.
   a smoke check, a build). Absence of any regression guardrail is a refutation
   when the change has blast radius.
 - **Are hook edits protected by `node --check`?** If a todo edits
-  `cli/config.json` hook entries or any JS the hooks call, the plan must
+  the hook JS (`skills/odyssey/hooks/*.mjs`), the `.zcode-plugin/plugin.json`
+  hook declarations, or any JS the hooks call, the plan must
   require `node --check` (or equivalent parse-validation) as an acceptance
   criterion. A hook edit with no parse-check is a refutation — a syntax error
   in a hook file silently disables every enforcement and is the worst failure
