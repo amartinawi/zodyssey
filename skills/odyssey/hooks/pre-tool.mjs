@@ -156,16 +156,24 @@ function bashWriteTargets(cmd) {
     const t = m[2];
     if (t && !/^&\d/.test(t)) targets.push(t);
   }
-  // 2. tee FILE
-  for (const m of clean.matchAll(/\btee(?:\s+-\w+)*\s+(\S+)/g)) targets.push(m[1]);
+  // 2. tee FILE... — HIGH T1-3: tee writes EVERY file operand, but only the first was captured,
+  // so `tee in-scope.js out-of-scope.js` passed the scope check on the first and silently wrote
+  // the second. Push them all; over-blocking here is safe (the operator can split the command).
+  for (const m of clean.matchAll(/\btee((?:\s+-\w+)*(?:\s+[^\s;&|<>]+)+)/g)) {
+    for (const tok of m[1].trim().split(/\s+/)) if (tok && !tok.startsWith("-")) targets.push(tok);
+  }
   // 3. sed -i / awk -i inplace: the file is the trailing non-flag arg(s). Extract them; only fall
   // back to fail-closed if there's no file arg at all (just `-i` with no operand).
   for (const m of clean.matchAll(/\b(?:sed|awk|gawk)\s+([^&;|\n]+)/g)) {
     if (!/-i\b/.test(m[1])) continue; // only the inplace forms write
     const toks = m[1].trim().split(/\s+/).filter((t) => t && !t.startsWith("-"));
-    // sed's last non-flag token is the file (the `-i` script may be quoted prose; ignore quoted)
+    // sed's script may be a quoted expression; ignore quoted tokens, the rest are FILES.
     const fileToks = toks.filter((t) => !/^['"].*['"]$/.test(t));
-    if (fileToks.length) targets.push(fileToks[fileToks.length - 1]);
+    // HIGH T1-3: only the LAST file was pushed, so `sed -i 's/a/b/' out-of-scope.js in-scope.js`
+    // passed the scope check on the in-scope file and mutated both. sed -i edits every operand —
+    // push them all. An unquoted script (e.g. `sed -i s/a/b/ f.js`) shows up as a leading token
+    // that is not a real path; it will simply fail the scope check, which is the safe direction.
+    if (fileToks.length) for (const t of fileToks) targets.push(t);
     else confident = false; // -i with no discernible file → fail closed
   }
   // 4. cp/mv/install: last positional is the DESTINATION (conservative: take the last two tokens' latter)
@@ -615,6 +623,22 @@ function classifyTarget(p) {
 if (isEdit) {
   const { rel, bookkeeping, isState } = classifyTarget(targetPath());
 
+  // T1-5 (audit 2026-08-14): `isState` was computed here and at the projRel branch, returned from
+  // classifyTarget — and then never used in a single conditional. The file header's claim that
+  // "an agent cannot self-authorize a verdict by writing state.json" held only incidentally,
+  // because plans do not normally declare `.zcode/state/` in Files:. A plan that DOES declare it
+  // made verdict, phase and acceptance directly rewritable with the Edit tool. (v0.4.1's H3 guard
+  // closed this for MCP/non-native tools but not for the native Edit path.) State is written only
+  // by the trusted scripts; there is no legitimate direct edit.
+  if (isState) {
+    block(
+      `run state is not directly editable: ${rel} holds the review verdict, phase and acceptance ` +
+        `records, which are exactly what the gate reads to decide whether to allow anything. Use the ` +
+        `trusted writers (record-review / set-phase / record-todo / record-verify) — they are the only ` +
+        `sanctioned path and they bind their writes to hook-minted evidence. (slug=${state.slug})`
+    );
+  }
+
   // B2 — APPEND-ONLY NOTEPADS. Notepads are the evidence F1-F4 consume, and until 2026-08-11
   // `if (bookkeeping) exit(0)` let ANY agent replace one wholesale, in any phase, before or
   // after the verdict. ZOdyssey went to real trouble making verdicts non-forgeable (hook-minted
@@ -1029,7 +1053,47 @@ if (isBash) {
       abs = pathResolve(PROJECT_DIR, t);
     }
     const { rel, bookkeeping } = quickClassify(abs, runRepo);
-    if (bookkeeping) continue; // .zcode/plans/, .zcode/notepads/ — always writable
+    if (bookkeeping) {
+      // HIGH T1-2/T1-6 (audit 2026-08-14): "bookkeeping is always writable" was true for the Write
+      // tool only because the Write path applies its own guards first. The Bash path skipped them
+      // entirely, so `echo x > notepad.md` clobbered evidence the final wave reads, and
+      // `echo x > plan.md` rewrote the plan's Files: — the tamper guard only notices on the NEXT
+      // gated call, by which time the command has already run. Mirror both Edit/Write guards here.
+      const isNotepad = typeof rel === "string" && rel.startsWith(".zcode/notepads/");
+      const isPlan = typeof rel === "string" && rel.startsWith(".zcode/plans/");
+      // Append is the INTENDED way to grow a notepad (the Edit tool is allowed on the Write path
+      // for exactly this reason), so only clobber-shaped writes are blocked. Recognise `>> tok`
+      // and `tee -a`; anything else touching an existing notepad is treated as a replace.
+      const tokRe = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const isAppend = new RegExp(`>>\\s*['"]?${tokRe}`).test(cmd) ||
+        /\btee\s+(?:-\w+\s+)*-a\b/.test(cmd) || /\btee\s+-\w*a/.test(cmd);
+      if (isNotepad && existsSync(abs) && !isAppend) {
+        block(
+          `notepads are APPEND-ONLY: this command would replace ${rel} wholesale, destroying evidence ` +
+            `the final wave (F1-F4) reads. Append instead (\`>>\`), use the Edit tool, or write a new ` +
+            `notepad file. Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+        );
+      }
+      if (isPlan && state.review?.verdict === "OKAY") {
+        block(
+          `the plan is FROZEN after review: this command would rewrite ${rel}, which is what the ` +
+            `review verdict is bound to (plan_sha256). Changing the plan post-OKAY re-scopes the run ` +
+            `without re-review. Send it back to the planner and re-review instead. ` +
+            `Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+        );
+      }
+      continue; // otherwise bookkeeping stays freely writable
+    }
+    // HIGH T1-4: B5 test-freeze was enforced on the Edit path only (TEST_PATH_RE had exactly one
+    // use, at the Edit branch), so `sed -i` on a test file in verify/final sailed through. Same
+    // ImpossibleBench rationale: weakening a failing test is the cheapest way to turn it green.
+    if ((state.phase === "verify" || state.phase === "final") && typeof rel === "string" && TEST_PATH_RE.test(rel)) {
+      block(
+        `test files are FROZEN in phase=${state.phase}: this command would modify ${rel}. ` +
+          `Acceptance criteria are being evaluated against the tests as written — fix the code, not the test. ` +
+          `Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+      );
+    }
     // Same inScope test as the Edit gate (exact match, or either contains the other as a dir).
     const inScope = declared.size > 0 &&
       [...declared].some((d) => rel === d || rel.startsWith(d + "/") || d.startsWith(rel + "/"));
