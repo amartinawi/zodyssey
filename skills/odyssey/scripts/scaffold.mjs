@@ -92,6 +92,18 @@ const body = `# ${title}
 ## TL;DR (for humans)
 <!-- Written LAST. Plain English, no paths or numbers. One paragraph. -->
 
+## Capability routing
+<!-- MANDATORY tri-state declaration (GATED). Replace BOTH placeholders below.
+     Exactly ONE chosen token line:
+       \`routed: skill:<name>\` (or \`mcp:<server>\` / \`agent:<name>\`) — an installed capability fits;
+       \`discovered: find-skills\` — no installed capability fits, discovery attempted;
+       \`generic: <one-line reason>\` — valid ONLY after discovery returned nothing reputable.
+     parse-plan --lint fails OKAY while a placeholder is present; record-final-wave
+     cross-checks the chosen token against state.capabilities[] (the hook-witnessed log of
+     real Skill/mcp__* invocations). Transcribe from Metis's ## Capability routing field. -->
+- \`<token>: <value>\`        <!-- e.g. \`routed: skill:aws-serverless\` -->
+- Evidence: <one line — which capability fits + why / the search term + quality verdict (≥1K installs, official source, ~100★) / why generic>
+
 ## Scope
 ### Must have
 ### Must NOT have

@@ -12,7 +12,7 @@
 // All four must pass; the run's state.final lane records the verdict. `done` is unreachable without it.
 //
 // Usage:
-//   record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4]
+//   record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5]
 //   exit: 0 ok (all pass) · 2 bad args · 3 no state · 6 an F-item failed
 //
 // Atomic write under O_EXCL lockfile with stale-lock reaping.
@@ -25,7 +25,7 @@ import { createHash } from "node:crypto";
 
 const [repo, slug, ...rest] = argv.slice(2);
 if (!repo || !slug) {
-  console.error("usage: record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4]");
+  console.error("usage: record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5]");
   exit(2);
 }
 let f2Artifact, f2Nonce, f3Checklist, f4Artifact, f4Nonce, skipStr;
@@ -49,7 +49,7 @@ if (!existsSync(statePath)) { console.error("no state file: " + statePath); exit
 let st;
 try { st = JSON.parse(readFileSync(statePath, "utf8")); } catch { console.error("cannot parse state"); exit(3); }
 
-const results = { F1: null, F2: null, F3: null, F4: null };
+const results = { F1: null, F2: null, F3: null, F4: null, F5: null };
 
 // ---------------------------------------------------------------------------
 // classifyVerdict — read what the reviewer ACTUALLY SAID.
@@ -415,6 +415,75 @@ if (f1AlreadyFailed && !skip.has("F4")) {
     } else if (abs) reason = "F4 artifact must live under .zcode/reviews/";
   }
   results.F4 = { passed: ok, reason: ok ? null : reason, artifact: f4Artifact, verdict: f4Verdict };
+}
+
+// --- F5 (v0.4.0 routing-default gate): behavioral cross-check of the routing declaration ---
+// The plan's `## Capability routing` tri-state (presence-gated at review by parse-plan --lint)
+// is cross-checked here against state.capabilities[] — the hook-witnessed log of real Skill /
+// mcp__* invocations (pre-tool.mjs records {capability, phase, observed:true} for each). This is
+// what closes the false-compliance hole: a plan can DECLARE `routed: skill:aws-serverless`, but
+// unless the conductor actually loaded it in the parent thread (sub-agents can't — trust anchor),
+// there is no observed entry and F5 fails. Rules:
+//   routed: skill:<name>   ⇒ observed `skill:<name>` entry required
+//   routed: mcp:<server>   ⇒ observed `mcp__<server>`-prefixed entry required (records keep the
+//                            full tool name, e.g. mcp__codegraph__explore)
+//   routed: agent:<name>   ⇒ NOT hook-observed (Task dispatches are not in this log) — passes with
+//                            an explicit unverifiable note; the declaration itself was review-gated
+//   discovered: <anything> ⇒ observed `skill:find-skills` entry required (discovery was attempted)
+//   generic:   <reason>    ⇒ observed `skill:find-skills` entry required (generic is valid only
+//                            AFTER discovery; the review lint already required the token, this
+//                            requires the attempt)
+// Known residual (Phase B): this proves the find-skills SKILL was loaded, not that the actual
+// `npx skills find` search ran — that needs pre-tool.mjs Bash-branch recording (tracked follow-up).
+if (skip.has("F5")) {
+  results.F5 = { passed: true, skipped: true };
+} else {
+  const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "");
+  const observed = (Array.isArray(st.capabilities) ? st.capabilities : [])
+    .filter((c) => c && c.observed === true && typeof c.capability === "string");
+  const hasObserved = (pred) => observed.some((c) => pred(norm(c.capability)));
+  // Re-read the plan and parse the routing token (same grammar as parse-plan.mjs).
+  let routing = null;
+  try {
+    const planTextF5 = readFileSync(st.plan_path || join(repoAbs, ".zcode", "plans", `${slug}.md`), "utf8")
+      .replace(/<!--[\s\S]*?-->/g, "");
+    const sec = (() => {
+      const start = planTextF5.search(/^## Capability routing\s*$/m);
+      if (start === -1) return "";
+      const after = planTextF5.slice(start + planTextF5.slice(start).indexOf("\n") + 1);
+      const next = after.search(/^## /m);
+      return (next === -1 ? after : after.slice(0, next)).trim();
+    })();
+    for (const ln of sec.split("\n")) {
+      const m = ln.match(/^\s*[-*]?\s*`?(routed|discovered|generic)`?\s*:\s*(.+?)\s*$/i);
+      if (!m) continue;
+      const value = m[2].replace(/`/g, "").trim();
+      if (!value || value.startsWith("<") || /choose one/i.test(value)) continue;
+      routing = { token: m[1].toLowerCase(), value };
+      break;
+    }
+  } catch { routing = null; }
+
+  if (!routing) {
+    results.F5 = { passed: false, reason: "F5 routing: the plan has no valid `## Capability routing` tri-state declaration (missing section or placeholder-only). The review lint should have caught this; re-declare the routing decision and re-review." };
+  } else if (routing.token === "routed" && norm(routing.value).startsWith("agent:")) {
+    // Task dispatches are not hook-observed; declaration-only (presence was gated at review). Documented limit.
+    results.F5 = { passed: true, reason: null, note: `routing declared ${routing.value}: agent dispatches are not hook-observed, so this is verified by declaration only (presence was gated at review).`, routing };
+  } else {
+    const val = norm(routing.value);
+    let need;
+    if (routing.token === "routed" && val.startsWith("skill:")) {
+      need = val;
+    } else if (routing.token === "routed" && val.startsWith("mcp:")) {
+      need = "mcp__" + val.slice(4); // records keep full tool names, e.g. mcp__codegraph__explore
+    } else { // discovered / generic — both require the discovery attempt on record
+      need = "skill:find-skills";
+    }
+    const ok = hasObserved((c) => c === need || (val.startsWith("mcp:") && c.startsWith(need + "__")));
+    results.F5 = ok
+      ? { passed: true, reason: null, routing, evidence: `observed ${need} in state.capabilities[]` }
+      : { passed: false, reason: `F5 routing: declaration says \`${routing.token}: ${routing.value}\` but there is NO observed \`${need}\` entry in state.capabilities[]. The hook records every Skill/mcp__* call made in the parent thread — if the routed capability was never loaded there, the routing was declared but not honored. Load \`${need}\` (or re-declare honestly) and re-run the final wave.`, routing };
+  }
 }
 
 const allPass = Object.values(results).every((r) => r && r.passed);

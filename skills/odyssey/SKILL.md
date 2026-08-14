@@ -43,6 +43,25 @@ The table is the summary; `capabilities.md` is the authoritative detail. **Tell 
 
 - **External-skill quality check:** before recommending or auto-using any external skill (discovered via `find-skills` / `npx skills find`), sanity-check it — prefer **≥1K installs** and official sources (`vercel-labs`, `anthropics`, `microsoft`, …); be skeptical below **~100 GitHub stars**. (Already-installed local skills are inventory, not reputation.)
 
+### Routing is the DEFAULT — generic knowledge is the FALLBACK (enforced)
+
+The table above is **not a menu of suggestions** — it is the default source of truth for how to do any activity. A capable model's temptation to skip the lookup and do the task from memory is the exact failure mode this rule exists to prevent: it is how installed skills get ignored (Task B: `aws-serverless` bypassed) and how capability gaps go undiscovered (Task A: `find-skills` never loaded). So, **before writing any code or generic prose for an activity**:
+
+1. **Scan `capabilities.md`** for a fitting installed capability (skill / sub-agent / MCP). If one fits → **USE it** (load the skill in the parent thread, or dispatch the agent). Generic knowledge is not a substitute for a routed capability that fits.
+2. **If none fits** → load **`find-skills`** and run the search + the ≥1K/official/~100★ quality gate above. Mandatory for any domain outside the installed inventory.
+3. **Only then** fall back to generic model knowledge — and only if discovery returned nothing reputable.
+
+**Record the decision as a tri-state declaration** that `zodyssey:metis` emits and `zodyssey:prometheus` transcribes into the plan's `## Capability routing` section:
+- `routed: skill:<name>` (or `mcp:<server>` / `agent:<name>`) — an installed capability fits and will be used.
+- `discovered: find-skills` — no installed capability fits; discovery attempted (search term + quality verdict).
+- `generic: <one-line reason>` — valid **only after** discovery was attempted and returned nothing reputable.
+
+This is **gated, not advisory**:
+- **Review gate (phase 3):** `parse-plan --lint` fails OKAY if the plan lacks a `## Capability routing` section with a non-vacuous tri-state token. `zodyssey:momus` rejects it as a missing required section.
+- **Final wave (phase 6):** `record-final-wave` cross-checks the declaration against `state.capabilities[]` (the hook-witnessed log of every `Skill` / `mcp__*` call, phase-stamped). `routed: skill:X` requires an observed `skill:X`; `discovered` / `generic` requires an observed `skill:find-skills`. No matching observation ⇒ the final wave fails ⇒ the run cannot reach `done`.
+
+Because sub-agents cannot load skills (trust anchor), **the orchestrator loads the chosen skill / `find-skills` in the parent thread** — that load is what the hook observes and what the final-wave gate checks. Telling a dispatched sub-agent to "use skill X" without loading it yourself produces zero observation and fails the gate.
+
 ## The state machine (8 phases: -1 priming → 0–6)
 
 ```

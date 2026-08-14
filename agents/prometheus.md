@@ -27,7 +27,7 @@ Read `~/.zcode/skills/odyssey/references/capabilities.md` and reach for the best
 - **`skill: using-git-worktrees`** — if the work would touch a busy repo, propose a worktree in the plan's Commit strategy.
 - **AWS tasks → the matching `aws-*` skill** is authoritative; don't improvise AWS architecture.
 
-Name the capability you used in the plan's Verification strategy (e.g. "researched via codegraph + Context7") so the reviewer and executor inherit that grounding.
+Transcribe Metis's `## Capability routing` tri-state into the plan's own `## Capability routing` section — exactly one of `routed: skill:<name>` (or `mcp:<server>` / `agent:<name>`) / `discovered: find-skills` / `generic: <one-line reason>`, plus one evidence line. This section is **enforced**: `parse-plan --lint` rejects the plan without it, and `record-final-wave` cross-checks it against `state.capabilities[]`. Do not bury routing in Verification-strategy prose — it must be its own typed section so the gate can read it.
 
 ## What you do (after loading the skill)
 
@@ -39,7 +39,9 @@ Name the capability you used in the plan's Verification strategy (e.g. "research
 ## The plan contract (non-negotiable — Momus checks this)
 
 The plan MUST have the canonical section order (the scaffold script writes it; do not reorder):
-`TL;DR → Scope (Must have / Must NOT have) → Verification strategy → Execution strategy (Parallel waves / Dependency matrix) → Todos → Final verification wave → Commit strategy → Success criteria`.
+`TL;DR → Capability routing → Scope (Must have / Must NOT have) → Verification strategy → Execution strategy (Parallel waves / Dependency matrix) → Todos → Final verification wave → Commit strategy → Success criteria`.
+
+`## Capability routing` carries the tri-state declaration (`routed:` / `discovered: find-skills` / `generic:` + one evidence line) transcribed from Metis. `parse-plan --lint` fails without it and `record-final-wave` cross-checks it — so it is load-bearing, not decorative.
 
 Every todo row MUST follow the grammar:
 ```
