@@ -22,6 +22,7 @@ import { join } from "node:path";
 import { argv, exit } from "node:process";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { matchesCapability } from "./lib/capability-name.mjs";
 
 const [repo, slug, ...rest] = argv.slice(2);
 if (!repo || !slug) {
@@ -488,31 +489,34 @@ if (skip.has("F5")) {
   if (!routing) {
     results.F5 = { passed: false, reason: "F5 routing: the plan has no valid `## Capability routing` tri-state declaration (missing section or placeholder-only). The review lint should have caught this; re-declare the routing decision and re-review." };
   } else if (routing.token === "routed" && norm(routing.value).startsWith("agent:")) {
-    // SEC (audit M4): agent routing is now behaviorally verified, not declaration-only. post-tool.mjs
-    // records `agent:<subagent_type>` as an observed capability when a Task dispatch completes, so a
-    // declared `routed: agent:X` must have a matching observed dispatch. The `zodyssey:` namespace
-    // prefix is normalized away on both sides so `agent:oracle` and `agent:zodyssey:oracle` match.
-    const stripNs = (c) => c.replace(/^agent:zodyssey:/, "agent:");
-    const need = stripNs(norm(routing.value));
-    const ok = hasObserved((c) => stripNs(c) === need);
+    // M4: agent routing is behaviorally verified — post-tool records `agent:<subagent_type>` when a
+    // Task dispatch completes. Class C fix (audit 2026-08-14): this branch stripped ONLY
+    // `agent:zodyssey:`, so a declared `agent:code-reviewer` never matched the observed
+    // `agent:feature-dev:code-reviewer`. matchesCapability is segment-tolerant for any namespace.
+    const need = routing.value;
+    const ok = hasObserved((c) => matchesCapability(need, c));
     results.F5 = ok
       ? { passed: true, reason: null, routing, evidence: `observed dispatch of ${routing.value} in state.capabilities[]` }
       : { passed: false, reason: `F5 routing: declaration says \`routed: ${routing.value}\` but there is NO observed dispatch of \`${routing.value}\` in state.capabilities[]. post-tool records every Task dispatch — if that agent was never dispatched, the routing was declared but not honored. Dispatch it (or re-declare honestly) and re-run the final wave.`, routing };
   } else {
     const val = norm(routing.value);
-    let need;
-    if (routing.token === "routed" && val.startsWith("skill:")) {
-      need = val;
-    } else if (routing.token === "routed" && val.startsWith("mcp:")) {
-      need = "mcp__" + val.slice(4); // records keep full tool names, e.g. mcp__codegraph__explore
-    } else { // discovered / generic — both require the discovery attempt on record
-      need = "skill:find-skills";
-    }
+    // Class C fix (audit 2026-08-14): all three of these matched by raw string equality, and all
+    // three were wrong for real installs.
+    //   skill:     `skill:test-driven-development` (what capabilities.md lists and plans declare)
+    //              never matched the observed `skill:superpowers:test-driven-development`. 34 of
+    //              the installed skills are plugin-namespaced — this is the live F5 failure.
+    //   mcp:       tolerated a tool-name SUFFIX but not a plugin PREFIX, so `mcp:socraticode`
+    //              missed `mcp__plugin_socraticode_socraticode__codebase_search`.
+    //   discovery: hard-coded the literal `skill:find-skills` and DISCARDED the declared value, so
+    //              on a host where find-skills is namespaced the branch was UNSATISFIABLE — worse
+    //              than the skill branch, because no per-plan workaround existed at all.
+    // matchesCapability handles all three uniformly: exact wins, else final-segment match.
+    const isDiscovery = routing.token !== "routed";
+    const need = isDiscovery ? "skill:find-skills" : routing.value;
     // M5: a routed capability must be observed at/after the plan exists (post-plan pool); discovery
     // legitimately happens during consult, so discovered:/generic: search the full pool.
-    const isDiscovery = routing.token !== "routed";
     const ok = hasObserved(
-      (c) => c === need || (val.startsWith("mcp:") && c.startsWith(need + "__")),
+      (c) => matchesCapability(need, c),
       isDiscovery ? observedAll : observedPostPlan,
     );
     results.F5 = ok

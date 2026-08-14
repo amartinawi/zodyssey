@@ -29,6 +29,7 @@ import { spawnSync } from "node:child_process";
 import { findActiveRuns, selectByTarget } from "./lib/find-run.mjs";
 import { verifyMarker, adoptHint } from "../scripts/lib/state-auth.mjs";
 import { resolvePath, containedIn } from "../scripts/lib/repo-path.mjs";
+import { sameName } from "../scripts/lib/capability-name.mjs";
 
 // W5-minor: realpath the project dir so a symlinked/env-logical path resolves consistently
 // with realpath'd edit targets (otherwise in-repo files mis-classify as out-of-repo → gate deadlock).
@@ -1130,6 +1131,12 @@ if (isDispatch) {
   // `feature-dev:` (external, e.g. `feature-dev:code-reviewer` at line ~881) or any other prefix.
   const _rawSubagent = toolInput.subagent_type || toolInput.agent_type || toolInput.type || "";
   const subagent = _rawSubagent.replace(/^zodyssey:/, "");
+  // Class C fix (audit 2026-08-14): the nonce minters below matched by bare equality with a single
+  // hard-coded `feature-dev:code-reviewer` special case, so ANY other namespace (someplugin:oracle,
+  // a differently-packaged code-reviewer) minted NO nonce — and the failure is silent until the
+  // final wave rejects the artifact, by which point the reviewer round has been spent. isAgent
+  // compares the final name segment, so every packaging of a given reviewer mints its lane.
+  const isAgent = (want) => sameName(want, subagent);
   const READONLY_AGENTS = new Set([
     "explore", "librarian", "oracle", "metis", "momus", "multimodal-looker",
     "code-explorer", "code-architect", "code-reviewer", "feature-dev:code-explorer",
@@ -1321,7 +1328,7 @@ if (isDispatch) {
   // no in-run recovery. The phase was never a security boundary: non-forgeability only needs the
   // nonce bound to a real, hook-witnessed dispatch. Drop the phase condition; keep a loud warning
   // so a dispatch in the wrong phase is visible rather than silently accepted.
-  if (subagent === "momus") {
+  if (isAgent("momus")) {
     if (state.phase !== "review") {
       process.stderr.write(
         `ZOdyssey WARNING: momus dispatched in phase=${state.phase} (expected "review") — nonce minted anyway so the verdict is recordable, but the phase was not transitioned. Run 'node ${SET_PHASE_PATH} <repo> <slug> review' to reconcile, or the recorded verdict will not auto-advance to execute.\n`
@@ -1329,7 +1336,7 @@ if (isDispatch) {
     }
     mintNonceFor("review");
   }
-  if (subagent === "code-reviewer" || subagent === "feature-dev:code-reviewer") {
+  if (isAgent("code-reviewer")) {
     if (state.phase !== "final") {
       process.stderr.write(
         `ZOdyssey WARNING: code-reviewer dispatched in phase=${state.phase} (expected "final" for F2) — nonce minted anyway; reconcile the phase if this was not intended.\n`
@@ -1337,7 +1344,7 @@ if (isDispatch) {
     }
     mintNonceFor("final_f2");
   }
-  if (subagent === "oracle") {
+  if (isAgent("oracle")) {
     if (state.phase !== "final") {
       process.stderr.write(
         `ZOdyssey WARNING: oracle dispatched in phase=${state.phase} (expected "final" for F4) — nonce minted anyway; reconcile the phase if this was not intended.\n`
