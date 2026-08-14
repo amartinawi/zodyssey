@@ -67,9 +67,11 @@ Matching is segment-tolerant everywhere now: exact wins, else the final name seg
 
 `--verify` and smoke-gate compared 3 code trees while `--sync-cache` deploys 6, so a drifted `agents/momus.md` would run a stale reviewer prompt with both gates green. Prompts are enforcement; they are compared now.
 
+Widening the list was not enough. Running `--verify` during this release showed the widened list was still **flat**, so `skills/odyssey/hooks/lib/find-run.mjs` was deployed but never compared — the file that authenticates run discovery, the CRITICAL fix above. The root cause was never the list's contents but that a list existed at all. `scripts/lib/deploy-surface.mjs` now holds one definition that the deployer copies from and both gates walk recursively: 105 files compared, up from 85.
+
 ### Tests
 
-31 suites, up from 26. New: `pre-tool.gate-surface.test.mjs` (23 cases ported from the auditor's probes) and `sec6-repo-arg.test.mjs` (10 cases). `pipeline-integration` now loads a **namespaced** skill and still reaches `done`, so the live F5 failure is regression-locked end to end.
+32 suites, up from 26. New: `pre-tool.gate-surface.test.mjs` (23 cases ported from the auditor's probes), `sec6-repo-arg.test.mjs` (10 cases), and `deploy-surface.test.mjs`, which asserts *coverage* rather than a blessed list of filenames — a list would be the same bug in test form. `pipeline-integration` now loads a **namespaced** skill and still reaches `done`, so the live F5 failure is regression-locked end to end.
 
 The suite was structurally blind to both classes: all 62 fixtures passed absolute repo paths, and no F5 fixture used a namespaced name — the one that looked namespaced compared two identical strings and would pass with the stripper deleted.
 

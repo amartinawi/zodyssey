@@ -44,6 +44,7 @@ import { argv, exit } from "node:process";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { SYNC_TREES, enumerateDeployed } from "./lib/deploy-surface.mjs";
 
 // ---------- paths (all derived from homedir + repo location) ----------
 
@@ -269,7 +270,8 @@ function syncCache() {
     }
   }
 
-  const entries = ["skills", "agents", "commands", ".zcode-plugin", "scripts", "docs"];
+  // Same list the drift gate walks — see lib/deploy-surface.mjs for why they must not diverge.
+  const entries = SYNC_TREES;
   console.log(`sync-cache: ${REPO_ROOT}\n         -> ${dest}`);
   let copied = 0;
   for (const e of entries) {
@@ -754,32 +756,23 @@ function verify() {
     // T4-4 (audit 2026-08-14): drift detection covered 3 code surfaces while --sync-cache deploys
     // 6 trees, so a drifted agents/momus.md ran a STALE REVIEWER PROMPT with both gates reporting
     // green. Prompts are enforcement too — momus.md decides what a blocker is. Compare them.
-    const SURFACES = [
-      join("skills", "odyssey", "hooks"),
-      join("skills", "odyssey", "scripts"),
-      join("skills", "odyssey", "scripts", "lib"),
-      join("skills", "odyssey", "references"),
-      "agents",
-      "commands",
-    ];
+    //
+    // The enumeration is RECURSIVE and shared with the deployer (lib/deploy-surface.mjs) because a
+    // hand-maintained flat list fell behind twice: first missing three whole trees, then missing
+    // hooks/lib/find-run.mjs — the file that authenticates run discovery.
     const drifted = [], missing = [];
     let compared = 0;
-    for (const rel of SURFACES) {
-      const repoDir = join(REPO_ROOT, rel);
-      if (!existsSync(repoDir)) continue;
-      for (const name of readdirSync(repoDir)) {
-        if (!name.endsWith(".mjs") && !name.endsWith(".md")) continue;
-        const cached = join(installPath, rel, name);
-        compared++;
-        if (!existsSync(cached)) { missing.push(name); continue; }
-        try {
-          const a = createHash("sha256").update(readFileSync(cached)).digest("hex");
-          const b = createHash("sha256").update(readFileSync(join(repoDir, name))).digest("hex");
-          if (a !== b) drifted.push(name);
-        } catch { drifted.push(name); }
-      }
+    for (const rel of enumerateDeployed(REPO_ROOT)) {
+      const cached = join(installPath, rel);
+      compared++;
+      if (!existsSync(cached)) { missing.push(rel); continue; }
+      try {
+        const a = createHash("sha256").update(readFileSync(cached)).digest("hex");
+        const b = createHash("sha256").update(readFileSync(join(REPO_ROOT, rel))).digest("hex");
+        if (a !== b) drifted.push(rel);
+      } catch { drifted.push(rel); }
     }
-    check(`all ${compared} plugin .mjs files deployed == repo`,
+    check(`all ${compared} plugin code+prompt files deployed == repo`,
       drifted.length === 0 && missing.length === 0,
       [
         drifted.length ? `${drifted.length} drifted (${drifted.slice(0, 4).join(", ")}${drifted.length > 4 ? ", …" : ""})` : "",

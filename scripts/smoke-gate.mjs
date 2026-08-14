@@ -35,6 +35,7 @@ import { join, resolve as pathResolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { enumerateDeployed } from "./lib/deploy-surface.mjs";
 
 const REPO = pathResolve(new URL("..", import.meta.url).pathname);
 const HOME = homedir();
@@ -129,40 +130,31 @@ console.log("\n3. Cached plugin integrity (the check --verify still lacks)");
 if (installPath && existsSync(installPath)) {
   // T4-4: --sync-cache deploys 6 trees; drift detection covered 3. A stale agents/*.md runs an
   // old reviewer prompt with both gates green — prompts are enforcement.
-  const SURFACES = [
-    join("skills", "odyssey", "hooks"),
-    join("skills", "odyssey", "scripts"),
-    join("skills", "odyssey", "scripts", "lib"),
-    join("skills", "odyssey", "references"),
-    "agents",
-    "commands",
-  ];
+  //
+  // Enumeration is recursive and shared with the deployer (lib/deploy-surface.mjs). A flat list
+  // fell behind twice — most recently missing hooks/lib/find-run.mjs, which authenticates run
+  // discovery. A stale copy there re-opens the v0.5.0 CRITICAL with this gate reporting green.
   const drifted = [], missing = [], unparsed = [];
   let compared = 0;
-  for (const rel of SURFACES) {
-    const repoDir = join(REPO, rel);
-    if (!existsSync(repoDir)) continue;
-    for (const name of readdirSync(repoDir)) {
-      if (!name.endsWith(".mjs") && !name.endsWith(".md")) continue;
-      const cachedFile = join(installPath, rel, name);
-      compared++;
-      if (!existsSync(cachedFile)) { missing.push(name); continue; }
-      if (name.endsWith(".mjs")) {
-        const parse = spawnSync(process.execPath, ["--check", cachedFile], { encoding: "utf8" });
-        if (parse.status !== 0) { unparsed.push(name); continue; }
-      }
-      if (sha(cachedFile) !== sha(join(repoDir, name))) drifted.push(name);
+  for (const rel of enumerateDeployed(REPO)) {
+    const cachedFile = join(installPath, rel);
+    compared++;
+    if (!existsSync(cachedFile)) { missing.push(rel); continue; }
+    if (rel.endsWith(".mjs")) {
+      const parse = spawnSync(process.execPath, ["--check", cachedFile], { encoding: "utf8" });
+      if (parse.status !== 0) { unparsed.push(rel); continue; }
     }
+    if (sha(cachedFile) !== sha(join(REPO, rel))) drifted.push(rel);
   }
   if (drifted.length + missing.length + unparsed.length === 0) {
-    ok(`all ${compared} plugin .mjs files cached == repo`);
+    ok(`all ${compared} plugin code+prompt files cached == repo`);
   } else {
     const detail = [
       drifted.length ? `${drifted.length} drifted (${drifted.slice(0, 4).join(", ")}${drifted.length > 4 ? ", …" : ""})` : "",
       missing.length ? `${missing.length} missing from cache` : "",
       unparsed.length ? `${unparsed.length} fail to parse` : "",
     ].filter(Boolean).join("; ");
-    bad(`all ${compared} plugin .mjs files cached == repo`,
+    bad(`all ${compared} plugin code+prompt files cached == repo`,
       `${detail}. The deployed plugin is not your source — it runs OLD enforcement. ` +
       `Fix: node scripts/install.mjs --sync-cache (a plain install.mjs run does NOT refresh the cache).`);
   }
