@@ -2,6 +2,34 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-08-14
+
+**Routing becomes a default, gated behavior.** Two probe runs proved the conductor hand-rolls from model knowledge: given an AWS Lambda task it ignored the installed `aws-serverless` skill (Task B), and given a Helm-chart gap it never loaded `find-skills` (Task A). v0.3.4's routing rows were passive reference material — a capable model skips the lookup whenever it can do the task from memory, which is most of the time. This release adds the two things that actually change behavior: a hard default in the conductor prompt, and two gates that make skipping routing unable to reach `done`.
+
+### Added — the routing-default gates
+
+- **F5 (behavioral cross-check, `record-final-wave.mjs`):** the plan's routing declaration is cross-checked against `state.capabilities[]` — the hook-witnessed log of real `Skill` / `mcp__*` invocations that `pre-tool.mjs` has recorded all along (with phase stamps, and previously consumed only by the run-report scorecard). `routed: skill:X` requires an observed `skill:X` entry (spacing-normalized); `routed: mcp:S` requires an `mcp__S`-prefixed entry (records keep full tool names); `discovered:` and `generic:` both require an observed `skill:find-skills` — generic is valid only AFTER discovery was attempted. `routed: agent:X` passes declaration-only with an explicit unverifiable note (Task dispatches are not hook-observed — documented limit). A declared-but-never-loaded routing fails the final wave, so a run that hand-rolled past its own declaration cannot reach `done`. `--skip F5` is the escape hatch.
+- **`## Capability routing` plan section (scaffold template + parser):** every scaffolded plan now carries a tri-state declaration — `routed: skill:<name>` / `discovered: find-skills` / `generic: <reason>` — with one evidence line. `parse-plan.mjs` extracts the token into `--all` output (placeholders like `<token>`/`<name>` are rejected as non-tokens; the template's option list lives in a parser-stripped comment so an unfilled scaffold cannot false-match), and `--lint` fails without a real token. Because `record-review.mjs` already gates OKAY on a clean lint, the presence gate needed zero new wiring.
+
+### Changed — the conductor prompt makes routing the default
+
+- **`SKILL.md`** gains the binding rule: *routing is the DEFAULT, generic knowledge is the FALLBACK* — scan `capabilities.md` for a fitting installed capability and USE it; if none fits, load `find-skills` and run the ≥1K/official/~100★ quality gate; only then go generic, and only if discovery returned nothing reputable. The rule names the exact Task A/B failure modes and states the gate mechanics, including that the orchestrator must load skills in the **parent thread** (sub-agents can't — trust anchor) because the parent-thread load is what the hook observes and F5 checks.
+- **`metis.md`**: the advisory "name the capability in Pre-Analysis Findings" is replaced by a MANDATORY typed `## Capability routing` field in her output contract (the tri-state + one evidence line), marked as enforced.
+- **`prometheus.md`**: transcribes Metis's tri-state into the plan's `## Capability routing` section; the section joins the canonical section order (after TL;DR). Burying routing in Verification-strategy prose is explicitly disallowed — it must be its own typed section so the gate can read it.
+- **`momus.md`**: a 5th check in her "ONLY THESE" list — routing section PRESENT with a non-vacuous token, framed as a missing-required-section blocker (same class as a missing QA scenario). Deliberately presence-not-quality: routing quality is F5's job at the final wave, and a quality framing would collide with her blocker-finder/approve-by-default identity.
+- **`capabilities.md`**: an "enforced, not advisory" callout above the Quick matrix naming both gates and pointing to the SKILL.md rule.
+
+### Honest limits (known, deliberate)
+
+- **F5 proves the `find-skills` SKILL was loaded, not that the actual `npx skills find` search ran.** Closing that needs `pre-tool.mjs`'s Bash branch to recognize + record discovery commands — the load-bearing hook (the bash-gate-deleted-twice file), so it is a separate release with `pre-tool.bash-gate.test.mjs` + `pre-tool.trusted-invoke.test.mjs` run after (tracked as Phase B).
+- **`routed: agent:X` is verified by declaration only** — Task dispatches are not in the observed-capabilities log. The declaration's presence was review-gated; the load itself is not hook-witnessed.
+- **Over-gating cost (accepted):** every non-trivial standard/architecture task now requires either a routed skill or a `find-skills` load. Trivial tasks still deflect at Phase 0 (no plan is scaffolded) and are unaffected.
+- The cwd-anchoring run-resolution bug surfaced by the first Task B attempt (hooks DFS from process cwd, not the declared repo root — misattributing dispatches to a sibling run) is tracked as a separate `fix(hook)`.
+
+### Verification
+
+Full `node --test` **25/25 suites**: `parse-plan` 28/28 (6 new routing cases: missing section, placeholder rejection, three real tokens, `--all` extraction), `final-artifact-and-acceptance` 30/30 (9 new F5 cases: honored/not-honored, spacing normalization, MCP prefix-match, discovered, generic-without-attempt fails, agent note, absent section, skip), `pipeline-integration` 25/25 — a fixture run **reaching `done` through the new gates**, including the hook recording a real `Skill` load as an observed capability, and `pre-tool.trusted-invoke` 35/0 (fixtures updated: the momus pre-dispatch lint now requires routing, proving the gate fires in the hook itself). `node --check` on all touched `.mjs`; smoke-gate enforcement checks pass.
+
 ## [0.3.4] — 2026-08-13
 
 Four changes accumulated on main since v0.3.3 — the first real increment of the measurement→improvement loop that v0.3.3's plumbing was built to support, a routing blind-spot fix, a consult diff-base race fix, and a small run-artifact ignore leak.
