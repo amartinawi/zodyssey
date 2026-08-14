@@ -551,7 +551,9 @@ function apply(s) {
 }
 const lockFd = acquireLock();
 if (lockFd === null) {
-  try { writeFileSync(statePath, JSON.stringify(apply(JSON.parse(readFileSync(statePath, "utf8"))), null, 2) + "\n"); } catch {}
+  // T2-1: was a non-atomic unlocked write that silently clobbered the lock holder. Refuse instead.
+  console.error("record-final-wave.mjs: could not acquire the state lock (real contention or a stuck lock). Refusing to write non-atomically — nothing was written. The final-wave verdict was NOT recorded.");
+  exit(6);
 } else {
   try { const s = apply(JSON.parse(readFileSync(statePath, "utf8"))); const t = statePath + ".tmp." + process.pid; writeFileSync(t, JSON.stringify(s, null, 2) + "\n"); renameSync(t, statePath); }
   finally { try { closeSync(lockFd); unlinkSync(lockPath); } catch {} }

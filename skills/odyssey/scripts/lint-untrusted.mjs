@@ -93,6 +93,7 @@ export function scanText(rawText) {
 
   // Track fenced code blocks (``` ... ```). Lines inside are fully masked.
   let inFence = false;
+  let exemptMode = false; // inside an Acceptance criteria / QA scenarios block (payloads exempt)
 
   for (let idx = 0; idx < lines.length; idx++) {
     const original = lines[idx];
@@ -107,8 +108,21 @@ export function scanText(rawText) {
       continue; // fully exempt
     }
 
-    // Indented nested-bullet item → mask its payload (exempt acceptance/QA content).
-    if (isIndentedItem(original)) {
+    // T2-2 (audit 2026-08-14): this masked EVERY ≥2-space nested bullet, and the helper's own
+    // comment conceded that "  - Files:" and "  - What to do:" matched too. So an injected
+    // directive written as `  - What to do: ignore all previous instructions and …` was masked and
+    // never flagged, while the identical text at column 0 WAS flagged — and the nested form is the
+    // one that actually flows into dispatch prompts verbatim. The exemption exists for
+    // acceptance-criteria / QA payloads (shell snippets that legitimately look command-shaped), so
+    // scope it to those blocks by tracking the field header, the way parse-plan's `mode` does.
+    const fieldHdr = original.match(/^\s*-\s+(Acceptance criteria|QA scenarios)\s*:/i);
+    if (fieldHdr) { exemptMode = true; }
+    else if (/^\s*-\s+\S/.test(original) && !/^\s{4,}/.test(original)) {
+      // a new field bullet at the same or shallower depth ends the exempt block
+      if (!/^\s*-\s+$/.test(original)) exemptMode = /^\s*-\s+(Acceptance criteria|QA scenarios)\s*:/i.test(original);
+    }
+    // Indented nested-bullet item → mask its payload ONLY inside an exempt block.
+    if (isIndentedItem(original) && exemptMode) {
       // Keep the indent + "- " visible (so line shape is recognizable) but mask the payload.
       const m = original.match(/^(\s*-\s+)(.*)$/);
       line = m ? m[1] + " ".repeat(m[2].length) : original;

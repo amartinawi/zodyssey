@@ -222,11 +222,18 @@ function apply(st) {
   st.updated_at = new Date().toISOString();
   return st;
 }
-const lockFd = acquireLock();
+let lockFd = null;
+for (let attempt = 0; attempt < 10 && lockFd === null; attempt++) {
+  lockFd = acquireLock();
+  if (lockFd === null) { const _end = Date.now() + 50; while (Date.now() < _end) { /* spin-wait */ } }
+}
 if (lockFd === null) {
-  // fall back to direct write rather than lose the verdict
-  try { writeFileSync(statePath, JSON.stringify(apply(JSON.parse(readFileSync(statePath, "utf8"))), null, 2) + "\n"); } catch {}
-  exit(0);
+  // T2-1 (audit 2026-08-14): this used to fall back to a NON-ATOMIC, UNLOCKED writeFileSync
+  // "rather than lose the verdict" — trading a visible failure for a silent last-writer-wins
+  // clobber of whatever the lock holder was writing. record-todo already refused; the other five
+  // writers did not. Losing a write loudly beats corrupting state quietly.
+  console.error("record-review.mjs: could not acquire the state lock after retries (real contention or a stuck lock). Refusing to write non-atomically — nothing was written. Re-run once the lock frees; the verdict was NOT recorded.");
+  exit(6);
 }
 let enteredExecute = false;
 try {
