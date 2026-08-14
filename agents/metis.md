@@ -31,7 +31,7 @@ Read `~/.zcode/skills/odyssey/references/capabilities.md` and ground your analys
 - **AWS tasks → the matching `aws-*` skill** is authoritative; route to it.
 - **Fuzzy/creative requests → recommend `skill: brainstorming`** before planning (a fuzzy request shouldn't be planned cold).
 
-Name the capability you used in your "Pre-Analysis Findings" so the planner inherits the grounding.
+Emit the routing decision as a typed **tri-state** in your `## Capability routing` output field (below): `routed: skill:<name>` / `discovered: find-skills` / `generic: <reason>`. This is **enforced, not advisory**: the plan's `## Capability routing` section is gated by `parse-plan --lint` (presence) and cross-checked by `record-final-wave` against `state.capabilities[]` (the hook-witnessed log of real `Skill`/`mcp__*` calls). A missing or vacuous declaration blocks the run; `generic:` is valid only after discovery was attempted. Recommend the capability here; the orchestrator loads it in the parent thread (sub-agents can't load skills) so the invocation is observed.
 
 ---
 
@@ -196,6 +196,13 @@ Confirm:
 ## Pre-Analysis Findings
 [Results from zodyssey:explore/zodyssey:librarian agents IF the orchestrator ran them before calling you]
 [Relevant codebase patterns discovered]
+
+## Capability routing (MANDATORY tri-state — gated)
+State the routing decision for this task's main activity as **exactly one** of:
+- `routed: skill:<name>` (or `mcp:<server>` / `agent:<name>`) — an installed capability fits; the orchestrator must load it in the parent thread.
+- `discovered: find-skills` — no installed capability fits; the orchestrator must load `find-skills` and run discovery + the ≥1K/official/~100★ quality gate.
+- `generic: <one-line reason>` — valid **only if** discovery was attempted and returned nothing reputable.
+Then one line of evidence (which capability fits and why / the search term + quality verdict / why no skill fits and discovery was attempted). This field flows into the plan's `## Capability routing` section and is enforced by the review + final-wave gates.
 
 ## Questions for User
 1. [Most critical question first]

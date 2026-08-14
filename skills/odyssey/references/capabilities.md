@@ -20,6 +20,8 @@
 > skill/MCP routing instruction below as something the ORCHESTRATOR executes before/at dispatch,
 > not something the sub-agent does itself.
 
+> **Enforced, not advisory (v0.4.0).** Routing here is the DEFAULT; generic model knowledge is the FALLBACK. Every plan carries a `## Capability routing` tri-state declaration (`routed: skill:<name>` / `discovered: find-skills` / `generic: <reason>`); `parse-plan --lint` gates OKAY on its presence, and `record-final-wave` cross-checks it against `state.capabilities[]` (the hook-witnessed log of real `Skill`/`mcp__*` invocations). Reaching for generic first — or skipping discovery on a gap — fails the gates. Full rule in `SKILL.md`'s "Routing is the DEFAULT" section.
+
 ## Quick matrix — activity → best capability
 
 | Activity | Primary capability | Reinforcing capability |

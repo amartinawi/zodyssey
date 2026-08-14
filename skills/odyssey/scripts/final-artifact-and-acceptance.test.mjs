@@ -50,11 +50,14 @@ function makeRun({ phase = "final", criteria = 2 } = {}) {
 
   const crits = ["- `node --check src/a.js` exits 0", "- `node -e \"process.exit(0)\"` exits 0"].slice(0, criteria);
   const planPath = join(repo, ".zcode", "plans", "t.md");
+  // v0.4.0: the plan carries a `## Capability routing` tri-state (F5 cross-checks it against
+  // state.capabilities[]). Fixture default: routed to prompt-master AND observed — the happy path.
   writeFileSync(planPath,
-    `# t\n\n## Todos\n\n- [ ] 1. go\n  - Files: [\`src/a.js\`]\n  - Acceptance criteria:\n${crits.map((c) => "    " + c).join("\n")}\n\n## Final verification wave\n`);
+    `# t\n\n## Capability routing\n- \`routed: skill:prompt-master\`\n- Evidence: fixture default routing.\n\n## Todos\n\n- [ ] 1. go\n  - Files: [\`src/a.js\`]\n  - Acceptance criteria:\n${crits.map((c) => "    " + c).join("\n")}\n\n## Final verification wave\n`);
   writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
     slug: "t", phase, updated_at: new Date().toISOString(), plan_path: planPath, run_start_sha: sha,
     review: { verdict: "OKAY", round: 1, max_rounds: 3 },
+    capabilities: [{ at: new Date().toISOString(), phase: "consult", capability: "skill:prompt-master", observed: true }],
   }, null, 2));
   return repo;
 }
@@ -155,6 +158,87 @@ console.log("record-final-artifact + acceptance completeness\n");
     "--f2-artifact", f2, "--f2-nonce", before.f2, "--f3-checklist", f3, "--f4-artifact", f4, "--f4-nonce", before.f4);
   check("retry passes with the ORIGINAL nonces", state(repo).final?.verdict === "pass",
     `(exit ${retry.status}) ${JSON.stringify(state(repo).final?.results).slice(0, 300)}`);
+}
+
+// --- F5 (v0.4.0): behavioral routing cross-check --------------------------------
+// F5 cross-checks the plan's `## Capability routing` tri-state against state.capabilities[]
+// (the hook-witnessed observed log). Each case asserts on res.F5 specifically — F1 may or may
+// not pass in the fixture, which is irrelevant to the routing verdict.
+{
+  const setRouting = (repo, routingLine, caps) => {
+    const planPath = join(repo, ".zcode", "plans", "t.md");
+    const t = readFileSync(planPath, "utf8");
+    writeFileSync(planPath, t.replace(
+      /## Capability routing\n[^\n]*\n[^\n]*\n\n/,
+      `## Capability routing\n${routingLine}\n- Evidence: test.\n\n`));
+    const sp = join(repo, ".zcode", "state", "t.json");
+    const s = JSON.parse(readFileSync(sp, "utf8"));
+    s.capabilities = caps || [];
+    writeFileSync(sp, JSON.stringify(s, null, 2));
+  };
+  const wave = (repo, extra = []) => {
+    const f3 = join(repo, ".zcode", "staging", "f3.md");
+    mkdirSync(join(repo, ".zcode", "staging"), { recursive: true });
+    writeFileSync(f3, "checklist\n");
+    const r = node(sc("record-final-wave.mjs"), repo, "t", "--f3-checklist", f3, "--skip", "F2,F4", ...extra);
+    try { return JSON.parse(r.stdout).results; } catch { return { parse_error: (r.stdout || "").slice(0, 200), stderr: (r.stderr || "").slice(0, 200) }; }
+  };
+  const obs = (cap) => [{ at: new Date().toISOString(), phase: "consult", capability: cap, observed: true }];
+
+  {
+    const repo = makeRun();
+    const res = wave(repo); // fixture default: routed prompt-master + observed
+    check("F5 passes when the declared skill IS observed", res.F5?.passed === true, JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    const repo = makeRun();
+    setRouting(repo, "- `routed: skill:aws-serverless`", obs("skill:prompt-master")); // wrong skill observed
+    const res = wave(repo);
+    check("F5 FAILS when the declared skill was never observed (declared-but-not-honored)", res.F5?.passed === false && /aws-serverless/.test(res.F5?.reason || ""), JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    const repo = makeRun();
+    setRouting(repo, "- `routed: skill:aws-serverless`", obs("skill:aws-serverless"));
+    const res = wave(repo);
+    check("F5 passes with spacing normalized (`skill: aws-…` declaration vs `skill:aws-…` record)", res.F5?.passed === true, JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    const repo = makeRun();
+    setRouting(repo, "- `discovered: find-skills`", obs("skill:find-skills"));
+    const res = wave(repo);
+    check("F5 passes for `discovered:` when skill:find-skills was observed", res.F5?.passed === true, JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    const repo = makeRun();
+    setRouting(repo, "- `generic: no fitting skill`", []); // generic without a discovery attempt
+    const res = wave(repo);
+    check("F5 FAILS for `generic:` with NO find-skills observation (generic without trying)", res.F5?.passed === false && /find-skills/.test(res.F5?.reason || ""), JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    const repo = makeRun();
+    setRouting(repo, "- `routed: agent:zodyssey:oracle`", []); // agent dispatches are not hook-observed
+    const res = wave(repo);
+    check("F5 passes (declaration-only, with note) for `agent:` routing", res.F5?.passed === true && !!res.F5?.note, JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    const repo = makeRun();
+    setRouting(repo, "- `routed: mcp:codegraph`", obs("mcp__codegraph__explore"));
+    const res = wave(repo);
+    check("F5 prefix-matches MCP observations (`mcp:codegraph` vs `mcp__codegraph__explore`)", res.F5?.passed === true, JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    const repo = makeRun();
+    // strip the routing section entirely (pre-0.4.0-shaped plan)
+    const planPath = join(repo, ".zcode", "plans", "t.md");
+    writeFileSync(planPath, readFileSync(planPath, "utf8").replace(/## Capability routing\n[^\n]*\n[^\n]*\n\n/, ""));
+    const res = wave(repo);
+    check("F5 FAILS when the routing section is absent (pre-0.4.0-shaped plan)", res.F5?.passed === false, JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    const repo = makeRun();
+    const res = wave(repo, ["--skip", "F2,F4,F5"]);
+    check("F5 is skippable (documented escape hatch)", res.F5?.skipped === true && res.F5?.passed === true, JSON.stringify(res.F5)?.slice(0, 200));
+  }
 }
 
 // --- D: acceptance completeness ---------------------------------------------

@@ -70,6 +70,12 @@ You ARE here to:
 **PASS even if**: Detail level varies. Tool + steps + expected result is enough.
 **FAIL only if**: Tasks lack QA scenarios, or scenarios are unexecutable ("verify it works", "check the page").
 
+### 5. Capability Routing Section Present (PRESENCE, not quality)
+- Does the plan have a `## Capability routing` section with a non-vacuous tri-state token (`routed:` / `discovered: find-skills` / `generic:`) and one evidence line?
+
+**PASS even if**: You'd have routed differently, or the chosen capability is imperfect. Routing *quality* is NOT your concern — the final-wave gate (`record-final-wave`) cross-checks the declaration against `state.capabilities[]` later. You only check the section *exists* and the token is present.
+**FAIL only if**: The section is missing, or the tri-state token is absent/vacuous (prose only, no `routed:`/`discovered:`/`generic:` token). This is a missing-required-section blocker — same class as a missing QA scenario.
+
 ---
 
 ## What You Do NOT Check

@@ -65,6 +65,26 @@ function section(name) {
 const todosSection = section("Todos");
 const finalSection = section("Final verification wave");
 
+// v0.4.0 routing-default gate: the plan-level `## Capability routing` tri-state declaration.
+// A valid declaration is a line whose tri-state token (routed:/discovered:/generic:) carries a
+// REAL value — scaffold placeholders (`<token>: <value>`, `<name>`, `<reason>`) are not tokens.
+// Backticks optional; the value may itself contain colons (e.g. skill:aws-serverless).
+// The scaffold template's option list lives inside an HTML comment, which is stripped above,
+// so an unfilled template yields NO token and lint correctly refuses it.
+const routingSection = section("Capability routing");
+function parseRouting(block) {
+  if (!block || !block.trim()) return null;
+  for (const ln of block.split("\n")) {
+    const m = ln.match(/^\s*[-*]?\s*`?(routed|discovered|generic)`?\s*:\s*(.+?)\s*$/i);
+    if (!m) continue;
+    const value = m[2].replace(/`/g, "").trim();
+    if (!value || value.startsWith("<") || /choose one/i.test(value)) continue;
+    return { token: m[1].toLowerCase(), value };
+  }
+  return null;
+}
+const routing = parseRouting(routingSection);
+
 // A top-level work row, ANCHORED TO COLUMN 0 (audit gap #6b): the old `^\s*` let indented
 // nested bullets like `  - What to do: ...` open a phantom todo if they happened to match the
 // shape. Column-0 anchoring means only real top-level `- [ ] N.` rows count as work.
@@ -363,6 +383,13 @@ if (mode === "--lint") {
       problems.push({ todo: t.id, issue: `no Files: declared — the scope-isolation hook will BLOCK every product-code edit for this todo (empty declared set = fail-closed). Add a Files: [\`path/to/file\`] list, or split the todo.` });
     }
   }
+  // v0.4.0 routing-default gate: the plan MUST carry a non-vacuous tri-state routing declaration.
+  // PRESENCE-gate only — routing QUALITY (did the conductor actually load the routed skill /
+  // find-skills in the parent thread) is enforced at the final wave by record-final-wave's
+  // cross-check of the token against state.capabilities[]. Momus mirrors this as her 5th check.
+  if (!routing) {
+    problems.push({ todo: "-", issue: "no valid `## Capability routing` declaration — the section is missing, or no line carries a real tri-state token (`routed: skill:<name>` / `discovered: find-skills` / `generic: <reason>`). Placeholders (`<token>`, `<name>`, `<reason>`) do not count. Routing is the default and generic is the fallback; the routing decision must be declared before the plan can be approved." });
+  }
   // Todo 14 (injection hardening): EXTEND the existing lint with an untrusted-content scan.
   // Plans + notepads are agent-written and flow into dispatch prompts; an injected "ignore
   // previous instructions" in prose could drive ungated Bash now that the Bash gate is removed
@@ -409,4 +436,4 @@ if (mode === "--todo") {
   console.log(JSON.stringify(todos.find((t) => t.id === todoArg) ?? null, null, 2));
   exit(0);
 }
-console.log(JSON.stringify({ todos }, null, 2));
+console.log(JSON.stringify({ routing, todos }, null, 2));

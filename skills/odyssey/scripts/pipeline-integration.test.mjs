@@ -68,6 +68,15 @@ function dispatch(subagent) {
   });
 }
 
+// v0.4.0: same principle for the routing observation — the conductor loads the routed skill in
+// the parent thread, the hook witnesses the Skill call and records {capability, observed:true}
+// into state.capabilities. F5 cross-checks that record at the final wave.
+const loadSkill = (name) => spawnSync(process.execPath, [HOOK], {
+  input: JSON.stringify({ tool_name: "Skill", tool_input: { skill: name } }),
+  encoding: "utf8",
+  env: { ...process.env, CLAUDE_PROJECT_DIR: repo, ZODYSSEY_UNGATE_BASH: "" },
+});
+
 console.log("pipeline integration — can a run still reach `done`?\n");
 
 // --- phase 2: PLAN -----------------------------------------------------------
@@ -84,6 +93,10 @@ const planPath = join(repo, ".zcode", "plans", `${SLUG}.md`);
 // A plan shaped the way prometheus is instructed to write one. The acceptance criteria matter
 // most: one must invoke the repo's real test command or --lint refuses (B6).
 const PLAN = `# Add truncate()
+
+## Capability routing
+- \`routed: skill:test-driven-development\`
+- Evidence: code todo; TDD is the mandated implement capability.
 
 ## Scope
 
@@ -106,6 +119,13 @@ Add a \`truncate\` helper to the text module, with tests.
   const lint = run([script("parse-plan.mjs"), planPath, "--lint"]);
   check("plan passes --lint (criteria are executable AND run the real suite)",
     lint.status === 0, `(exit ${lint.status}) ${lint.stdout.slice(0, 300)}`);
+
+  // The conductor honors the plan's routing declaration by loading the skill in the parent
+  // thread. The hook witnesses the Skill call → state.capabilities gains an observed entry.
+  loadSkill("test-driven-development");
+  check("hook records the routed skill load as an observed capability",
+    (state().capabilities || []).some((c) => c.observed === true && c.capability === "skill:test-driven-development"),
+    JSON.stringify(state().capabilities || []));
 
   const d = dispatch("zodyssey:momus");
   const nonce = state().review?.pending_nonce?.nonce;

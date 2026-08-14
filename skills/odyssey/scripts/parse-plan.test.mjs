@@ -144,6 +144,10 @@ console.log("parse-plan.mjs unit tests\n");
     }));
     const planPath = join(dir, ".zcode", "plans", "p.md");
     writeFileSync(planPath, `# x
+
+## Capability routing
+- \`routed: skill:prompt-master\`
+- Evidence: fixture.
 ## Todos
 - [ ] 1. Use node
   - Files: [src/a.js]
@@ -185,6 +189,10 @@ console.log("parse-plan.mjs unit tests\n");
     }));
     const planPath = join(dir, ".zcode", "plans", "p.md");
     writeFileSync(planPath, `# x
+
+## Capability routing
+- \`routed: skill:prompt-master\`
+- Evidence: fixture.
 ## Todos
 - [ ] 1. Run jest
   - Files: [src/a.js]
@@ -225,6 +233,10 @@ console.log("parse-plan.mjs unit tests\n");
     // NOTE: no toolchain.json written.
     const planPath = join(dir, ".zcode", "plans", "p.md");
     writeFileSync(planPath, `# x
+
+## Capability routing
+- \`routed: skill:prompt-master\`
+- Evidence: fixture.
 ## Todos
 - [ ] 1. Run jest
   - Files: [src/a.js]
@@ -263,6 +275,10 @@ console.log("parse-plan.mjs unit tests\n");
     }));
     const planPath = join(dir, ".zcode", "plans", "p.md");
     writeFileSync(planPath, `# x
+
+## Capability routing
+- \`routed: skill:prompt-master\`
+- Evidence: fixture.
 ## Todos
 - [ ] 1. Run build
   - Files: [src/a.js]
@@ -305,7 +321,7 @@ console.log("parse-plan.mjs unit tests\n");
     mkdirSync(join(dir, ".zcode", "plans"), { recursive: true });
     const planPath = join(dir, ".zcode", "plans", "p.md");
     const plan = (criteria) =>
-      `# p\n\n## Todos\n\n- [ ] 1. do it\n  - Files: [\`src/a.js\`]\n  - Acceptance criteria:\n${criteria.map((c) => `    - ${c}`).join("\n")}\n\n## Final verification wave\n`;
+      `# p\n\n## Capability routing\n- \`routed: skill:prompt-master\`\n- Evidence: fixture.\n\n## Todos\n\n- [ ] 1. do it\n  - Files: [\`src/a.js\`]\n  - Acceptance criteria:\n${criteria.map((c) => `    - ${c}`).join("\n")}\n\n## Final verification wave\n`;
     const lint = () => {
       const r = spawnSync(process.execPath, [PARSE, planPath, "--lint"], { encoding: "utf8" });
       let out = {};
@@ -342,6 +358,56 @@ console.log("parse-plan.mjs unit tests\n");
     r = lint();
     check("B6: passes once a criterion runs the real suite", r.code === 0,
       `(${JSON.stringify(r.out.problems || []).slice(0, 200)})`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+
+// --- Routing gate (v0.4.0): presence + placeholder rejection + extraction ---------------
+{
+  const dir = mkdtempSync(join(tmpdir(), "pp-route-"));
+  try {
+    mkdirSync(join(dir, ".zcode", "plans"), { recursive: true });
+    const planPath = join(dir, ".zcode", "plans", "p.md");
+    const base = (routingBlock) =>
+      `# p\n\n${routingBlock}\n\n## Todos\n\n- [ ] 1. do it\n  - Files: [\`src/a.js\`]\n  - Acceptance criteria:\n    - \`test -f src/a.js\` exits 0\n\n## Final verification wave\n`;
+    const lint = () => {
+      const r = spawnSync(process.execPath, [PARSE, planPath, "--lint"], { encoding: "utf8" });
+      let out = {};
+      try { out = JSON.parse(r.stdout || "{}"); } catch {}
+      return { code: r.status, out };
+    };
+
+    writeFileSync(planPath, base(""));
+    let r = lint();
+    check("routing: lint FAILS when the section is missing", r.code === 6 &&
+      (r.out.problems || []).some((p) => /Capability routing/.test(p.issue || "")));
+
+    writeFileSync(planPath, base("## Capability routing\n- `<token>: <value>`        <!-- e.g. `routed: skill:aws-serverless` -->\n- Evidence: <one line>"));
+    r = lint();
+    check("routing: lint FAILS on the unfilled scaffold placeholder", r.code === 6 &&
+      (r.out.problems || []).some((p) => /Capability routing/.test(p.issue || "")));
+
+    writeFileSync(planPath, base("## Capability routing\n- `routed: skill:aws-serverless`\n- Evidence: fits per capabilities.md."));
+    r = lint();
+    check("routing: lint passes with a real routed token", r.code === 0, JSON.stringify(r.out.problems || []).slice(0, 160));
+
+    writeFileSync(planPath, base("## Capability routing\n- `discovered: find-skills`\n- Evidence: searched helm; nothing ≥1K installs."));
+    r = lint();
+    check("routing: lint passes with a discovered token (presence gate only)", r.code === 0);
+
+    writeFileSync(planPath, base("## Capability routing\n- `generic: no fitting skill after find-skills search`"));
+    r = lint();
+    check("routing: lint passes with a real generic reason (presence gate only)", r.code === 0);
+
+    // --all output carries the parsed routing token for record-final-wave's F5.
+    writeFileSync(planPath, base("## Capability routing\n- `routed: skill:aws-serverless`\n- Evidence: fits."));
+    const all = spawnSync(process.execPath, [PARSE, planPath], { encoding: "utf8" });
+    let parsed = {};
+    try { parsed = JSON.parse(all.stdout || "{}"); } catch {}
+    check("routing: --all output extracts {token, value}", parsed.routing?.token === "routed" &&
+      parsed.routing?.value === "skill:aws-serverless", JSON.stringify(parsed.routing));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

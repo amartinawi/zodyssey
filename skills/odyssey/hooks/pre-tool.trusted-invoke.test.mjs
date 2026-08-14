@@ -37,7 +37,7 @@ mkdirSync(join(repo, ".zcode", "plans"), { recursive: true });
 mkdirSync(join(repo, "src"), { recursive: true });
 writeFileSync(join(repo, "src", "a.js"), "const a = 1;\n");
 const planPath = join(repo, ".zcode", "plans", "t.md");
-const planText = "# t\n\n## Todos\n\n- [ ] 1. go\n  - Files: [`src/a.js`]\n";
+const planText = "# t\n\n## Capability routing\n- `routed: skill:prompt-master`\n- Evidence: fixture.\n\n## Todos\n\n- [ ] 1. go\n  - Files: [`src/a.js`]\n";
 writeFileSync(planPath, planText);
 writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
   slug: "t", phase: "plan", updated_at: new Date().toISOString(), plan_path: planPath,
@@ -146,7 +146,7 @@ console.log("\n  end-to-end:");
   check("    momus dispatch BLOCKED when the plan fails lint", r.status === 2, `(exit ${r.status})`);
   check("    ...and names the specific problem", /not an executable command/.test(r.stdout + r.stderr));
 
-  writeFileSync(planPath2, "# t\n\n## Todos\n\n- [ ] 1. go\n  - Files: [`src/a.js`]\n  - Acceptance criteria:\n    - `node --check src/a.js` exits 0\n\n## Final verification wave\n");
+  writeFileSync(planPath2, "# t\n\n## Capability routing\n- `routed: skill:prompt-master`\n- Evidence: fixture.\n\n## Todos\n\n- [ ] 1. go\n  - Files: [`src/a.js`]\n  - Acceptance criteria:\n    - `node --check src/a.js` exits 0\n\n## Final verification wave\n");
   setPhase("review");
   r = dispatchMomus();
   check("    momus dispatch ALLOWED when the plan lints clean", r.status === 0, `(exit ${r.status})`);
