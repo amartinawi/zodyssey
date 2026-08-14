@@ -449,14 +449,20 @@ if (skip.has("F5")) {
   results.F5 = { passed: true, skipped: true };
 } else {
   const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "");
-  // SEC (audit M5): only observations made ONCE THE ROUTING DECISION EXISTED count. A capability
-  // loaded in prime/triage (before any plan/routing was written) cannot be honoring this plan's
-  // routing decision, yet used to satisfy F5. Exclude the pre-decision phases; everything from
-  // consult/plan onward is a legitimate window (discovery runs in consult, loads in plan/execute).
-  const EARLY_PHASES = new Set(["prime", "triage"]);
-  const observed = (Array.isArray(st.capabilities) ? st.capabilities : [])
-    .filter((c) => c && c.observed === true && typeof c.capability === "string" && !EARLY_PHASES.has(c.phase));
-  const hasObserved = (pred) => observed.some((c) => pred(norm(c.capability)));
+  // SEC (audit M5): an observation from BEFORE the plan existed cannot be honoring the plan's
+  // routing declaration. The relevant boundary is the run's own lifecycle: a run is scaffolded at
+  // `plan`, and `consult` (Metis's premortem, where the tri-state is DECIDED) precedes it — so a
+  // routed capability loaded at consult predates the declaration it would satisfy.
+  //   NOTE: `prime`/`triage` are NOT state phases (set-phase's VALID set has neither), so filtering
+  //   on those names is a no-op — `consult` is the only real pre-plan phase. This was caught by
+  //   post-remediation verification; the first attempt filtered the non-existent names.
+  // Discovery is the deliberate exception: `find-skills` legitimately runs during consult, so the
+  // `discovered:` / `generic:` branches accept the full observation set.
+  const PRE_PLAN_PHASES = new Set(["consult"]);
+  const observedAll = (Array.isArray(st.capabilities) ? st.capabilities : [])
+    .filter((c) => c && c.observed === true && typeof c.capability === "string");
+  const observedPostPlan = observedAll.filter((c) => !PRE_PLAN_PHASES.has(c.phase));
+  const hasObserved = (pred, pool = observedPostPlan) => pool.some((c) => pred(norm(c.capability)));
   // Re-read the plan and parse the routing token (same grammar as parse-plan.mjs).
   let routing = null;
   try {
@@ -502,7 +508,13 @@ if (skip.has("F5")) {
     } else { // discovered / generic — both require the discovery attempt on record
       need = "skill:find-skills";
     }
-    const ok = hasObserved((c) => c === need || (val.startsWith("mcp:") && c.startsWith(need + "__")));
+    // M5: a routed capability must be observed at/after the plan exists (post-plan pool); discovery
+    // legitimately happens during consult, so discovered:/generic: search the full pool.
+    const isDiscovery = routing.token !== "routed";
+    const ok = hasObserved(
+      (c) => c === need || (val.startsWith("mcp:") && c.startsWith(need + "__")),
+      isDiscovery ? observedAll : observedPostPlan,
+    );
     results.F5 = ok
       ? { passed: true, reason: null, routing, evidence: `observed ${need} in state.capabilities[]` }
       : { passed: false, reason: `F5 routing: declaration says \`${routing.token}: ${routing.value}\` but there is NO observed \`${need}\` entry in state.capabilities[]. The hook records every Skill/mcp__* call made in the parent thread — if the routed capability was never loaded there, the routing was declared but not honored. Load \`${need}\` (or re-declare honestly) and re-run the final wave.`, routing };

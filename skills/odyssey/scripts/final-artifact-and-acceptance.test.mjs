@@ -57,7 +57,9 @@ function makeRun({ phase = "final", criteria = 2 } = {}) {
   writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
     slug: "t", phase, updated_at: new Date().toISOString(), plan_path: planPath, run_start_sha: sha,
     review: { verdict: "OKAY", round: 1, max_rounds: 3 },
-    capabilities: [{ at: new Date().toISOString(), phase: "consult", capability: "skill:prompt-master", observed: true }],
+    // M5: a `routed:` capability must be observed at/after the plan exists — `execute` is the
+    // realistic phase (the conductor loads the routed skill in the parent thread before dispatching).
+    capabilities: [{ at: new Date().toISOString(), phase: "execute", capability: "skill:prompt-master", observed: true }],
   }, null, 2));
   return repo;
 }
@@ -183,7 +185,10 @@ console.log("record-final-artifact + acceptance completeness\n");
     const r = node(sc("record-final-wave.mjs"), repo, "t", "--f3-checklist", f3, "--skip", "F2,F4", ...extra);
     try { return JSON.parse(r.stdout).results; } catch { return { parse_error: (r.stdout || "").slice(0, 200), stderr: (r.stderr || "").slice(0, 200) }; }
   };
-  const obs = (cap) => [{ at: new Date().toISOString(), phase: "consult", capability: cap, observed: true }];
+  // `execute` = a post-plan phase (M5: routed capabilities must be observed once the plan exists).
+  const obs = (cap) => [{ at: new Date().toISOString(), phase: "execute", capability: cap, observed: true }];
+  // consult PRECEDES the plan — legitimate for discovery, never for a routed capability.
+  const obsConsult = (cap) => [{ at: new Date().toISOString(), phase: "consult", capability: cap, observed: true }];
 
   {
     const repo = makeRun();
@@ -230,12 +235,20 @@ console.log("record-final-artifact + acceptance completeness\n");
     check("F5 FAILS for `agent:` routing with no observed dispatch", res.F5?.passed === false && /oracle/.test(res.F5?.reason || ""), JSON.stringify(res.F5)?.slice(0, 200));
   }
   {
-    // audit M5: an observation from a pre-decision phase (prime/triage) must NOT satisfy F5.
+    // audit M5: an observation from BEFORE the plan existed must NOT satisfy a `routed:` decision.
+    // `consult` is the real pre-plan phase (a run is scaffolded at `plan`; prime/triage are not
+    // state phases at all — filtering on those names was a no-op, caught in post-remediation review).
     const repo = makeRun();
-    setRouting(repo, "- `routed: skill:aws-serverless`",
-      [{ at: new Date().toISOString(), phase: "triage", capability: "skill:aws-serverless", observed: true }]);
+    setRouting(repo, "- `routed: skill:aws-serverless`", obsConsult("skill:aws-serverless"));
     const res = wave(repo);
-    check("F5 FAILS when the only observation is from a pre-decision phase (M5)", res.F5?.passed === false, JSON.stringify(res.F5)?.slice(0, 200));
+    check("F5 FAILS when the routed skill was only observed pre-plan (consult) — M5", res.F5?.passed === false, JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    // ...but discovery legitimately runs during consult, so `discovered:` still accepts it.
+    const repo = makeRun();
+    setRouting(repo, "- `discovered: find-skills`", obsConsult("skill:find-skills"));
+    const res = wave(repo);
+    check("F5 still passes for `discovered:` observed at consult (discovery's natural phase)", res.F5?.passed === true, JSON.stringify(res.F5)?.slice(0, 200));
   }
   {
     const repo = makeRun();
