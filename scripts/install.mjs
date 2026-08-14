@@ -751,10 +751,16 @@ function verify() {
   // transition guard, record-final-wave.mjs holds F1-F4, record-verify.mjs executes the criteria
   // — a stale script runs OLD enforcement exactly as silently as a stale hook.
   if (installPathOk) {
+    // T4-4 (audit 2026-08-14): drift detection covered 3 code surfaces while --sync-cache deploys
+    // 6 trees, so a drifted agents/momus.md ran a STALE REVIEWER PROMPT with both gates reporting
+    // green. Prompts are enforcement too — momus.md decides what a blocker is. Compare them.
     const SURFACES = [
       join("skills", "odyssey", "hooks"),
       join("skills", "odyssey", "scripts"),
       join("skills", "odyssey", "scripts", "lib"),
+      join("skills", "odyssey", "references"),
+      "agents",
+      "commands",
     ];
     const drifted = [], missing = [];
     let compared = 0;
@@ -762,7 +768,7 @@ function verify() {
       const repoDir = join(REPO_ROOT, rel);
       if (!existsSync(repoDir)) continue;
       for (const name of readdirSync(repoDir)) {
-        if (!name.endsWith(".mjs")) continue;
+        if (!name.endsWith(".mjs") && !name.endsWith(".md")) continue;
         const cached = join(installPath, rel, name);
         compared++;
         if (!existsSync(cached)) { missing.push(name); continue; }

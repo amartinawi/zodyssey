@@ -127,10 +127,15 @@ if (installPath && existsSync(installPath)) {
 // external audit. A drifted script runs OLD enforcement just as silently as a drifted hook.
 console.log("\n3. Cached plugin integrity (the check --verify still lacks)");
 if (installPath && existsSync(installPath)) {
+  // T4-4: --sync-cache deploys 6 trees; drift detection covered 3. A stale agents/*.md runs an
+  // old reviewer prompt with both gates green — prompts are enforcement.
   const SURFACES = [
     join("skills", "odyssey", "hooks"),
     join("skills", "odyssey", "scripts"),
     join("skills", "odyssey", "scripts", "lib"),
+    join("skills", "odyssey", "references"),
+    "agents",
+    "commands",
   ];
   const drifted = [], missing = [], unparsed = [];
   let compared = 0;
@@ -138,12 +143,14 @@ if (installPath && existsSync(installPath)) {
     const repoDir = join(REPO, rel);
     if (!existsSync(repoDir)) continue;
     for (const name of readdirSync(repoDir)) {
-      if (!name.endsWith(".mjs")) continue;
+      if (!name.endsWith(".mjs") && !name.endsWith(".md")) continue;
       const cachedFile = join(installPath, rel, name);
       compared++;
       if (!existsSync(cachedFile)) { missing.push(name); continue; }
-      const parse = spawnSync(process.execPath, ["--check", cachedFile], { encoding: "utf8" });
-      if (parse.status !== 0) { unparsed.push(name); continue; }
+      if (name.endsWith(".mjs")) {
+        const parse = spawnSync(process.execPath, ["--check", cachedFile], { encoding: "utf8" });
+        if (parse.status !== 0) { unparsed.push(name); continue; }
+      }
       if (sha(cachedFile) !== sha(join(repoDir, name))) drifted.push(name);
     }
   }

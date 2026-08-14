@@ -7,7 +7,7 @@ Read [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) first — it is the authoritat
 ## Two installs — know which one is live
 
 - **This dir (`~/Desktop/ZOdyssey/`)** is where you edit, branch, and PR.
-- **The active install** is marketplace-owned, cached at `~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/` (the `<marketplace>` segment comes from `marketplace.json` — e.g. `zodyssey-local`). Edits here do **not** take effect until you **re-Get/Update the plugin via Settings → Plugin Management → Discover** (which re-caches from this dir, including the manifest-declared hooks) **and** start a new ZCode session. `node scripts/install.mjs` only configures surrounding user-scope state (MCPs, AGENTS.md, purge, v0.3.0 hook-orphan migration) — it does **not** touch the cache, `installed_plugins.json`, or the hooks (all manifest-driven now).
+- **The active install** is marketplace-owned, cached at `~/.zcode/cli/plugins/cache/<marketplace>/zodyssey/<version>/` (the `<marketplace>` segment comes from `marketplace.json` — e.g. `zodyssey-local`). Edits here do **not** take effect until you **re-Get/Update the plugin via Settings → Plugin Management → Discover** (which re-caches from this dir, including the manifest-declared hooks) **and** start a new ZCode session. `node scripts/install.mjs` only configures surrounding user-scope state (MCPs, AGENTS.md, purge, v0.3.0 hook-orphan migration) — it does **not** touch the cache (exception: `--sync-cache` refreshes content inside the registered version+s cache dir), `installed_plugins.json`, or the hooks (all manifest-driven now).
 - Run artifacts (state, plans, notepads) are per-repo under `<repo>/.zcode/` and are gitignored — never commit them.
 
 ## Build / test / verify (package.json present, no build step)
