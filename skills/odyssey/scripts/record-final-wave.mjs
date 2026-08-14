@@ -299,7 +299,7 @@ function consumeFinalNonce(field, argvNonce, artifactAbs) {
     const st = JSON.parse(readFileSync(statePath, "utf8"));
     const pending = st[field] && st[field].pending_nonce;
     if (!pending || pending.nonce !== argvNonce) {
-      return { ok: false, reason: "nonce mismatch — the hook only mints state." + field + ".pending_nonce for a real dispatch" };
+      return { ok: false, reason: "nonce mismatch — the hook mints state." + field + ".pending_nonce only when it observes a real Task(" + (field === "final_f2" ? "code-reviewer" : "oracle") + ") dispatch in phase=final. Dispatching a different reviewer (momus, say) mints nothing, which is the usual cause of this. Dispatch " + (field === "final_f2" ? "code-reviewer for F2" : "oracle for F4") + ", then pass the nonce it mints." };
     }
     // bind to the actual artifact bytes on disk (detects post-stamp tampering)
     let diskSha = "";

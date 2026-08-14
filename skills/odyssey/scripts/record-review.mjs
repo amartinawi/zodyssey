@@ -121,7 +121,7 @@ if (!consumed) {
 let diskSha = "";
 try { diskSha = createHash("sha256").update(readFileSync(momusAbs, "utf8")).digest("hex"); } catch {}
 if (consumed.artifact !== momusAbs || consumed.sha256 !== diskSha || consumed.round !== computedRound) {
-  console.error(`record-review.mjs: consumed-nonce binding mismatch. The artifact at ${momusAbs} (sha=${diskSha.slice(0,12)} round=${computedRound}) does not match what nonce ${prov.nonce} was consumed against (artifact=${consumed.artifact} sha=${(consumed.sha256||"").slice(0,12)} round=${consumed.round}). Possible tampering or stale/reused artifact.`);
+  console.error(`record-review.mjs: consumed-nonce binding mismatch.\n  artifact path (now): ${momusAbs}\n  artifact path (when the nonce was consumed): ${consumed.artifact}\n  sha now/then: ${diskSha.slice(0,12)} / ${(consumed.sha256||"").slice(0,12)}   round now/then: ${computedRound} / ${consumed.round}\n  The FIRST line that differs is the cause. A path difference usually means the two calls were given the repo argument in different forms (relative vs absolute) — pass the same absolute repo path to both. A sha difference means the artifact changed on disk; a round difference means it belongs to another review round.`);
   exit(6);
 }
 
