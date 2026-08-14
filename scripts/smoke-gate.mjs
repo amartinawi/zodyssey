@@ -101,6 +101,16 @@ if (installPath && existsSync(installPath)) {
     literalHome
       ? bad("hook paths use ${CLAUDE_PLUGIN_ROOT}", "a literal cache path is baked in — it will go stale on the next version bump")
       : ok("hook paths use ${CLAUDE_PLUGIN_ROOT}");
+    // SEC (audit H2): the capability-observation hooks only fire for tools the matcher selects. F5
+    // (the routing-default gate) depends on the hook WITNESSING Skill / mcp__* calls; a matcher that
+    // omits them silently makes F5 unreachable for skill/mcp routing — the exact class of failure that
+    // shipped in v0.4.0 (matcher blind spot, invisible to a "hooks declared?" check). Assert coverage.
+    for (const ev of ["PreToolUse", "PostToolUse"]) {
+      const matchers = (hooks[ev] || []).map((h) => h.matcher || "").join("|");
+      (/Skill/.test(matchers) && /mcp__/.test(matchers))
+        ? ok(`${ev} matcher covers Skill + mcp__`)
+        : bad(`${ev} matcher covers Skill + mcp__`, `matcher "${matchers}" omits Skill or mcp__ — F5 capability observations would never be recorded`);
+    }
   } catch (e) { bad("cached manifest parses", e.code || e.message); }
 } else {
   bad("cached manifest", "skipped — no install path");

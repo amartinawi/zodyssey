@@ -1,7 +1,7 @@
 {
   "name": "zodyssey",
   "displayName": "ZOdyssey",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A hybrid-enforced multi-agent orchestration pipeline for ZCode: prime, triage, consult, plan, review (gated), execute, verify, final-wave. Code-enforces the invariants omo leaves to convention.",
   "author": {
     "name": "amartinawi",
@@ -26,7 +26,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|ApplyPatch|MultiEdit|NotebookEdit|Bash|Task|Agent",
+        "matcher": "Write|Edit|ApplyPatch|MultiEdit|NotebookEdit|Bash|Task|Agent|dispatch_agent|Skill|mcp__.*",
         "hooks": [
           {
             "type": "process",
@@ -41,7 +41,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Task|Agent|Edit|Write|MultiEdit",
+        "matcher": "Task|Agent|dispatch_agent|Edit|Write|MultiEdit|Skill|mcp__.*",
         "hooks": [
           {
             "type": "process",

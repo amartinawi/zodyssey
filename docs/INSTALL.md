@@ -152,7 +152,9 @@ All optional. Set in your shell profile (`~/.bashrc` / `~/.zshrc`) or per-sessio
 | `ZODYSSEY_UNGATE_BASH` | (unset) | **Secure-by-default.** Set to `1` to let ALL Bash calls bypass the review gate + scope check (the original author's personal low-friction setup). Know the tradeoff: ungated Bash lets any agent mutate any file regardless of review verdict. |
 | `ZODYSSEY_DEBUG` | (unset) | Set to `1` to write a one-time payload probe per run (for diagnosing owner-identity / lock-attribution issues). |
 | `ZODYSSEY_NO_FIND_CACHE` | (unset) | Set to `1` to disable the active-run discovery cache (debugging only — makes every hook call do a fresh DFS). |
+| `ZODYSSEY_REGRESSION_TIMEOUT_MS` | `600000` | Timeout (ms) for the regression-gate suite. |
 | `CLAUDE_CLI` | `claude` | Path to the Claude CLI binary used by `/orchestrate-consult` for the external audit. |
+| `CLAUDE_CLI_2` | (unset) | Optional second CLI binary for `consult --multi-auditor`. Falls back to `CLAUDE_CLI`. |
 
 ## Troubleshooting
 

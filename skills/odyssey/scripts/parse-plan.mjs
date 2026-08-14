@@ -17,7 +17,8 @@
 //   parse-plan.mjs <plan.md> --files         # emit just the union of Files: across todos
 //   parse-plan.mjs <plan.md> --waves         # emit {wave: [todo ids]}
 //   parse-plan.mjs <plan.md> --todo 3        # emit one todo by id
-//   exit codes: 0 ok (parsed, maybe empty) · 2 bad args · 3 file unreadable
+//   parse-plan.mjs <plan.md> --lint          # lint the plan (criteria + routing); exit 6 on problems
+//   exit codes: 0 ok (parsed, maybe empty) · 2 bad args · 3 file unreadable · 6 lint failed
 
 import { readFileSync, existsSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -26,7 +27,7 @@ import { scanText } from "./lint-untrusted.mjs";
 
 const args = argv.slice(2);
 if (args.length === 0) {
-  console.error("usage: parse-plan.mjs <plan.md> [--files|--waves|--todo N]");
+  console.error("usage: parse-plan.mjs <plan.md> [--files|--waves|--todo N|--lint]");
   exit(2);
 }
 const planPath = args[0];
@@ -77,9 +78,14 @@ function parseRouting(block) {
   for (const ln of block.split("\n")) {
     const m = ln.match(/^\s*[-*]?\s*`?(routed|discovered|generic)`?\s*:\s*(.+?)\s*$/i);
     if (!m) continue;
+    const token = m[1].toLowerCase();
     const value = m[2].replace(/`/g, "").trim();
     if (!value || value.startsWith("<") || /choose one/i.test(value)) continue;
-    return { token: m[1].toLowerCase(), value };
+    // SEC (audit M4): `routed:` must name a recognized capability kind (skill:/mcp:/agent:), or the
+    // F5 gate has nothing typed to verify against. A bare `routed: something` used to lint clean and
+    // then pass F5's declaration-only fallback — a hole. discovered:/generic: keep free-text values.
+    if (token === "routed" && !/^(skill|mcp|agent):/i.test(value)) continue;
+    return { token, value };
   }
   return null;
 }
@@ -392,8 +398,10 @@ if (mode === "--lint") {
   }
   // Todo 14 (injection hardening): EXTEND the existing lint with an untrusted-content scan.
   // Plans + notepads are agent-written and flow into dispatch prompts; an injected "ignore
-  // previous instructions" in prose could drive ungated Bash now that the Bash gate is removed
-  // (pre-tool.mjs:707). scanText masks exempt zones (backticked spans, fenced blocks, indented
+  // previous instructions" in prose could drive Bash. The Bash write-gate is LIVE (pre-tool.mjs
+  // gates write-capable Bash the same as Edit; ungated only under ZODYSSEY_UNGATE_BASH=1), but
+  // plans/notepads still flow into dispatch prompts, so this scan stays. scanText masks exempt
+  // zones (backticked spans, fenced blocks, indented
   // acceptance/QA items) and flags only directive patterns in PROSE — so legit `rm -rf` in a
   // backticked acceptance criterion is NOT flagged. See lint-untrusted.mjs.
   const injectionFindings = scanText(body);

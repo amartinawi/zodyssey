@@ -58,17 +58,16 @@ import { execFileSync, spawnSync } from "node:child_process";
 //
 // So: EPIPE alone falls through to the status/stdout checks. If the child still exited 0 with
 // usable output, the audit is valid. If it did not, the error message now names the real failure.
-function isFatalSpawnError(res) {
-  if (res.status === null) return true;                 // killed by signal / never ran
-  if (!res.error) return false;
-  return res.error.code !== "EPIPE";
-}
+// isFatalSpawnError moved to ./lib/spawn.mjs so judge.mjs shares the same EPIPE-tolerant rule
+// (see that file for the rationale the long comment above describes).
+import { isFatalSpawnError } from "./lib/spawn.mjs";
 
 import { normalizeConsultVerdict } from "./lib/verdict-schema.mjs";
 // Memory bridge (todo 2 / memory-schema.mjs): multi-auditor mode (below) uses outcomeToGraphEntity
 // to record auditor disagreements into the knowledge graph so future runs can recall them, and
 // validateOutcome to gate what gets recorded. Single source of truth for the two-store bridge.
 import { outcomeToGraphEntity, validateOutcome } from "./lib/memory-schema.mjs";
+import { SECRET_PATH_RE, redactSecrets, isSecretPath } from "./lib/redact.mjs";
 
 // v0.3.0 portability: resolve auditor-prompt.md relative to this script's own location (ESM
 // URL-relative) so it is found from the plugin cache install, not only the legacy
@@ -886,24 +885,16 @@ const auditPromptHeader = readFileSync(
 // hold secrets before anything leaves the machine. Coarse deny-glob on filenames; if a path
 // matches, replace its diff body with a placeholder (the path is still visible so the auditor
 // can flag "a secret file was touched" without seeing the secret).
-const SECRET_PATH_RE = /(^|\/)(\.env(\..+)?|.+\.key|.+\.pem|.+\.pfx|id_(rsa|ed25519|ecdsa)|credentials(\..+)?|secrets(\..+)?|\.npmrc|\.pypirc|\.netrc)$/i;
-function redactSecrets(diffText) {
-  if (!diffText) return diffText;
-  // diff hunks start with `diff --git a/<path> b/<path>` or `+++ b/<path>`. Split on file boundaries.
-  const files = diffText.split(/^(?=diff --git )/m);
-  return files.map((hunk) => {
-    const pathMatch = hunk.match(/^(?:diff --git a\/(\S+) b\/\S+|^\+\+\+ b\/(\S+))/m);
-    const p = pathMatch ? (pathMatch[1] || pathMatch[2]) : "";
-    if (p && SECRET_PATH_RE.test(p)) {
-      return hunk.replace(/(^|\n)([-+@ ].*)/g, (_line, brk, _content) =>
-        // keep the headers (diff --git, +++, @@, ---), redact the body lines
-        ""
-      ).slice(0, 200) + `\n[REDACTED — secret-bearing file ${p}; content withheld from external auditor]\n`;
-    }
-    return hunk;
-  }).join("");
-}
-const diffRedacted = redactSecrets(diff);
+// SECRET_PATH_RE / redactSecrets moved to ./lib/redact.mjs (shared with judge + recall, and the
+// regex there matches ordinary `prod.env`/`.envrc`/`aws.credentials` names the old one missed).
+// audit LOW: the out-of-scope path caps per-file/per-line, and judge caps at 80KB, but the in-scope
+// diff was embedded uncapped — a large declared-deliverable diff could balloon the prompt into the
+// EPIPE/truncation-blind failure the generated-file exclusion was added to avoid. Cap it explicitly.
+const DIFF_CAP = 200000;
+const _diffRedactedRaw = redactSecrets(diff);
+const diffRedacted = _diffRedactedRaw.length > DIFF_CAP
+  ? _diffRedactedRaw.slice(0, DIFF_CAP) + "\n[TRUNCATED — in-scope diff exceeded 200KB; judge on what is shown plus the out-of-scope summary below]"
+  : _diffRedactedRaw;
 
 // --- out-of-scope change set (audit gap #7a, fixed G6) ---
 // Scope is defined by the PLAN ALONE (the declared `Files:` + backticked deliverable paths),

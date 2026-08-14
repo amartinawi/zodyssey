@@ -10,7 +10,7 @@
 // stdin: the ZCode PostToolUse hook JSON (we read tool_name + tool_use_id).
 // exit: 0 always (PostToolUse hooks must not block).
 
-import { readFileSync, readdirSync, existsSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, writeFileSync, renameSync, unlinkSync, openSync, closeSync, statSync } from "node:fs";
 import { join, resolve as pathResolve } from "node:path";
 import { exit } from "node:process";
 import { spawnSync } from "node:child_process";
@@ -92,6 +92,45 @@ if (["Edit", "Write", "MultiEdit"].includes(toolName)) {
   exit(0);
 }
 
+// ─── NEW ARM: OBSERVED capability recording for Skill / mcp__* ────────────────
+// SEC (audit M7 + H2): F5 (record-final-wave) trusts `observed:true`, which must mean the skill/MCP
+// actually LOADED, not merely that a call was attempted. PostToolUse fires after the tool returns,
+// so this arm — not pre-tool — stamps observed. Requires the PostToolUse matcher to include
+// Skill|mcp__* (plugin.json). Skips if the load reported an error. Never blocks.
+if (toolName === "Skill" || toolName.startsWith("mcp__")) {
+  const resp = payload.tool_response || payload.tool_result || {};
+  const errored = payload.is_error === true || (resp && (resp.is_error === true || resp.error));
+  if (!errored) {
+    const _capRuns = findActiveRuns({ projectDir: PROJECT_DIR, staleMs: STALE_MS });
+    const _capRun = mostRecent(_capRuns);
+    if (_capRun && _capRun.state && _capRun.state.slug) {
+      try {
+        const ti = payload.tool_input || {};
+        const cap = toolName === "Skill" ? `skill:${ti.skill || ti.name || "unknown"}` : toolName;
+        const capStatePath = join(_capRun.stateDir, `${_capRun.state.slug}.json`);
+        const capLock = capStatePath + ".lock";
+        const CAP_LOCK_STALE = 60 * 1000;
+        let lf = null;
+        try { lf = openSync(capLock, "wx"); } catch {
+          try { if (Date.now() - statSync(capLock).mtimeMs > CAP_LOCK_STALE) { unlinkSync(capLock); lf = openSync(capLock, "wx"); } } catch {}
+        }
+        if (lf !== null) {
+          try {
+            let cs; try { cs = JSON.parse(readFileSync(capStatePath, "utf8")); } catch { cs = _capRun.state; }
+            cs.capabilities = Array.isArray(cs.capabilities) ? cs.capabilities : [];
+            cs.capabilities.push({ at: new Date().toISOString(), phase: cs.phase, capability: cap, observed: true });
+            cs.updated_at = new Date().toISOString();
+            const ct = capStatePath + ".tmp." + process.pid;
+            writeFileSync(ct, JSON.stringify(cs, null, 2) + "\n");
+            renameSync(ct, capStatePath);
+          } catch {} finally { try { closeSync(lf); unlinkSync(capLock); } catch {} }
+        }
+      } catch {}
+    }
+  }
+  exit(0);
+}
+
 if (!["Task", "Agent", "dispatch_agent"].includes(toolName)) exit(0);
 
 // SEC-H4 (external audit #3 + in-session F6): findActiveRun is now the SHARED DFS discovery
@@ -104,6 +143,36 @@ const _found = mostRecent(_runs);
 if (!_found) exit(0);
 const state = _found.state;
 const RUN_STATE_DIR = _found.stateDir;
+
+// SEC (audit M4): record the dispatched agent as an OBSERVED capability so F5's `routed: agent:X`
+// branch can verify against a real, hook-witnessed dispatch instead of passing declaration-only.
+// Dispatching IS the routing act for an agent (unlike a Skill, where attempt ≠ load), and Task
+// dispatches are witnessed by the hook, so recording here on completion is a genuine observation.
+{
+  const sub = (payload.tool_input && (payload.tool_input.subagent_type || payload.tool_input.agent_type || payload.tool_input.type)) || "";
+  const errored = payload.is_error === true || (payload.tool_response && (payload.tool_response.is_error === true || payload.tool_response.error));
+  if (sub && !errored) {
+    const cap = `agent:${sub}`;
+    const capStatePath = join(RUN_STATE_DIR, `${state.slug}.json`);
+    const capLock = capStatePath + ".lock";
+    const CAP_LOCK_STALE = 60 * 1000;
+    let lf = null;
+    try { lf = openSync(capLock, "wx"); } catch {
+      try { if (Date.now() - statSync(capLock).mtimeMs > CAP_LOCK_STALE) { unlinkSync(capLock); lf = openSync(capLock, "wx"); } } catch {}
+    }
+    if (lf !== null) {
+      try {
+        let cs; try { cs = JSON.parse(readFileSync(capStatePath, "utf8")); } catch { cs = state; }
+        cs.capabilities = Array.isArray(cs.capabilities) ? cs.capabilities : [];
+        cs.capabilities.push({ at: new Date().toISOString(), phase: cs.phase, capability: cap, observed: true });
+        cs.updated_at = new Date().toISOString();
+        const ct = capStatePath + ".tmp." + process.pid;
+        writeFileSync(ct, JSON.stringify(cs, null, 2) + "\n");
+        renameSync(ct, capStatePath);
+      } catch {} finally { try { closeSync(lf); unlinkSync(capLock); } catch {} }
+    }
+  }
+}
 
 const ledgerPath = join(RUN_STATE_DIR, `${state.slug}.inflight.json`);
 if (!existsSync(ledgerPath)) exit(0);

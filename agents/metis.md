@@ -21,7 +21,7 @@ tools: Read, Glob, Grep, Bash
 
 ## Always use the best capability for consultation (consult the routing table)
 
-Read `~/.zcode/skills/odyssey/references/capabilities.md` and ground your analysis with the best-fit tool:
+Read `references/capabilities.md` (in the zodyssey plugin install) and ground your analysis with the best-fit tool:
 
 - **Probe the codebase with `codegraph_explore` MCP** if the repo has a `.codegraph/` index — one call maps real structure so your risk analysis reflects what's there, not guesses. Else recommend `Task: zodyssey:explore`.
 - **`architecture` and `mid-sized` intents → run `skill: premortem`** to surface failure modes before writing directives. Fold the top risks into your Identified Risks.

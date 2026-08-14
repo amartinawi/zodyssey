@@ -28,7 +28,7 @@ if (!repo || !slug) {
   console.error("usage: record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5]");
   exit(2);
 }
-let f2Artifact, f2Nonce, f3Checklist, f4Artifact, f4Nonce, skipStr;
+let f2Artifact, f2Nonce, f3Checklist, f4Artifact, f4Nonce, skipStr, allowUntouched = false;
 for (let i = 0; i < rest.length; i++) {
   const k = rest[i];
   if (k === "--f2-artifact") f2Artifact = rest[++i];
@@ -37,6 +37,9 @@ for (let i = 0; i < rest.length; i++) {
   else if (k === "--f4-nonce") f4Nonce = rest[++i];
   else if (k === "--f4-artifact") f4Artifact = rest[++i];
   else if (k === "--skip") skipStr = rest[++i];
+  // SEC (audit M6): explicit waiver for declared-but-untouched files (e.g. a file listed for
+  // context that legitimately needed no edit). Recorded in the F1 result for audit.
+  else if (k === "--allow-untouched") allowUntouched = true;
 }
 const skip = new Set((skipStr || "").split(",").map((s) => s.trim()).filter(Boolean));
 // Recorded in state.final so a resuming orchestrator (and any human reading the evidence) can see
@@ -243,15 +246,22 @@ try {
     const testsIntact = !testIntegrity.error && testIntegrity.deleted.length === 0 &&
       testIntegrity.weakened.length === 0 && testIntegrity.skip_markers.length === 0;
 
+    // SEC (audit M6): partial completion is not completion. F1 computed `untouched` but never
+    // gated on it, so declaring Files:[A,B,C] and touching only A reached `done` with B,C never
+    // written. Require every declared file to be touched — unless the operator waives specific
+    // context-only files with --allow-untouched (recorded here for audit).
+    const untouchedBlocks = untouched.length > 0 && !allowUntouched;
     results.F1 = {
-      passed: outOfScope.length === 0 && !didNothing && testsIntact,
+      passed: outOfScope.length === 0 && !didNothing && testsIntact && !untouchedBlocks,
       declared: [...declared],
       actual: [...actual],
       out_of_scope: outOfScope,
       ...(ignoredInherited.length ? { inherited_dirty_ignored: ignoredInherited } : {}),
       declared_untouched: untouched,
+      ...(untouched.length && allowUntouched ? { untouched_waived: true } : {}),
       test_integrity: testIntegrity,
       ...(didNothing ? { error: "F1: the plan declares files but the diff is EMPTY — nothing was done. This is the vacuous pass; it is not a completed run." } : {}),
+      ...(untouchedBlocks ? { untouched_error: `F1: ${untouched.length} declared file(s) were never touched: ${untouched.slice(0, 8).join(", ")}. The plan's work is incomplete. Finish them, remove them from the plan's Files:, or pass --allow-untouched if they were context-only.` } : {}),
       ...(testsIntact ? {} : { test_integrity_error: testIntegrity.error
         ? "F1: test-integrity check could not run: " + testIntegrity.error
         : "F1: tests were weakened — " +
@@ -427,8 +437,8 @@ if (f1AlreadyFailed && !skip.has("F4")) {
 //   routed: skill:<name>   ⇒ observed `skill:<name>` entry required
 //   routed: mcp:<server>   ⇒ observed `mcp__<server>`-prefixed entry required (records keep the
 //                            full tool name, e.g. mcp__codegraph__explore)
-//   routed: agent:<name>   ⇒ NOT hook-observed (Task dispatches are not in this log) — passes with
-//                            an explicit unverifiable note; the declaration itself was review-gated
+//   routed: agent:<name>   ⇒ observed `agent:<name>` dispatch required (post-tool.mjs records each
+//                            Task dispatch on completion; the `zodyssey:` prefix is normalized) — M4
 //   discovered: <anything> ⇒ observed `skill:find-skills` entry required (discovery was attempted)
 //   generic:   <reason>    ⇒ observed `skill:find-skills` entry required (generic is valid only
 //                            AFTER discovery; the review lint already required the token, this
@@ -439,8 +449,13 @@ if (skip.has("F5")) {
   results.F5 = { passed: true, skipped: true };
 } else {
   const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "");
+  // SEC (audit M5): only observations made ONCE THE ROUTING DECISION EXISTED count. A capability
+  // loaded in prime/triage (before any plan/routing was written) cannot be honoring this plan's
+  // routing decision, yet used to satisfy F5. Exclude the pre-decision phases; everything from
+  // consult/plan onward is a legitimate window (discovery runs in consult, loads in plan/execute).
+  const EARLY_PHASES = new Set(["prime", "triage"]);
   const observed = (Array.isArray(st.capabilities) ? st.capabilities : [])
-    .filter((c) => c && c.observed === true && typeof c.capability === "string");
+    .filter((c) => c && c.observed === true && typeof c.capability === "string" && !EARLY_PHASES.has(c.phase));
   const hasObserved = (pred) => observed.some((c) => pred(norm(c.capability)));
   // Re-read the plan and parse the routing token (same grammar as parse-plan.mjs).
   let routing = null;
@@ -467,8 +482,16 @@ if (skip.has("F5")) {
   if (!routing) {
     results.F5 = { passed: false, reason: "F5 routing: the plan has no valid `## Capability routing` tri-state declaration (missing section or placeholder-only). The review lint should have caught this; re-declare the routing decision and re-review." };
   } else if (routing.token === "routed" && norm(routing.value).startsWith("agent:")) {
-    // Task dispatches are not hook-observed; declaration-only (presence was gated at review). Documented limit.
-    results.F5 = { passed: true, reason: null, note: `routing declared ${routing.value}: agent dispatches are not hook-observed, so this is verified by declaration only (presence was gated at review).`, routing };
+    // SEC (audit M4): agent routing is now behaviorally verified, not declaration-only. post-tool.mjs
+    // records `agent:<subagent_type>` as an observed capability when a Task dispatch completes, so a
+    // declared `routed: agent:X` must have a matching observed dispatch. The `zodyssey:` namespace
+    // prefix is normalized away on both sides so `agent:oracle` and `agent:zodyssey:oracle` match.
+    const stripNs = (c) => c.replace(/^agent:zodyssey:/, "agent:");
+    const need = stripNs(norm(routing.value));
+    const ok = hasObserved((c) => stripNs(c) === need);
+    results.F5 = ok
+      ? { passed: true, reason: null, routing, evidence: `observed dispatch of ${routing.value} in state.capabilities[]` }
+      : { passed: false, reason: `F5 routing: declaration says \`routed: ${routing.value}\` but there is NO observed dispatch of \`${routing.value}\` in state.capabilities[]. post-tool records every Task dispatch — if that agent was never dispatched, the routing was declared but not honored. Dispatch it (or re-declare honestly) and re-run the final wave.`, routing };
   } else {
     const val = norm(routing.value);
     let need;

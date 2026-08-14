@@ -5,7 +5,7 @@ description: The ZOdyssey orchestration conductor. Loaded by `/orchestrate` and 
 
 # ZOdyssey — Orchestration Conductor
 
-You are the **orchestrator** of a hybrid-enforced multi-agent pipeline. You direct the cast: `zodyssey:metis` (consult), `zodyssey:prometheus` (plan), `zodyssey:momus` (review), `zodyssey:explore`/`zodyssey:librarian`/`zodyssey:oracle` (research/advice), `zodyssey:sisyphus-junior` (execute). The enforcement hooks in `~/.zcode/cli/config.json` hard-block the dangerous invariants (edits before plan-OKAY, file collisions, parallel-overflow, wrong-phase dispatch). Your job is to *drive* the pipeline and *guide* the judgment parts.
+You are the **orchestrator** of a hybrid-enforced multi-agent pipeline. You direct the cast: `zodyssey:metis` (consult), `zodyssey:prometheus` (plan), `zodyssey:momus` (review), `zodyssey:explore`/`zodyssey:librarian`/`zodyssey:oracle` (research/advice), `zodyssey:sisyphus-junior` (execute). The enforcement hooks are declared in `.zcode-plugin/plugin.json` (resolved via `${CLAUDE_PLUGIN_ROOT}`) and hard-block the dangerous invariants (edits before plan-OKAY, file collisions, parallel-overflow, wrong-phase dispatch). Your job is to *drive* the pipeline and *guide* the judgment parts.
 
 > This skill is the conductor. The pipeline below is the state machine. Read the active run's `<repo>/.zcode/state/<slug>.json` at every transition — that file is the source of truth for phase, review verdict, locks, and progress.
 
@@ -132,8 +132,9 @@ Because sub-agents cannot load skills (trust anchor), **the orchestrator loads t
         │    parallel-by-default rule (below). Each todo → one │
         │    zodyssey:sisyphus-junior dispatch carrying the    │
         │    todo block + inherited wisdom.                    │
-        │    On each todo's return: tick its checkbox           │
-        │    `- [ ] → - [x]`, write a checkpoint, update state.│
+        │    On each todo's return: write a checkpoint and     │
+        │    update state via record-todo/record-verify        │
+        │    (state.json is the source of truth).              │
         │    (Hooks enforce: file locks, parallel cap, phase.) │
         └───────────────────────┬──────────────────────────────┘
                                 ▼
@@ -149,7 +150,8 @@ Because sub-agents cannot load skills (trust anchor), **the orchestrator loads t
         │    momus) + Task(code-reviewer) against the full     │
         │    diff. F1 plan-compliance, F2 code quality, F3     │
         │    manual QA checklist (you produce it), F4 scope    │
-        │    fidelity. All must pass before "done".            │
+        │    fidelity, F5 capability-routing cross-check. All  │
+        │    must pass before "done".                          │
         │    OPTIONAL COMPACTION (before F1-F4 dispatch): you  │
         │    MAY run `scripts/compact.mjs <repo> <slug>` to    │
         │    derive `_compact-brief.md` from the run's notepads│
@@ -356,12 +358,14 @@ The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY n
 
 **Honest residual limit (not a bug to fix, a boundary to know):** none of this binds *what zodyssey:momus returned*. The nonce proves a dispatch happened; the artifact's verdict text is whatever the orchestrator pipes in. So the threat model is **executor-agent adversarial, NOT orchestrator adversarial** — if the orchestrator itself is compromised, it can dispatch zodyssey:momus for real and still record an arbitrary verdict. Fully closing that needs the harness to hand zodyssey:momus's transcript hash to the hook for a true content binding (a design change, tracked). SEC-6 partially mitigates by refusing `--from` paths under agent-writable bookkeeping dirs. State this limit honestly in any audit; do not claim the chain is airtight against an orchestrator adversary.
 
-## Environment overrides (documented; all validated)
+## Environment overrides (documented)
 
 - `ZODYSSEY_PARALLEL_CAP` — the execute-phase parallel-dispatch cap (default 4; non-integer/≤0 → 4).
 - `ZODYSSEY_STALE_HOURS` — a run not updated in this many hours is treated as abandoned (hooks disarm; default 24; non-finite/≤0 → 24).
 - `ZODYSSEY_RECURSION_CAP` — the SEC-1s recursion-guard cap (default 1). Reserved for a future real depth counter; today the guard is a payload-pattern match against embedded nested dispatches, not a depth ledger (the harness tool-grant boundary is the primary control).
+- `ZODYSSEY_REGRESSION_TIMEOUT_MS` — timeout (ms) for the regression-gate suite (default 600000).
 - `CLAUDE_CLI` — the binary `consult.mjs` spawns as the external auditor (default `claude`). Receives the full repo diff + plan, so point this only at a trusted CLI.
+- `CLAUDE_CLI_2` — optional second CLI binary for `consult --multi-auditor` (falls back to `CLAUDE_CLI`).
 
 ## Memory store — canonical
 

@@ -70,7 +70,7 @@ const statePath = join(repo, ".zcode", "state", `${slug}.json`);
 if (!existsSync(statePath)) { console.error("no state file: " + statePath); exit(3); }
 
 // W7-2: NONCE binding. The hook mints a one-time nonce into state.review.pending_nonce ONLY when
-// it observes a real Task(momus) dispatch in phase=review. Require --nonce <nonce> to match and
+// it observes a real Task(momus) dispatch (any phase; the hook warns if phase!="review"). Require --nonce <nonce> to match and
 // consume it (so it can't be reused). Without this, an agent could forge the artifact from Bash.
 if (!nonceArg) { console.error("record-momus-artifact.mjs: --nonce <nonce> is required (issued by the hook when momus was dispatched)"); exit(6); }
 
@@ -110,9 +110,24 @@ try { verdict = JSON.parse(raw); } catch { console.error("momus verdict is not v
 const reviewsDir = join(repo, ".zcode", "reviews");
 mkdirSync(reviewsDir, { recursive: true });
 const artifactPath = join(reviewsDir, `${slug}-r${round}.json`);
+
+// SEC (audit H1): bind the verdict to the EXACT plan momus reviewed, not merely to whatever is on
+// disk when record-review runs. Without this, an agent can get a real OKAY on a minimal plan, then
+// swap in a scope-widened plan that still lints, and record-review (which only compares its --plan-sha
+// argv to the current disk — both agent-controlled) would accept it. Hash the plan NOW and stamp it
+// into both the provenance and the consumed-nonce record so record-review can triple-bind
+// (argv === what-momus-read === disk). Fail-closed: an unreadable plan leaves the hash empty, which
+// will not match record-review's real hash → OKAY refused.
+let planSha256 = "";
+try {
+  const stForPlan = JSON.parse(readFileSync(statePath, "utf8"));
+  const planPathForSha = stForPlan.plan_path || join(repo, ".zcode", "plans", `${slug}.md`);
+  planSha256 = createHash("sha256").update(readFileSync(planPathForSha, "utf8")).digest("hex");
+} catch {}
+
 const stamped = JSON.stringify({
   ...verdict,
-  _provenance: { slug, round, nonce: nonceArg, momus_session: momusSession || null, recorded_at: new Date().toISOString() },
+  _provenance: { slug, round, nonce: nonceArg, plan_sha256: planSha256, momus_session: momusSession || null, recorded_at: new Date().toISOString() },
 }, null, 2);
 
 // atomic write
@@ -149,7 +164,7 @@ try { renameSync(tmp, artifactPath); } catch { try { unlinkSync(tmp); } catch {}
     const st = JSON.parse(readFileSync(statePath, "utf8"));
     const pending = st.review && st.review.pending_nonce;
     if (!pending || pending.nonce !== nonceArg) {
-      console.error(`record-momus-artifact.mjs: nonce mismatch. The hook only mints a nonce for a real Task(momus) dispatch in phase=review.`);
+      console.error(`record-momus-artifact.mjs: nonce mismatch. The hook mints a nonce for a real Task(momus) dispatch (minted on dispatch regardless of phase).`);
       try { unlinkSync(artifactPath); } catch {} // roll back the artifact write
       exit(6);
     }
@@ -162,7 +177,7 @@ try { renameSync(tmp, artifactPath); } catch { try { unlinkSync(tmp); } catch {}
     const artifactSha = createHash("sha256").update(onDisk).digest("hex");
     if (!st.review.consumed_nonces) st.review.consumed_nonces = {};
     st.review.consumed_nonces[nonceArg] = {
-      artifact: artifactPath, sha256: artifactSha, round, at: new Date().toISOString(),
+      artifact: artifactPath, sha256: artifactSha, round, plan_sha256: planSha256, at: new Date().toISOString(),
     };
     st.updated_at = new Date().toISOString();
     const stmp = statePath + ".tmp." + process.pid;

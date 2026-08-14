@@ -14,7 +14,7 @@
 //         a follow-up (it requires the /orchestrate command to be callable headlessly).
 //
 // Usage:
-//   harness.mjs [--task <id>] [--arm zoedyssey|baseline] [--list]
+//   harness.mjs [--task <id>] [--arm zodyssey|baseline] [--list]
 //   --task <id>   run only one seed task
 //   --arm         which arm (zodyssey default; baseline = single-agent, no pipeline — TODO)
 //   --list        print seed tasks and exit

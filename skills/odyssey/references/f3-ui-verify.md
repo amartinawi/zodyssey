@@ -20,7 +20,7 @@ sub-agent, the MCP tools will simply be absent and the step fails opaquely.
 ## The real flag (do not invent a bare `--f3`)
 
 `record-final-wave.mjs` accepts **`--f3-checklist <path>`** — NOT `--f3`. Verified at
-`scripts/record-final-wave.mjs:10, :15, :28, :36`. The F3 check (lines 201–216) resolves the path,
+`scripts/record-final-wave.mjs:10, :15, :28, :36`. The F3 check (`record-final-wave.mjs:372-387`) resolves the path,
 requires the file to **exist** and be **non-empty** (`content.trim().length > 0`), and records
 `results.F3 = { passed, checklist }`. There is **no JSON parse, no "pass" keyword scan** — the gate
 is non-emptiness, and the pass/fail semantics live in whatever *you* write into the checklist. (For
@@ -32,7 +32,7 @@ The script's full F1–F4 CLI (for context, do not change it):
 record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] \
                                      [--f3-checklist P] \
                                      [--f4-artifact P --f4-nonce N] \
-                                     [--skip F2,F4]
+                                     [--skip F2,F4,F5]
 ```
 
 ## The wiring sequence (run this in the PARENT thread)
@@ -61,7 +61,7 @@ record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] \
    ```
    node skills/odyssey/scripts/record-final-wave.mjs <repo> <slug> \
        --f3-checklist <repo>/.zcode/verify/<slug>/f3-checklist.md \
-       [--f2-artifact ... --f2-nonce ...] [--f4-artifact ... --f4-nonce ...] [--skip F2,F4]
+       [--f2-artifact ... --f2-nonce ...] [--f4-artifact ... --f4-nonce ...] [--skip F2,F4,F5]
    ```
    (Script path is relative to the `zodyssey` plugin install root.)
    Exit 0 = all bound F-items pass; exit 6 = at least one failed. The F3 lane in

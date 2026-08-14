@@ -6,7 +6,7 @@
 //
 // Usage:
 //   set-phase.mjs <repo> <slug> <phase> [--note <text>]
-//     phase: plan|consult|review|execute|verify|final|done|audited|abandoned|remediate
+//     phase: plan|consult|review|execute|verify|final|done|audited|abandoned|blocked|remediate
 //   exit: 0 ok · 2 bad args · 3 no state file
 //
 // Atomic write under O_EXCL lockfile with stale-lock reaping.

@@ -141,6 +141,19 @@ if (actualSha !== planShaArg) {
   console.error(`record-review.mjs: plan-sha mismatch (plan changed since review). expected ${String(planShaArg).slice(0,12)}, got ${actualSha.slice(0,12)}`);
   exit(6);
 }
+// SEC (audit H1): the middle term of the triple-bind. The two checks above only prove
+// argv-sha === current-disk-sha — both agent-controlled, so a real OKAY on plan v1 can be recorded
+// against a swapped-in plan v2 by passing sha256(v2). record-momus-artifact stamps the sha of the
+// plan MOMUS ACTUALLY READ into the consumed-nonce; require it to equal what is on disk now. A
+// widened v2 momus never saw has a different sha → OKAY refused. (Only enforced for OKAY, and only
+// when the recorder captured a plan sha — an empty capture is treated as a mismatch, fail-closed.)
+if (v === "OKAY") {
+  const reviewedSha = consumed.plan_sha256;
+  if (!reviewedSha || reviewedSha !== actualSha) {
+    console.error(`record-review.mjs: OKAY refused — the plan on disk (sha ${actualSha.slice(0,12)}) is not the plan this nonce reviewed (sha ${String(reviewedSha||"").slice(0,12)}). The plan was changed after momus reviewed it; re-dispatch momus on the current plan.`);
+    exit(6);
+  }
+}
 
 // (2b) CRIT-3: acceptance-criteria lint MUST pass before OKAY. Run parse-plan.mjs --lint on the
 // current plan and refuse OKAY if it reports problems (todos with no executable criteria, or

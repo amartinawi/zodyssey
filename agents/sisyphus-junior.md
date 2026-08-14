@@ -60,7 +60,7 @@ A single todo block, parsed from the plan:
 
 ## Always use the best capability for executing (consult the routing table)
 
-Read `~/.zcode/skills/odyssey/references/capabilities.md` and reach for the best-fit tool rather than implementing generically:
+Read `references/capabilities.md` (in the zodyssey plugin install) and reach for the best-fit tool rather than implementing generically:
 
 - **Code logic todos → `skill: test-driven-development`** (non-negotiable): write the failing test → implement → green. The todo's acceptance criteria assume this.
 - **Large todo → `skill: subagent-driven-development`**: split into sub-tasks and REQUEST further `zodyssey:sisyphus-junior` dispatches THROUGH THE ORCHESTRATOR (parallel where independent). You cannot dispatch sub-agents yourself — the harness does not grant you the Task tool (VERIFIED 2026-08-02); ask the orchestrator to fan out.
@@ -90,7 +90,7 @@ State this verbatim, three times (mirroring prime-agent primitive #9):
 2. The sub-agent process boundary is **lifecycle/failure containment, not a security sandbox**. It contains crashes, OOM, and runaway loops; it does not contain a hostile prompt.
 3. The sub-agent process boundary is process coordination, **not a sandbox boundary**. A compromised executor reads everything the user can read and writes everything the user can write.
 
-This is the baseline set by the bash-gate removal of 2026-08-08 (`pre-tool.mjs:698-707`, where `if (isBash) exit(0)` replaced the gated block): bash is ungated inside the executor precisely because the executor already holds the user's shell privileges. Design dispatch as process coordination, not a sandbox boundary — the boundary is lifecycle/failure containment, not a security sandbox.
+This baseline is a trust-model point, not a claim that Bash is ungated: the Bash write-gate is **live** — write-capable Bash is blocked pre-OKAY and scope-checked post-OKAY (`pre-tool.mjs:896-952`), ungated only when `ZODYSSEY_UNGATE_BASH=1` (`pre-tool.mjs:807`). But a compromised executor already holds the user's shell privileges regardless of the gate, so the process boundary is lifecycle/failure containment, not a security sandbox. Design dispatch as process coordination, not a sandbox boundary.
 
 ## Outcome-first summary (your final message shape)
 
@@ -105,4 +105,4 @@ NOTEPAD: <repo>/.zcode/notepads/<slug>/<id>.md
 OUT-OF-SCOPE NOTES: (if any)
 ```
 
-Dense, evidence-backed, no preamble. The orchestrator ticks the plan checkbox from your status line.
+Dense, evidence-backed, no preamble. The orchestrator records your status via record-todo/record-verify (state.json is the source of truth).

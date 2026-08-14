@@ -117,7 +117,7 @@ The principle: **enforce invariants, guide choices.** If a rule can be checked d
         │    • research: explore / librarian (parallel)                          │
         │    • advice on hard steps: oracle                                      │
         │    • implementation: executor (sisyphus-jr equivalent) / team members  │
-        │  Each task ticks its plan checkbox  - [ ] → - [x].                     │
+        │  Each task's completion is recorded via record-todo/record-verify.     │
         │  Per-task notes saved to <repo>/.zcode/notepads/<slug>/*.md.           │
         │  ◄── HOOK ENFORCES: no Edit before plan-OKAY; file locks; parallel cap │
         └──────────────────────────────────┬───────────────────────────────────┘

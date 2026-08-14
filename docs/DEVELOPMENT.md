@@ -78,8 +78,8 @@ The installer does **not** hand-write `installed_plugins.json` or `config.json` 
 
 ## Testing
 
-There is no `package.json` and no CI yet (both are Phase A in [`ROADMAP.md`](ROADMAP.md)). Run the
-suites directly:
+There is now a `package.json` (`npm test` / `npm run verify` / `npm run smoke`) and CI at
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml). Run the suites via `npm test` (or directly):
 
 ```bash
 for t in skills/odyssey/scripts/*.test.mjs skills/odyssey/hooks/*.test.mjs; do node "$t" || echo "FAIL $t"; done
@@ -98,7 +98,7 @@ F2/F4 checked that a reviewer was summoned, not what it said).
 - `node --check <file>` → did you introduce a syntax error?
 - `git log --oneline -5` → what changed recently?
 - For hook weirdness: the hook disarms entirely if no active run exists in `<cwd>/.zcode/state/`. Check phase first.
-- For install issues: `scripts/install.mjs --help` documents the flags.
+- For install issues: run `node scripts/install.mjs --dry-run` (preview) or `--verify` (health-check); flags are `--dry-run`, `--verify`, `--uninstall`, `--sync-cache`.
 
 ## Conventions
 

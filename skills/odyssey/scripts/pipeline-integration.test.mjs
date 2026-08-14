@@ -69,13 +69,20 @@ function dispatch(subagent) {
 }
 
 // v0.4.0: same principle for the routing observation — the conductor loads the routed skill in
-// the parent thread, the hook witnesses the Skill call and records {capability, observed:true}
-// into state.capabilities. F5 cross-checks that record at the final wave.
-const loadSkill = (name) => spawnSync(process.execPath, [HOOK], {
-  input: JSON.stringify({ tool_name: "Skill", tool_input: { skill: name } }),
-  encoding: "utf8",
-  env: { ...process.env, CLAUDE_PROJECT_DIR: repo, ZODYSSEY_UNGATE_BASH: "" },
-});
+// the parent thread. ZCode fires PreToolUse (records attempted) then, after the skill loads,
+// PostToolUse — which is where `observed:true` is stamped (audit M7: observed must mean loaded,
+// not merely attempted). F5 cross-checks the observed record at the final wave. Fire BOTH hooks,
+// as the host does.
+const POST_HOOK = join(S, "..", "hooks", "post-tool.mjs");
+const loadSkill = (name) => {
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: repo, ZODYSSEY_UNGATE_BASH: "" };
+  spawnSync(process.execPath, [HOOK], {
+    input: JSON.stringify({ tool_name: "Skill", tool_input: { skill: name } }), encoding: "utf8", env,
+  });
+  return spawnSync(process.execPath, [POST_HOOK], {
+    input: JSON.stringify({ tool_name: "Skill", tool_input: { skill: name }, tool_response: { ok: true } }), encoding: "utf8", env,
+  });
+};
 
 console.log("pipeline integration — can a run still reach `done`?\n");
 
@@ -138,6 +145,20 @@ Add a \`truncate\` helper to the text module, with tests.
   const art = run([script("record-momus-artifact.mjs"), repo, SLUG, "1", "--nonce", nonce, "--from", verdictFile]);
   const artifactPath = (art.stdout || "").trim().split("\n").pop();
   check("record-momus-artifact binds the nonce", art.status === 0 && !!artifactPath, art.stderr.slice(0, 200));
+
+  // SEC (audit H1): the artifact bound the sha of the plan MOMUS REVIEWED (v1). An agent now
+  // swaps in a scope-widened v2 that still lints and tries to launder the OKAY onto it by passing
+  // sha(v2). record-review must refuse: the plan on disk is not the plan the nonce reviewed.
+  const PLAN_V2 = PLAN.replace(
+    "[\`src/text.js\`, \`test/text.test.js\`]",
+    "[\`src/text.js\`, \`test/text.test.js\`, \`src/secret.js\`]",
+  );
+  writeFileSync(planPath, PLAN_V2);
+  const shaV2 = createHash("sha256").update(readFileSync(planPath)).digest("hex");
+  const rebind = run([script("record-review.mjs"), repo, SLUG, "OKAY", "--momus-artifact", artifactPath, "--plan-sha", shaV2]);
+  check("record-review REFUSES a plan swapped after review (H1 triple-bind)",
+    rebind.status === 6 && state().review?.verdict !== "OKAY", `(exit ${rebind.status}) ${rebind.stderr.slice(0, 200)}`);
+  writeFileSync(planPath, PLAN); // restore v1 for the honest path below
 
   const planSha = createHash("sha256").update(readFileSync(planPath)).digest("hex");
   const rev = run([script("record-review.mjs"), repo, SLUG, "OKAY", "--momus-artifact", artifactPath, "--plan-sha", planSha]);

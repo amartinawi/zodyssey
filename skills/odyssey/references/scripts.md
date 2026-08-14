@@ -4,7 +4,7 @@ Load this reference when you are about to invoke a trusted-writer script. The in
 SKILL.md keeps only one-line reminders; the full signatures, flags, and exit codes live here.
 
 ## Planning + transitions
-- `scripts/scaffold.mjs <repo-root> <slug> <title> <intent> [task-brief]` — creates plan + state.json + plans/<slug>.task.md (the last carries the phase-−1 primed brief, read by consult.mjs as THE ORIGINAL TASK).
+- `scripts/scaffold.mjs <repo-root> <slug> <title> <intent> [task-brief] [--reset]` — creates plan + state.json + plans/<slug>.task.md (the last carries the phase-−1 primed brief, read by consult.mjs as THE ORIGINAL TASK). `--reset` recovers a terminal/abandoned run (refuses on an active run).
 - `scripts/parse-plan.mjs <plan.md> [--files|--waves|--todo N|--lint]` — reads todos for dispatch and verification. `--lint` mode checks acceptance criteria are executable (gates record-review OKAY).
 - `scripts/set-phase.mjs <repo> <slug> <phase> [--note <text>]` — **the only sanctioned way to transition phases**. Enforces the transition DAG (plan→review→execute→verify→final→done) + preconditions (done requires OKAY + final pass). Escape hatches: blocked/abandoned always allowed. On done|audited, auto-appends run-report to results.jsonl + writes a memory outcome.
 
@@ -15,10 +15,11 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 ## Verify + final wave (phases 5-6)
 - `scripts/record-verify.mjs <repo> <slug> <todo-id> --criterion <cmd> [--exit-code <N> [--exit-code-2 <N>]] [--output <file>] [--n <idx>] [--trust-argv] [--flake-check]` — records per-criterion evidence under `.zcode/verify/`. Exit 6 on failure (exit-code != 0). Flags: `--criterion` is required (the shell command). `--exit-code <N>` is the exit code of the criterion; WITHOUT `--trust-argv` the script EXECUTES the criterion itself (SEC-H2) and refuses `--exit-code` (exit 2) — pass `--trust-argv` only if you ran the criterion yourself and are passing its real exit code. `--exit-code-2 <N>` + `--flake-check` runs a second pass and marks disagreements as `flaky` (distinct from `failed`). `--output <file>` attaches evidence; `--n <idx>` is the criterion index. Also populates `state.acceptance[todoId] = {pass, at, evidence}` (gated on `todos[todoId].status==='done'` AND every recorded criterion passing — closes the mid-verify race) and `state.notepad_pointers[todoId]` when `.zcode/notepads/<slug>/<id>.md` exists. Both fields optional (older state loads fine).
 - `scripts/compact.mjs <repo> <slug>` — OPTIONAL pre-final-wave notepad compactor. Concatenates each notepad in `.zcode/notepads/<slug>/*.md` (truncated to ~40 lines, `## <name>` headers) into a single `_compact-brief.md` the final-wave sub-agents consume instead of the full doc set. Deterministic ($0, no LLM), additive (NEVER modifies source notepads), idempotent. Borrows prime-agent primitive #8.
-- `scripts/record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4]` — binds all four F-items to evidence.
-  - **F1** — machine-checked, three ways: (a) `actual ⊆ declared` (no out-of-scope files); (b) the converse — a plan that declares files against an EMPTY diff fails, because nothing was done; (c) **test integrity** — a deleted test file, a net-negative test-file line count, or a newly added `skip`/`only`/`xfail` marker fails F1. Fails closed in a non-git repo.
+- `scripts/record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5] [--allow-untouched]` — binds all five F-items to evidence.
+  - **F1** — machine-checked, three ways: (a) `actual ⊆ declared` (no out-of-scope files); (b) the converse — a plan that declares files against an EMPTY diff fails, because nothing was done; (c) **test integrity** — a deleted test file, a net-negative test-file line count, or a newly added `skip`/`only`/`xfail` marker fails F1. Fails closed in a non-git repo. `--allow-untouched` waives declared-but-untouched files in F1 (for plans that legitimately leave a declared file unmodified).
   - **F2 / F4** — nonce-bound artifacts whose **verdict is parsed**. The artifact must be JSON with a `verdict` field, or contain a line `VERDICT: APPROVE` / `VERDICT: REJECT`. Anything ambiguous (both, neither, or an unrecognized value) resolves to `missing` and FAILS — an unknown verdict never closes a gate. Prose merely mentioning the words is not a verdict.
   - **F3** — checklist file must exist and be non-empty. This remains a presence check, not a content check.
+  - **F5** — routing-default gate: cross-checks the plan's `## Capability routing` token against `state.capabilities[]` (hook-witnessed Skill/mcp__* calls). `routed: skill:X` needs an observed `skill:X`; `routed: mcp:S` needs `mcp__S…`; `routed: agent:X` needs an observed `agent:X` dispatch; `discovered`/`generic` need an observed `skill:find-skills`. `--skip F5` is the escape hatch.
   - `--skip` records the item as `passed: true`. It is an escape hatch for items that genuinely do not apply, **not** a way to reach `done`. Skipping F2/F4 discards the only code-quality and scope-fidelity signals the pipeline has.
   - *(Corrected 2026-08-11: this entry previously told the conductor that `--skip F2,F4` was "the only working F4 path today (wrong-var bug at :36)". That bug was fixed long before, so the note was instructing conductors to skip a working gate. It also claimed F1 "throws+silently-passes in a non-git repo"; F1 has failed closed since SEC-H1.)*
 
@@ -32,9 +33,9 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 
 ## Eval + consult
 - `scripts/run-report.mjs <repo-root> <slug> [--json] [--log <path>]` — one-run efficiency scorecard. `success` derived from `state.final.verdict`.
-- `scripts/harness.mjs [--task <id>] [--arm zoedyssey|baseline] [--list]` — eval runner: fresh-copy → scaffold → (conductor drives) → auto-append. Prints the judge command.
+- `scripts/harness.mjs [--task <id>] [--arm zodyssey|baseline] [--list]` — eval runner: fresh-copy → scaffold → (conductor drives) → auto-append. Prints the judge command.
 - `scripts/judge.mjs <run-repo> <slug> <seed-id> [--double]` — INDEPENDENT LLM-as-judge on the external CLI (not oracle). Scores against the seed's success_criteria. `--double` = two passes + >0.15 disagreement flag.
-- `scripts/consult.mjs <repo-root> <slug> [--task <file>]` — run ONE external audit round (the `/orchestrate-consult` gate). Fail-closed verdict, secret redaction, read-only auditor. **Freezes the audit tip** (race fix): captures `HEAD` as `audit_head` once at gather time, injects an `AUDIT RANGE` section into the prompt naming the exact frozen range `run_start_sha..audit_head` so the auditor reasons about THAT range (not live HEAD, which may advance past the run's work during the multi-minute external call), records `run_start_sha` + `audit_head` on each `consult.history` entry, and warns if HEAD moved during the round.
+- `scripts/consult.mjs <repo-root> <slug> [--task <file>] [--plan-audit] [--multi-auditor]` — run ONE external audit round (the `/orchestrate-consult` gate). `--plan-audit` is a pre-execute plan-audit mode; `--multi-auditor` runs a two-pass double audit (second CLI from `CLAUDE_CLI_2`). Fail-closed verdict, secret redaction, read-only auditor. **Freezes the audit tip** (race fix): captures `HEAD` as `audit_head` once at gather time, injects an `AUDIT RANGE` section into the prompt naming the exact frozen range `run_start_sha..audit_head` so the auditor reasons about THAT range (not live HEAD, which may advance past the run's work during the multi-minute external call), records `run_start_sha` + `audit_head` on each `consult.history` entry, and warns if HEAD moved during the round.
 
 ## Correctness gates (added 2026-08-11)
 
@@ -44,10 +45,10 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 - `scripts/check-imports.mjs <repo> [--since <sha>] [--files a,b,c]` — exits **9** on an import that resolves against neither the declared dependencies nor `node_modules` (JS/TS) or `requirements`/`pyproject` (Python). Offline; relative paths, builtins, and local modules are ignored. Run it during verify on the run's changed files.
 
 ## Diagnostics + cross-run learning
-- `scripts/resolve-capabilities.mjs [--check] [--agent <name>]` — reconciles agent `tools:` grants vs body references vs live inventory. Exits 6 on routed-but-not-granted violations.
+- `scripts/resolve-capabilities.mjs [--check] [--agent <name>]` — reconciles agent `tools:` grants vs body references vs live inventory. Exits 6 on routed-but-not-granted violations. Test-only env overrides: `ZCAP_HOME` / `ZCAP_CAPS_MD` / `ZCAP_LOCK_PATH` / `ZCAP_CFG_PATH` / `ZCAP_NO_CODEGRAPH` (relocate fixtures / force codegraph off).
 - `scripts/recall-outcomes.mjs <repo> [--failed]` — reads prior blocked/failed outcomes from `.zcode/memory/outcomes.jsonl` for phase-1 premortem grounding.
 - `scripts/recall-corrections.mjs <repo>` — mines correction signals (verify-fail re-dispatches, Momus REJECT + blockers) from `.zcode/state/*.json` (NOT `outcomes.jsonl`) for phase-1 Metis grounding; top-K bounded (default 5) for context economy. Exit 0 success · 2 bad args · 3 no state yet.
-- `scripts/parse-plan.test.mjs` — unit tests for the parser (10 cases; run after any parse-plan change).
+- `scripts/parse-plan.test.mjs` — unit tests for the parser (28 cases; run after any parse-plan change).
 
 ## Phase 3 (REVIEW) — exact order to record a verdict
 
@@ -58,7 +59,7 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 > approve, `record-review` would reject on a criterion the parser could have flagged first, and
 > fixing it changed the plan-sha — which invalidated the review and cost another momus round.
 
-2. zodyssey:momus returns her verdict JSON. Write it to a bookkeeping file (`.zcode/plans/` or `.zcode/notepads/`), then `record-momus-artifact.mjs <repo> <slug> <round> --nonce <nonce> --from <that file>` → prints the artifact path under `.zcode/reviews/`. (Stdin piping via `<<EOF |` is blocked by the Bash gate's metachar denylist pre-verdict — the gate was restored 2026-08-11 after having been deleted in v0.2.0, so this constraint is live again.)
+2. zodyssey:momus returns her verdict (JSON with a `verdict` field, or a `VERDICT: OKAY|REJECT` line per references/momus-prompt.md). Write it to a bookkeeping file (`.zcode/plans/` or `.zcode/notepads/`), then `record-momus-artifact.mjs <repo> <slug> <round> --nonce <nonce> --from <that file>` → prints the artifact path under `.zcode/reviews/`. (Stdin piping via `<<EOF |` is blocked by the Bash gate's metachar denylist pre-verdict — the gate was restored 2026-08-11 after having been deleted in v0.2.0, so this constraint is live again.)
    Note: notepads are **append-only**. `Write` over an existing notepad is blocked; use `Edit`, or write a new file. Notepads are what F1–F4 read, so replacing one wholesale destroys the evidence behind the verdict.
 3. `record-review.mjs <repo> <slug> <OKAY|REJECT> --momus-artifact <that path> --plan-sha $(sha256sum <plan> | cut -d' ' -f1) [--blockers <file>]`.
 

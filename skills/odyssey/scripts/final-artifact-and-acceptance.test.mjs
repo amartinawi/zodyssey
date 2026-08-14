@@ -215,10 +215,27 @@ console.log("record-final-artifact + acceptance completeness\n");
     check("F5 FAILS for `generic:` with NO find-skills observation (generic without trying)", res.F5?.passed === false && /find-skills/.test(res.F5?.reason || ""), JSON.stringify(res.F5)?.slice(0, 200));
   }
   {
+    // audit M4: agent routing is now behaviorally verified — post-tool records the dispatch as an
+    // observed `agent:<name>` capability. A declared agent WITH an observed dispatch passes.
     const repo = makeRun();
-    setRouting(repo, "- `routed: agent:zodyssey:oracle`", []); // agent dispatches are not hook-observed
+    setRouting(repo, "- `routed: agent:zodyssey:oracle`", obs("agent:zodyssey:oracle"));
     const res = wave(repo);
-    check("F5 passes (declaration-only, with note) for `agent:` routing", res.F5?.passed === true && !!res.F5?.note, JSON.stringify(res.F5)?.slice(0, 200));
+    check("F5 passes for `agent:` routing WITH an observed dispatch", res.F5?.passed === true, JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    // audit M4: agent routing declared but NEVER dispatched must FAIL (was a declaration-only pass).
+    const repo = makeRun();
+    setRouting(repo, "- `routed: agent:zodyssey:oracle`", []);
+    const res = wave(repo);
+    check("F5 FAILS for `agent:` routing with no observed dispatch", res.F5?.passed === false && /oracle/.test(res.F5?.reason || ""), JSON.stringify(res.F5)?.slice(0, 200));
+  }
+  {
+    // audit M5: an observation from a pre-decision phase (prime/triage) must NOT satisfy F5.
+    const repo = makeRun();
+    setRouting(repo, "- `routed: skill:aws-serverless`",
+      [{ at: new Date().toISOString(), phase: "triage", capability: "skill:aws-serverless", observed: true }]);
+    const res = wave(repo);
+    check("F5 FAILS when the only observation is from a pre-decision phase (M5)", res.F5?.passed === false, JSON.stringify(res.F5)?.slice(0, 200));
   }
   {
     const repo = makeRun();

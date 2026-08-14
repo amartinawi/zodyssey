@@ -2,6 +2,44 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] — 2026-08-14
+
+**Security remediation of the v0.4.0 full audit.** The audit found the core property — a non-forgeable OKAY review verdict — broken two independent ways, the flagship F5 routing gate at risk of being inert in production, several softer gate weaknesses, secret-leak / prompt-injection holes in the measurement loop, and a cluster of documentation drift. This release fixes every finding, each security fix shipping with a regression test that fails on the old code.
+
+### Fixed — the two verdict-forge paths (CRITICAL / HIGH)
+
+- **Newline injection through the trusted-script gate (CRITICAL, `pre-tool.mjs`).** `shellSafeForTrustedInvoke` scanned for `;&|` `` ` `` `$<>()` but never rejected a newline, and the operand regex only read the first line — so `node <trusted-script>\n<second-command>` passed the allowlist and the shell ran the second command ungated (`sed` `verdict:OKAY` into state.json, no momus dispatch needed). The scan now rejects any control character (`< 0x20`) before parsing. New cases in `pre-tool.trusted-invoke.test.mjs` prove newline/CR/tab injections stay blocked while quoted metachars still pass.
+- **Plan-sha rebind (HIGH, `record-momus-artifact.mjs` + `record-review.mjs`).** The momus artifact recorded no hash of the plan it approved, and `record-review`'s plan-sha check compared a caller-supplied value to the current disk — both agent-controlled. An agent could get a real OKAY on a minimal plan, swap in a scope-widened plan that still lints, and record OKAY bound to it. The recorder now stamps the sha of the plan momus actually read into the consumed-nonce; `record-review` requires a **triple-bind** (argv === what-momus-read === disk). Regression in `pipeline-integration.test.mjs`.
+
+### Fixed — the F5 routing gate and its blind spots
+
+- **Matcher coverage (HIGH, `.zcode-plugin/plugin.json` + `smoke-gate.mjs`).** The PreToolUse/PostToolUse matchers excluded `Skill` and `mcp__*`, so the hook that records F5's evidence never fired for those tools in a real install — the flagship gate could be inert. Both matchers now include `Skill|mcp__.*` (and `dispatch_agent`); smoke-gate asserts matcher coverage so the blind spot can't return silently.
+- **Attempt vs load (M7).** The capability observation moved from PreToolUse (fires on tool *attempt*, even for a nonexistent skill) to PostToolUse (fires after a successful load). Pre-tool now records `attempted`; F5 counts only `observed`.
+- **Agent routing verified (M4).** `routed: agent:X` was a declaration-only pass. post-tool now records each completed Task dispatch as an observed `agent:<name>` capability, and F5 requires it. `parse-plan --lint` also rejects a `routed:` value that is not `skill:`/`mcp:`/`agent:`-shaped.
+- **Stale observations (M5).** F5 ignored phase, so a capability loaded in prime/triage (before the routing decision existed) could satisfy it. F5 now excludes pre-decision phases.
+
+### Fixed — gate hardening
+
+- **MCP / non-native write path (HIGH → H3, `pre-tool.mjs`).** Any tool that is not natively classified (all `mcp__*` and unknown tools) fell through to `exit(0)`. A local-filesystem MCP could write state.json or a `.zcode/reviews/` artifact and forge a verdict ungated. Such tools are now blocked from targeting `.zcode/state` and `.zcode/reviews`; ordinary MCP reads/writes elsewhere are unaffected.
+- **Dispatch run-selection (M8).** A `Task(momus)` carried no file target, so run-selection fell back to the globally most-recent run — in a multi-run workspace the nonce could mint into the wrong run and deadlock the intended one. Dispatch now re-selects the run whose repo root encloses the working directory.
+- **File-lock owner (M9).** With `agent_id` absent the owner collapsed to `session_id`, identical across parallel executors, so two editing the same file both saw the lock as self-owned. `parent_tool_use_id` (stable per executor, distinct between them) is now preferred.
+- **Partial completion (M6, `record-final-wave.mjs`).** F1 computed `declared_untouched` but never gated on it — declaring `Files:[A,B,C]` and touching only A reached `done`. F1 now fails on untouched declared files, waivable with `--allow-untouched` for context-only entries.
+
+### Fixed — the measurement loop
+
+- **Secret redaction (M1, `lib/redact.mjs`).** The redaction regex anchored `.env` to a filename start, so `prod.env` / `staging.env` / `.envrc` / `aws.credentials` leaked verbatim to the external auditor, and a path with a space defeated the hunk-path capture. Extracted to a shared `lib/redact.mjs` with suffix-matching + space-tolerant capture, unit-tested, and imported by consult, judge, and both recall scripts.
+- **judge.mjs hardening (M2 + LOW).** The independent eval scorer ingested the agent-authored diff with no DATA-framing and no secret redaction (an agent could inflate its own score with a planted comment and exfiltrate fixture secrets). It now redacts the diff, fences it as DATA, uses the shared EPIPE-tolerant spawn check (`lib/spawn.mjs`), and fails loudly on a missing `run_start_sha` instead of scoring a blank diff.
+- **Recall injection (M3, `recall-corrections.mjs` + `recall-outcomes.mjs`).** Agent-influenced criterion/blocker/observation text was replayed verbatim into a later run's Metis prompt. It is now sanitized (control chars stripped) and fenced as untrusted DATA, distinct from the script's own directive.
+- **Consult in-scope diff cap (LOW).** The in-scope diff is capped at 200KB to match the out-of-scope discipline.
+
+### Changed — documentation brought back in sync
+
+A sweep corrected drift the audit surfaced: the plan-checkbox-tick instruction that the tamper guard punishes (removed), the purged pre-v0.3.0 `capabilities.md` path three agents still read, the "bash is ungated" claim in `sisyphus-junior.md` (the gate is live), F5 added to every operator-facing final-wave surface, the momus prose-vs-JSON verdict contract, the "hooks in config.json" / "(unreleased)" labels in README, the stale "no CI / no test runner" claims, the non-executable example run, and previously undocumented env vars/flags (`ZODYSSEY_REGRESSION_TIMEOUT_MS`, `CLAUDE_CLI_2`, `scaffold --reset`, `consult --plan-audit`).
+
+### Verification
+
+Full `node --test` green, plus new regression coverage: newline-injection (trusted-invoke), plan-sha rebind (pipeline-integration), F1 partial-completion + `--allow-untouched` (record-final-wave), F5 agent-verified + stale-phase (final-artifact), malformed-`routed:` lint (parse-plan), MCP write-to-`.zcode/state` block (pre-tool.scope), and secret-redaction suffix/space cases (`lib/redact`). Smoke-gate gains a matcher-coverage assertion; version consistent at 0.4.1 across all four declarers.
+
 ## [0.4.0] — 2026-08-14
 
 **Routing becomes a default, gated behavior.** Two probe runs proved the conductor hand-rolls from model knowledge: given an AWS Lambda task it ignored the installed `aws-serverless` skill (Task B), and given a Helm-chart gap it never loaded `find-skills` (Task A). v0.3.4's routing rows were passive reference material — a capable model skips the lookup whenever it can do the task from memory, which is most of the time. This release adds the two things that actually change behavior: a hard default in the conductor prompt, and two gates that make skipping routing unable to reach `done`.
