@@ -82,9 +82,13 @@ if (!VALID_INTENT.includes(intent)) {
   exit(3); // bad intent
 }
 
-const plansDir = join(repoRoot, ".zcode", "plans");
-const stateDir = join(repoRoot, ".zcode", "state");
-const notepadsDir = join(repoRoot, ".zcode", "notepads", slug);
+// Class B fix: every path derived from the repo arg is built from the RESOLVED root, so
+// plan_path (persisted into state and read by 11 downstream sites that resolve it against
+// their own cwd) can never be a relative string.
+const repoAbs = resolveRepo(repoRoot);
+const plansDir = join(repoAbs, ".zcode", "plans");
+const stateDir = join(repoAbs, ".zcode", "state");
+const notepadsDir = join(repoAbs, ".zcode", "notepads", slug);
 mkdirSync(plansDir, { recursive: true });
 mkdirSync(stateDir, { recursive: true });
 mkdirSync(notepadsDir, { recursive: true });

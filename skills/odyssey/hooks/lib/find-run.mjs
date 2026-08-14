@@ -39,7 +39,11 @@ function discoverStateDirs(projectDir) {
     if (seen.has(real)) continue;
     seen.add(real);
     if (isZcodeChild) {
-      stateDirs.push(join(dir, "state"));
+      // Class B fix: `real` is computed two lines up and was then DISCARDED, pushing the
+      // non-realpath'd `dir` instead. RUN_STATE_DIR therefore carried symlink components while
+      // pre-tool realpaths the edit target before comparing — an asymmetry that misclassifies
+      // bookkeeping as product code (the deadlock the nested-repo fix claimed to have closed).
+      stateDirs.push(join(real, "state"));
       continue;
     }
     if (depth >= MAX_DEPTH) continue;

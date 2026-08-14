@@ -28,6 +28,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { findActiveRuns, selectByTarget } from "./lib/find-run.mjs";
 import { verifyMarker, adoptHint } from "../scripts/lib/state-auth.mjs";
+import { resolvePath, containedIn } from "../scripts/lib/repo-path.mjs";
 
 // W5-minor: realpath the project dir so a symlinked/env-logical path resolves consistently
 // with realpath'd edit targets (otherwise in-repo files mis-classify as out-of-repo → gate deadlock).
@@ -1357,7 +1358,12 @@ if (isDispatch) {
 // paths is unaffected — this is a targeted forge-surface guard, not a blanket MCP block.)
 if (!isEdit && !isBash && !isDispatch) {
   try {
-    const runRepo = pathResolve(RUN_STATE_DIR, "..", "..");
+    // Class B fix (audit 2026-08-14): this guard — added in v0.4.1 to close the MCP write hole —
+    // had the same defect it was written to close. `protectedDirs` came from a pathResolve'd
+    // RUN_STATE_DIR and the candidate below was pathResolve'd with no realpath at all, so a
+    // symlinked path (or one an MCP server resolves against its own cwd) walked straight past.
+    // containedIn normalizes both sides.
+    const runRepo = resolvePath(pathResolve(RUN_STATE_DIR, "..", ".."));
     const protectedDirs = [join(runRepo, ".zcode", "state"), join(runRepo, ".zcode", "reviews")];
     const strings = [];
     (function collect(v, depth) {
@@ -1369,10 +1375,10 @@ if (!isEdit && !isBash && !isDispatch) {
     for (const s of strings) {
       if (typeof s !== "string" || s.length > 4096) continue;
       if (!s.includes("/") && !s.includes(sep)) continue; // not path-shaped
-      let resolved;
-      try { resolved = pathResolve(runRepo, s); } catch { continue; }
       for (const d of protectedDirs) {
-        if (resolved === d || resolved.startsWith(d + sep)) {
+        // containedIn realpaths both sides, so a symlinked repo root or a symlinked .zcode no
+        // longer slips past. Relative strings resolve against the run's repo, not the caller's cwd.
+        if (containedIn(pathResolve(runRepo, s), d)) {
           block(
             `tool ${toolName} targets a trust-critical path (${s.slice(0, 120)}). Writes under ` +
               `.zcode/state and .zcode/reviews are reserved for the trusted-writer scripts — a ` +

@@ -118,8 +118,9 @@ Because sub-agents cannot load skills (trust anchor), **the orchestrator loads t
         │      < max_rounds (3): re-dispatch zodyssey:promethe-│
         │      us with the blockers, then re-review. If ≥ 3:   │
         │      STOP and surface to user (no unbounded loop).   │
-        │    • OKAY → write verdict to state.json, set         │
-        │      phase = "execute".                              │
+        │    • OKAY → record-review.mjs (the ONLY sanctioned    │
+        │      verdict write; a direct state.json edit is      │
+        │      what the gate blocks), then set-phase execute.  │
         │    (Optional, for architecture intent: also dispatch │
         │    zodyssey:oracle for an independent review; both   │
         │    must OKAY.)                                       │
@@ -350,7 +351,7 @@ On `/orchestrate resume <slug>`, read `state.json`, find the last checkpoint, an
 - **Phase transitions:** `scripts/set-phase.mjs <repo> <slug> <phase>` — the *only* sanctioned way to move phases. (Escape hatches: `blocked`/`abandoned` always allowed.)
 - **Scaffold the plan:** `scripts/scaffold.mjs <repo-root> <slug> <title> <intent> [task-brief]`.
 - **Parse todos:** `scripts/parse-plan.mjs <plan.md> --lint|--files|--waves|--todo N`.
-- **Review gate (phase 3):** dispatch zodyssey:momus → read the minted nonce from `state.review.pending_nonce` → `record-momus-artifact.mjs … --nonce <nonce> --from <bookkeeping-file>` → `record-review.mjs … OKAY --momus-artifact <path> --plan-sha <full-64-char-sha>`. Full order + the `--from`-vs-stdin caveat in `references/scripts.md`.
+- **Review gate (phase 3):** dispatch zodyssey:momus → read the minted nonce from `state.review.pending_nonce` → `record-momus-artifact.mjs … --nonce <nonce> --from <file under .zcode/staging/>` (SEC-6 refuses `--from` under `plans/` or `notepads/`) → `record-review.mjs … OKAY --momus-artifact <path> --plan-sha <full-64-char-sha>`. Full order + the `--from`-vs-stdin caveat in `references/scripts.md`.
 - **Record todo/verify/final-wave:** see `references/scripts.md` for exact flags (record-verify, record-final-wave, record-todo).
 - **Diagnostics:** `scripts/status.mjs <repo> <slug>` (where is this run), `scripts/resolve-capabilities.mjs` (tool-grant reconciliation).
 

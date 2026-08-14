@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSyn
 import { join } from "node:path";
 import { argv, exit, stdin } from "node:process";
 import { createHash } from "node:crypto";
+import { resolveRepo, resolvePath, containedIn } from "./lib/repo-path.mjs";
 
 const [repo, slug, ...tail] = argv.slice(2);
 // <round> is optional, so the third positional may actually be the first FLAG. Only treat it as a
@@ -83,10 +84,13 @@ if (fromFile) {
   // (.zcode/notepads/, .zcode/plans/), which are the cheapest place to pre-stage a forged verdict.
   // Stdin and non-bookkeeping --from paths are still allowed (the legit orchestrator path).
   try {
-    const fromAbs = realpathSync(fromFile);
-    const zcode = join(repo, ".zcode");
-    if (fromAbs.startsWith(join(zcode, "notepads") + "/") || fromAbs.startsWith(join(zcode, "plans") + "/")) {
-      console.error(`record-momus-artifact.mjs: --from <file> under agent-writable bookkeeping (${fromAbs}) refused — pipe the verdict via stdin or use a non-bookkeeping path. (SEC-6: the artifact content must not be pre-staged where an agent can write it.)`);
+    // Class B fix (audit 2026-08-14): this guard built its prefix from the repo argument AS PASSED
+    // while comparing against an absolute realpath, so with a relative repo arg (`.` — the form the
+    // docs themselves used) `startsWith` could never match and SEC-6 was a no-op. Proven bypassed.
+    // containedIn normalizes BOTH sides; that is the whole point of routing through it.
+    const zcode = join(resolveRepo(repo), ".zcode");
+    if (containedIn(fromFile, join(zcode, "notepads")) || containedIn(fromFile, join(zcode, "plans"))) {
+      console.error(`record-momus-artifact.mjs: --from <file> under agent-writable bookkeeping (${resolvePath(fromFile)}) refused — SEC-6: the artifact content must not be pre-staged where an agent can write it. Stage it in .zcode/staging/ (writable pre-OKAY, and not a dir the planner writes) or pipe the verdict on stdin.`);
       exit(6);
     }
   } catch (e) {
