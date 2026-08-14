@@ -24,9 +24,11 @@
 //   Prints the plan path on success.
 //   exit: 0 ok · 2 missing args · 3 bad intent · 4 bad slug · 5 plan already exists
 
-import { mkdirSync, writeFileSync, existsSync, readFileSync, openSync, closeSync, fstatSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync, openSync, closeSync, fstatSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { makeReviewDefault } from "./lib/verdict-schema.mjs";
+import { stampMarker } from "./lib/state-auth.mjs";
+import { resolveRepo } from "./lib/repo-path.mjs";
 import { argv, exit, cwd } from "node:process";
 import { execSync } from "node:child_process";
 
@@ -36,8 +38,38 @@ import { execSync } from "node:child_process";
 // <repo>/.zcode/plans/<slug>.task.md (G5) so consult.mjs has the real original task to judge
 // scope fidelity against. Lives under plans/ (bookkeeping, always writable).
 const [repoRoot, slug, title, intent, taskArg] = argv.slice(2);
+
+// --adopt: stamp the v0.5.0 authenticity marker onto an EXISTING run's state file. v0.5.0
+// authenticates run discovery (CRITICAL T1-7), so a legitimate run created before the upgrade
+// stops being discovered until it is adopted once. This is the sanctioned migration path — it
+// only ever ADDS the marker to a file that is already on disk; it never creates a run, and it
+// refuses if the state file does not exist (so it cannot be used to bless a dropped decoy that
+// the operator has not already accepted).
+if (argv.includes("--adopt")) {
+  if (!repoRoot || !slug) {
+    console.error("usage: scaffold.mjs <repo-root> <slug> --adopt");
+    exit(2);
+  }
+  const adoptRepo = resolveRepo(repoRoot);
+  const adoptPath = join(adoptRepo, ".zcode", "state", `${slug}.json`);
+  if (!existsSync(adoptPath)) {
+    console.error(`scaffold.mjs --adopt: no state file at ${adoptPath} (adopt only stamps an existing run)`);
+    exit(3);
+  }
+  let st;
+  try { st = JSON.parse(readFileSync(adoptPath, "utf8")); }
+  catch { console.error(`scaffold.mjs --adopt: ${adoptPath} is not valid JSON`); exit(3); }
+  stampMarker(st, slug);
+  st.updated_at = new Date().toISOString();
+  const atmp = adoptPath + ".tmp." + process.pid;
+  writeFileSync(atmp, JSON.stringify(st, null, 2) + "\n");
+  renameSync(atmp, adoptPath);
+  console.log(`adopted: ${adoptPath} (phase=${st.phase}) — now discoverable under v0.5.0 run authentication`);
+  exit(0);
+}
+
 if (!repoRoot || !slug || !title || !intent) {
-  console.error("usage: scaffold.mjs <repo-root> <slug> <title> <intent> [task-brief-or-file]");
+  console.error("usage: scaffold.mjs <repo-root> <slug> <title> <intent> [task-brief-or-file]  |  scaffold.mjs <repo-root> <slug> --adopt");
   exit(2);
 }
 if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
@@ -266,6 +298,9 @@ const state = {
   acceptance: {},
   notepad_pointers: {},
 };
+// CRITICAL T1-7: mint the authenticity marker so the hooks will discover this run. A state file
+// without it is ignored (an unmarked file is exactly what the forged-run drop looked like).
+stampMarker(state, slug);
 writeFileSync(statePath, JSON.stringify(state, null, 2) + "\n");
 
 // Probe the repo's toolchain at scaffold time so <repo>/.zcode/toolchain.json exists for the

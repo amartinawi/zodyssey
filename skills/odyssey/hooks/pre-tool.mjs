@@ -27,6 +27,7 @@ import { exit, env } from "node:process";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { findActiveRuns, selectByTarget } from "./lib/find-run.mjs";
+import { verifyMarker, adoptHint } from "../scripts/lib/state-auth.mjs";
 
 // W5-minor: realpath the project dir so a symlinked/env-logical path resolves consistently
 // with realpath'd edit targets (otherwise in-repo files mis-classify as out-of-repo → gate deadlock).
@@ -109,6 +110,23 @@ const WRITE_PATTERNS = [
   /\bcurl\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
   /\bwget\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
   /\binstall\s+-m\b/,
+  // CRITICAL T1-1 (audit 2026-08-14): the deny-list missed a whole family of ordinary write
+  // primitives, so they classified as READ-ONLY and ran pre-OKAY in any phase. Chained with
+  // unauthenticated run discovery (see findActiveRun) this was the forged-run takeover: a
+  // prompt-injected executor writes a decoy run-state with `sort -o` or `touch`, and the forged
+  // run then governs the review gate, the scope gate, and the tamper guard. Reproduced end-to-end
+  // by the auditor. Every entry below was verified absent from this list before being added.
+  /\bsort\b[^&;\n]*\s-o\b/,                       // sort -o FILE (writes anywhere)
+  /\btouch\b/,                                     // creates/updates files
+  /\bsponge\b/,                                    // moreutils: soaks stdin then writes the file
+  /\b(?:g|busybox\s+)sed\s+[^&;\n]*-i\b/,          // gsed/busybox sed -i (the bare `sed -i` is above)
+  /\bcrontab\b/,                                   // installs a crontab from a file/stdin
+  /\b(?:scp|sftp)\b/,                              // remote copy writes local paths too
+  /\bsqlite3\s+\S+\s+\S/,                          // sqlite3 <db> <sql> mutates a file
+  /\b(?:at|batch)\b/,                              // schedules a command to run later
+  /\bdd\b/,                                        // dd without of= can still write via redirect forms
+  /\btruncate\b/,                                  // (also matched above; kept explicit for clarity)
+  /\bxargs\b/,                                     // xargs can drive any writer; conservative
 ];
 
 // Heuristic: does this Bash command ONLY read? If so, allow it even pre-review.
@@ -378,6 +396,24 @@ function findActiveRun() {
         st = JSON.parse(readFileSync(join(dir, f), "utf8"));
       } catch {
         continue;
+      }
+      // CRITICAL T1-7 (audit 2026-08-14): discovery used to trust ANY parseable .json here, so a
+      // dropped `decoy.json` carrying review.verdict:"OKAY" became the governing run and defeated
+      // the review gate, scope gate and tamper guard at once. Require the authenticity marker that
+      // scaffold/trusted writers mint. Fail CLOSED: an unmarked file is not a run.
+      // Legitimate pre-v0.5.0 runs are adopted once via `scaffold.mjs <repo> <slug> --adopt`;
+      // the warning names that command so an operator whose run stopped being discovered is not
+      // left guessing (silence here would look identical to "no run active").
+      {
+        const auth = verifyMarker(st, st.slug || f.replace(/\.json$/, ""));
+        if (!auth.ok) {
+          if (env.ZODYSSEY_DEBUG) {
+            process.stderr.write(
+              `ZOdyssey: ignoring run state ${join(dir, f)} — ${auth.reason}. ${adoptHint("<repo>", st.slug || f.replace(/\.json$/, ""))}\n`
+            );
+          }
+          continue;
+        }
       }
       if (!st.phase || TERMINAL.has(st.phase)) continue;
       const updated = st.updated_at ? new Date(st.updated_at).getTime() : 0;

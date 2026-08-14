@@ -18,6 +18,7 @@
 
 import { readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
 import { join, resolve as pathResolve, sep } from "node:path";
+import { verifyMarker } from "../../scripts/lib/state-auth.mjs";
 
 export const TERMINAL = new Set(["done", "audited", "abandoned"]);
 export const STALE_MS_DEFAULT = 24 * 3600 * 1000;
@@ -76,6 +77,11 @@ export function findActiveRuns({ projectDir, staleMs = STALE_MS_DEFAULT }) {
       const p = join(dir, f);
       let st;
       try { st = JSON.parse(readFileSync(p, "utf8")); } catch { continue; }
+      // CRITICAL T1-7: same authenticity requirement as pre-tool's own discovery. This copy feeds
+      // selectByTarget (edit/dispatch re-selection) and both post-tool and stop — leaving it
+      // unauthenticated would let a dropped state file win by target-ancestry even after the
+      // primary discovery path started rejecting it.
+      if (!verifyMarker(st, st.slug || f.replace(/\.json$/, "")).ok) continue;
       if (!st.phase || TERMINAL.has(st.phase)) continue;
       const updated = st.updated_at ? new Date(st.updated_at).getTime() : 0;
       if (updated && now - updated > staleMs) continue; // stale → treat as abandoned

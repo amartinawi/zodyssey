@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { stampMarker } from "../scripts/lib/state-auth.mjs";
 
 const HOOK = join(new URL(".", import.meta.url).pathname, "pre-tool.mjs");
 const SCRIPTS = join(new URL(".", import.meta.url).pathname, "..", "scripts");
@@ -39,10 +40,11 @@ writeFileSync(join(repo, "src", "a.js"), "const a = 1;\n");
 const planPath = join(repo, ".zcode", "plans", "t.md");
 const planText = "# t\n\n## Capability routing\n- `routed: skill:prompt-master`\n- Evidence: fixture.\n\n## Todos\n\n- [ ] 1. go\n  - Files: [`src/a.js`]\n";
 writeFileSync(planPath, planText);
-writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
+// v0.5.0: authenticated run discovery — an unmarked fixture state file is ignored by the hook.
+writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify(stampMarker({
   slug: "t", phase: "plan", updated_at: new Date().toISOString(), plan_path: planPath,
   review: { verdict: "REJECT", round: 1, max_rounds: 3, plan_sha256: createHash("sha256").update(planText).digest("hex") },
-}, null, 2));
+}, "t"), null, 2));
 
 const run = (command) => spawnSync(process.execPath, [HOOK], {
   input: JSON.stringify({ tool_name: "Bash", tool_input: { command } }),
