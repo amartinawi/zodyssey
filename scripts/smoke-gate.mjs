@@ -37,6 +37,31 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { enumerateDeployed } from "./lib/deploy-surface.mjs";
 
+// Run-state authenticity marker (v0.5.0+). The fixtures below hand-write state files, and an
+// UNMARKED state file is not a run — the hook finds nothing and no-ops, so every gate probe reads
+// as "allowed". That is indistinguishable from enforcement being offline, which is the exact
+// failure this whole script exists to detect, so an unstamped fixture would make the release gate
+// cry wolf on a correctly-armed build. (It did, on the first post-deploy run of 0.5.0.)
+//
+// Loaded from the DEPLOYED plugin, not the repo: the marker must be minted by the same build whose
+// hook will verify it. Null on pre-0.5.0 deploys, which have no marker and need none.
+// Lazy: installPath is resolved in section 1, below this import block.
+let _stampMarker;
+async function stamp(st, slug) {
+  if (_stampMarker === undefined) {
+    _stampMarker = null;
+    const cands = [
+      installPath ? join(installPath, "skills/odyssey/scripts/lib/state-auth.mjs") : null,
+      join(REPO, "skills/odyssey/scripts/lib/state-auth.mjs"),
+    ];
+    for (const cand of cands) {
+      if (!cand || !existsSync(cand)) continue;
+      try { ({ stampMarker: _stampMarker } = await import(cand)); break; } catch { /* next */ }
+    }
+  }
+  return _stampMarker ? _stampMarker(st, slug) : st;
+}
+
 const REPO = pathResolve(new URL("..", import.meta.url).pathname);
 const HOME = homedir();
 const FIXTURE = join(tmpdir(), "zodyssey-gate-smoke");
@@ -193,11 +218,13 @@ if (installPath && existsSync(installPath)) {
     writeFileSync(join(probe, "src", "foo.js"), "// probe\n");
     const planText = "# probe\n\n## Todos\n\n- [ ] 1. x\n  Files: [`src/foo.js`]\n";
     writeFileSync(join(probe, ".zcode", "plans", "probe.md"), planText);
-    writeFileSync(join(probe, ".zcode", "state", "probe.json"), JSON.stringify({
-      slug: "probe", phase: "execute", updated_at: new Date().toISOString(),
-      plan_path: join(probe, ".zcode", "plans", "probe.md"),
-      review: { verdict: "REJECT", round: 1, max_rounds: 3 },
-    }));
+    writeFileSync(join(probe, ".zcode", "state", "probe.json"),
+      JSON.stringify(await stamp({
+        slug: "probe", phase: "execute", updated_at: new Date().toISOString(),
+        started_at: "2026-08-15T00:00:00Z", run_start_sha: "smoke",
+        plan_path: join(probe, ".zcode", "plans", "probe.md"),
+        review: { verdict: "REJECT", round: 1, max_rounds: 3 },
+      }, "probe")));
     const call = (input, env = {}) => spawnSync(process.execPath, [hook], {
       input: JSON.stringify(input), encoding: "utf8",
       env: { ...process.env, CLAUDE_PROJECT_DIR: probe, ZODYSSEY_UNGATE_BASH: "", ...env },
@@ -227,11 +254,12 @@ writeFileSync(join(FIXTURE, "src", "foo.js"), "// Try to edit me from a live ZCo
 writeFileSync(join(FIXTURE, "src", "out-of-scope.js"), "// Not in the plan's Files:. Expected: BLOCKED even after OKAY.\n");
 const planText = "# smoke\n\n## Todos\n\n- [ ] 1. smoke check\n  Files: [`src/foo.js`]\n";
 writeFileSync(join(FIXTURE, ".zcode", "plans", "smoke.md"), planText);
-writeFileSync(join(FIXTURE, ".zcode", "state", "smoke.json"), JSON.stringify({
+writeFileSync(join(FIXTURE, ".zcode", "state", "smoke.json"), JSON.stringify(await stamp({
   slug: "smoke", phase: "execute", updated_at: new Date().toISOString(),
+  started_at: "2026-08-15T00:00:00Z", run_start_sha: "smoke",
   plan_path: join(FIXTURE, ".zcode", "plans", "smoke.md"),
   review: { verdict: "REJECT", round: 1, max_rounds: 3 },
-}, null, 2));
+}, "smoke"), null, 2));
 
 console.log(`\n${failed === 0 ? "AUTOMATED CHECKS PASSED" : `AUTOMATED CHECKS FAILED (${failed})`}`);
 console.log(`
