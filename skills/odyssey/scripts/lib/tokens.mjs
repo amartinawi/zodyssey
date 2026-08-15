@@ -113,6 +113,11 @@ export function collectRunTokens({ repoRoot, startMs, endMs, rates = null, dbPat
     return {
       source: "zcode-db",
       attribution: "time-window",
+      // The two scoping keys, echoed back. Attribution is (repo x window), so a figure quoted
+      // without both is not reproducible — two readers comparing "the audit run" landed on
+      // 10.8M and 24.3M and neither was wrong. repo is the normalized path actually matched.
+      repo: aliases[0],
+      repo_aliases: aliases,
       confidence: "estimate", // exact once the harness session id is stamped into run state
       window: { start_ms: startMs, end_ms: end },
       sessions: { total: sessions.size, subagent: subSessions.size },
@@ -121,6 +126,18 @@ export function collectRunTokens({ repoRoot, startMs, endMs, rates = null, dbPat
       by_role: Object.fromEntries(Object.entries(byRole).map(([k, v]) => [k, withCost(v)])),
       by_agent: Object.fromEntries(Object.entries(byAgent).map(([k, v]) => [k, withCost(v)])),
       cache_hit_ratio: totals.input > 0 ? totals.cache_read / totals.input : 0,
+      // Shares, with the DENOMINATOR NAMED. Two readers independently summarised the same run as
+      // "orchestrator 90.7%" and "orchestrator 50.7%" and both were right — one meant share of
+      // input+output, the other share of input. A bare percentage in a report is unfalsifiable
+      // without its denominator, and these numbers are also window-sensitive, so `window` above
+      // is part of the claim, not context. Quote a share WITH its key or not at all.
+      shares: {
+        orchestrator_of_total: totals.total > 0 ? (byRole.orchestrator?.total || 0) / totals.total : 0,
+        orchestrator_of_input: totals.input > 0 ? (byRole.orchestrator?.input || 0) / totals.input : 0,
+        subagent_of_total: totals.total > 0 ? (byRole.subagent?.total || 0) / totals.total : 0,
+        cache_read_of_input: totals.input > 0 ? totals.cache_read / totals.input : 0,
+        billable_input_of_input: totals.input > 0 ? totals.billable_input / totals.input : 0,
+      },
       rates_source: rates ? "user" : null,
     };
   } catch {

@@ -19,7 +19,34 @@
 
 // Lowercase and strip ALL whitespace (not just trim): plans are hand-written and
 // `routed: skill: my-skill` is the same declaration as `routed: skill:my-skill`.
+//
+// Use this for OBSERVED names, which come from the hook and are always a bare token. For DECLARED
+// values, which come from a hand-written plan line, use capabilityToken() below — stripping all
+// whitespace welds trailing prose onto the name.
 export const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "");
+
+// The capability token at the START of a declared routing value, with any trailing prose dropped.
+//
+// WHY (ORCH-2, found by the v0.5.0 deep verification): routing lines are documentation as much as
+// declaration, and people write them that way:
+//
+//     - `routed: skill:source-command-audit-full — primary; generic fallback if unavailable`
+//
+// norm() strips ALL whitespace, so that became `skill:source-command-audit-full—primary;genericfallback…`
+// — a name that matches nothing. F5 then failed a run that had routed correctly and loaded the
+// right skill, with a message about the skill never being observed. That is the exact failure the
+// live run hit; segment-tolerant matching fixed the NAMESPACE half of it and left this half.
+//
+// Two rules, in order:
+//   1. collapse whitespace around ":" so `skill: my-skill` still reads as one token (the reason
+//      norm() stripped whitespace in the first place — that tolerance is kept);
+//   2. take the leading run of name characters, so the token ends at the first space, em dash,
+//      comma, semicolon or parenthesis. Capability names never contain those.
+export function capabilityToken(value) {
+  const s = String(value || "").toLowerCase().replace(/\s*:\s*/g, ":").trim();
+  const m = s.match(/^[a-z0-9._:@/_-]+/);
+  return m ? m[0].replace(/[.,;:]+$/, "") : "";
+}
 
 // The kind prefix of a declared routing value: skill | mcp | agent | null.
 export function kindOf(value) {
@@ -67,8 +94,12 @@ export function matchesMcpServer(declaredServer, observedCapability) {
 // THE entry point. `declared` is a plan's routing value (`skill:x` / `mcp:x` / `agent:x`);
 // `observed` is a string from state.capabilities[].capability.
 export function matchesCapability(declared, observed) {
-  const kind = kindOf(declared);
-  const value = bareValue(declared);
+  // Tokenize the DECLARED side first (ORCH-2): the plan line may carry trailing prose, and
+  // norm()'s whitespace stripping would weld it onto the name. The observed side needs no
+  // tokenizing — it comes from the hook as a bare capability string.
+  const token = capabilityToken(declared);
+  const kind = kindOf(token);
+  const value = bareValue(token);
   const obs = norm(observed);
   if (!kind || !value || !obs) return false;
   if (kind === "mcp") return matchesMcpServer(value, obs);

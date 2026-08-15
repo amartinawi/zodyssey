@@ -38,6 +38,13 @@ Thumbs.db
 # Local audit prompts + verdicts (personal, and verdict files may hold model output)
 .zcode/audits/
 
+# ORCH-3: same reasoning as .zcode/audits/ — audit REPORTS are run output, not source, and they
+# quote model text. This directory was unignored, so every future report would land untracked-but-
+# visible and eventually get committed by an `git add -A`. The v0.4.1 report is kept deliberately
+# as the release's provenance (v0.5.0 is the remediation of it), so it stays tracked by name.
+.zcode/reports/
+!.zcode/reports/v0-4-1-full-audit-findings.md
+
 # Third-party agent tooling that writes into the working tree
 .claude-flow/
 .swarm/

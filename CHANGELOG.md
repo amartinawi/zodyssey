@@ -70,13 +70,23 @@ Matching is segment-tolerant everywhere now: exact wins, else the final name seg
 
 `--verify` and smoke-gate compared 3 code trees while `--sync-cache` deploys 6, so a drifted `agents/momus.md` would run a stale reviewer prompt with both gates green. Prompts are enforcement; they are compared now.
 
-Widening the list was not enough. Running `--verify` during this release showed the widened list was still **flat**, so `skills/odyssey/hooks/lib/find-run.mjs` was deployed but never compared — the file that authenticates run discovery, the CRITICAL fix above. The root cause was never the list's contents but that a list existed at all. `scripts/lib/deploy-surface.mjs` now holds one definition that the deployer copies from and both gates walk recursively: 105 files compared, up from 85.
+Widening the list was not enough. Running `--verify` during this release showed the widened list was still **flat**, so `skills/odyssey/hooks/lib/find-run.mjs` was deployed but never compared — the file that authenticates run discovery, the CRITICAL fix above. The root cause was never the list's contents but that a list existed at all. `scripts/lib/deploy-surface.mjs` now holds one definition that the deployer copies from and both gates walk recursively — every file under a deployed tree, with nothing left to keep in sync by hand. (The earlier fix widened a hard-coded list from 3 directories to 6; the count is deliberately not restated here, because a number in a release note is the same brittle artifact as a list in the code.)
 
 ### Tests
 
 32 suites, up from 26. New: `pre-tool.gate-surface.test.mjs` (23 cases ported from the auditor's probes), `sec6-repo-arg.test.mjs` (10 cases), and `deploy-surface.test.mjs`, which asserts *coverage* rather than a blessed list of filenames — a list would be the same bug in test form. `pipeline-integration` now loads a **namespaced** skill and still reaches `done`, so the live F5 failure is regression-locked end to end.
 
 The suite was structurally blind to both classes: all 62 fixtures passed absolute repo paths, and no F5 fixture used a namespaced name — the one that looked namespaced compared two identical strings and would pass with the stripper deleted.
+
+### Fixed — found by the deep verification of this branch
+
+An independent verification pass re-ran every claim against a v0.4.1 worktree and found five more items. Four are defects; one is a reporting flaw.
+
+- **ORCH-2: F5 still failed on a routing line carrying prose.** Segment-tolerant matching fixed the *namespace* half of the live F5 failure and left the other half standing. `norm()` strips ALL whitespace — the tolerance that lets `skill: x` read as one token — so `routed: skill:x — primary; generic fallback` became `skill:x—primary;genericfallback`, a name matching nothing. A plan written the way people actually write them failed F5 with a message about the skill never being observed. New `capabilityToken()` ends the token at the first character a capability name cannot contain, and the parser and the matcher both call it so lint and gate agree on where the token ends.
+- **T3-2: momus following her own prompt deadlocked the review gate.** `momus-prompt.md` documents a `VERDICT: OKAY | REJECT` text block; `record-momus-artifact.mjs` accepted strict JSON only and answered a conforming artifact with exit 6. JSON remains the preferred wire form and is tried first; the prose fallback requires an explicit line-anchored `VERDICT:` token and fails closed when the text says both or neither. The parser is shared with `record-final-wave` via `lib/verdict-schema.mjs` rather than duplicated — two copies of a verdict parser is exactly the drift this release exists to stop.
+- **ORCH-1: read-only runs were unfinishable.** `--allow-untouched` waived *some* declared files being untouched but never *all* of them, so a run whose diff is legitimately empty — an audit or review that produces a report and changes no declared file — could not reach `done`. The guard exists to stop a *silent* vacuous pass; an explicit operator waiver is not silent, and is now recorded in the artifact as `empty_diff_waived`.
+- **ORCH-3:** `.zcode/reports/` was unignored while `.zcode/audits/` was, so future run reports would accumulate as tracked files. Now ignored, with the v0.4.1 report kept by name as this release's provenance.
+- **Token figures are now self-describing.** Attribution is scoped by *(repo × window)* and the output named neither, so two readers summarising "the same run" reached 10.8M and 24.3M and both were right. `collectRunTokens` echoes the repo it matched and reports `shares` with the denominator in the key name. A bare percentage is unfalsifiable without its denominator, and these are estimates by construction — `attribution: "time-window"` was always in the output and should be read as a caveat, not decoration.
 
 ### Verification method
 

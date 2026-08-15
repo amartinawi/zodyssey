@@ -6,7 +6,7 @@
 // even with the namespace stripper deleted. These cases are asymmetric on purpose.
 
 import assert from "node:assert/strict";
-import { matchesCapability, matchesMcpServer, sameName, lastSegment, isFindSkills } from "./capability-name.mjs";
+import { matchesCapability, matchesMcpServer, sameName, lastSegment, isFindSkills, capabilityToken } from "./capability-name.mjs";
 
 let failures = 0;
 const test = (name, fn) => {
@@ -78,6 +78,39 @@ test("empty and malformed input never throws and never matches", () => {
   assert.equal(matchesCapability("", "skill:x"), false);
   assert.equal(matchesCapability("skill:x", ""), false);
   assert.equal(matchesCapability("no-kind-prefix", "skill:x"), false);
+});
+
+// --- ORCH-2: a routing line is DOCUMENTATION as much as a declaration -------
+//
+// Found by the v0.5.0 deep verification, and it is the OTHER half of the live F5 failure.
+// norm() strips ALL whitespace (so `skill: x` reads as one token), which welded trailing prose
+// onto the name: `skill:x — primary; fallback` became `skill:x—primary;fallback`, matching
+// nothing. Segment-tolerant matching fixed the NAMESPACE half and left this standing, so a plan
+// written the way people actually write them still failed F5 with a message about the skill
+// never being observed.
+test("trailing prose is dropped from a routed: token", () => {
+  for (const [decl, want] of [
+    ["skill:source-command-audit-full — primary; fallback generic", "skill:source-command-audit-full"],
+    ["skill:test-driven-development (TDD, per capabilities.md)", "skill:test-driven-development"],
+    ["skill:tdd, then review", "skill:tdd"],
+    ["mcp:socraticode — for graph queries", "mcp:socraticode"],
+    ["agent:feature-dev:code-reviewer — F2 lane", "agent:feature-dev:code-reviewer"],
+  ]) assert.equal(capabilityToken(decl), want, `token(${JSON.stringify(decl)})`);
+});
+test("the `skill: x` spacing tolerance that motivated norm() is preserved", () => {
+  assert.equal(capabilityToken("skill: my-skill"), "skill:my-skill");
+  assert.equal(capabilityToken("skill:plain"), "skill:plain");
+});
+test("a prose-carrying declaration matches its observation", () => {
+  assert.equal(matchesCapability("skill:source-command-audit-full — primary; fallback",
+    "skill:source-command-audit-full"), true);
+  assert.equal(matchesCapability("skill:tdd — primary", "skill:superpowers:tdd"), true);
+  assert.equal(matchesCapability("mcp:socraticode — graph",
+    "mcp__plugin_socraticode_socraticode__codebase_search"), true);
+});
+test("CONTROL: prose does not make a WRONG capability match", () => {
+  assert.equal(matchesCapability("skill:tdd — primary", "skill:superpowers:brainstorming"), false);
+  assert.equal(matchesCapability("— just some prose", "skill:tdd"), false);
 });
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }

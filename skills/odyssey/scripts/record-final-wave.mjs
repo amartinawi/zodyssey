@@ -23,6 +23,7 @@ import { argv, exit } from "node:process";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { matchesCapability } from "./lib/capability-name.mjs";
+import { verdictFromProse } from "./lib/verdict-schema.mjs";
 
 const [repo, slug, ...rest] = argv.slice(2);
 if (!repo || !slug) {
@@ -85,12 +86,11 @@ function classifyVerdict(text) {
   // Prose artifacts must carry an explicit `VERDICT: X` line. Deliberately NOT a bare keyword
   // search: "this would REJECT under the old rules" is discussion, not a verdict, and a reviewer
   // narrating its reasoning must never accidentally close the gate.
-  const approve = /^\s*(?:\*\*)?VERDICT(?:\*\*)?\s*[:=]\s*(?:\*\*)?\s*(APPROVE[D]?|OKAY|OK|PASS(?:ED)?|ACCEPT(?:ED)?)\b/im.test(text);
-  const reject = /^\s*(?:\*\*)?VERDICT(?:\*\*)?\s*[:=]\s*(?:\*\*)?\s*(REJECT(?:ED)?|FAIL(?:ED)?|BLOCK(?:ED)?)\b/im.test(text);
-  if (approve && reject) return "missing"; // says both → we don't know → fail closed
-  if (approve) return "approve";
-  if (reject) return "reject";
-  return "missing";
+  //
+  // T3-2: this parser now lives in lib/verdict-schema.mjs because record-momus-artifact needs the
+  // identical rule (its prompt documents the same VERDICT: block). Two copies of a verdict parser
+  // is exactly the drift this release exists to stop.
+  return verdictFromProse(text);
 }
 
 // Test-file detection for the integrity guard. Conservative by design: a false positive here
@@ -199,7 +199,14 @@ try {
     // is empty, so F1 passed — the vacuous pass this file's own SEC-H1 comment above concedes.
     // Combined with --skip F2,F4 that was a clean path to `done` having changed nothing at all.
     const untouched = [...declared].filter((p) => !actual.has(p));
-    const didNothing = declared.size > 0 && actual.size === 0;
+    // ORCH-1: `--allow-untouched` waived SOME declared files being untouched but never ALL of
+    // them, so a run whose diff is legitimately empty — an audit or review that produces a report
+    // and changes no declared file — had no way to reach `done` at all. That asymmetry is
+    // arbitrary: didNothing is just the degenerate case of untouched. The guard exists to stop a
+    // SILENT vacuous pass, and an explicit operator waiver is not silent; it is recorded in the
+    // artifact below either way.
+    const didNothing = declared.size > 0 && actual.size === 0 && !allowUntouched;
+    const didNothingWaived = declared.size > 0 && actual.size === 0 && allowUntouched;
 
     // B3 — TEST-INTEGRITY GUARD. Nothing in the ecosystem implements this (verified against omo,
     // prime-agent, spec-kit, SWE-agent, Cline/Roo, claude-flow). It matters because the cheapest
@@ -261,7 +268,8 @@ try {
       declared_untouched: untouched,
       ...(untouched.length && allowUntouched ? { untouched_waived: true } : {}),
       test_integrity: testIntegrity,
-      ...(didNothing ? { error: "F1: the plan declares files but the diff is EMPTY — nothing was done. This is the vacuous pass; it is not a completed run." } : {}),
+      ...(didNothing ? { error: "F1: the plan declares files but the diff is EMPTY — nothing was done. This is the vacuous pass; it is not a completed run. If the run is legitimately read-only (an audit or review that changes no declared file), pass --allow-untouched to waive this explicitly." } : {}),
+      ...(didNothingWaived ? { empty_diff_waived: true } : {}),
       ...(untouchedBlocks ? { untouched_error: `F1: ${untouched.length} declared file(s) were never touched: ${untouched.slice(0, 8).join(", ")}. The plan's work is incomplete. Finish them, remove them from the plan's Files:, or pass --allow-untouched if they were context-only.` } : {}),
       ...(testsIntact ? {} : { test_integrity_error: testIntegrity.error
         ? "F1: test-integrity check could not run: " + testIntegrity.error

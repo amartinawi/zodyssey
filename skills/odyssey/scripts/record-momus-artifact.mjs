@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { argv, exit, stdin } from "node:process";
 import { createHash } from "node:crypto";
 import { resolveRepo, resolvePath, containedIn } from "./lib/repo-path.mjs";
+import { verdictFromProse, blockersFromProse } from "./lib/verdict-schema.mjs";
 
 const [repo, slug, ...tail] = argv.slice(2);
 // <round> is optional, so the third positional may actually be the first FLAG. Only treat it as a
@@ -108,8 +109,38 @@ if (fromFile) {
   } catch { raw = ""; }
   if (!raw || !raw.trim()) { console.error("no verdict on stdin and no --from <file>; pipe the momus JSON or use --from"); exit(6); }
 }
+// T3-2: accept the shape momus-prompt.md actually documents.
+//
+// The prompt tells the reviewer to emit a text block headed `VERDICT: OKAY | REJECT` with LENSES
+// and BLOCKERS sections; this script accepted strict JSON only. A reviewer following her own
+// prompt therefore got exit 6 and the run deadlocked at the review gate with a message about
+// invalid JSON — a documentation/parser contract mismatch, not reviewer error.
+//
+// JSON stays the preferred wire form and is tried first, unchanged. The prose fallback requires an
+// explicit line-anchored VERDICT: token (shared with record-final-wave via lib/verdict-schema.mjs
+// so the two cannot drift) and fails closed when the text says both or neither. This loosens the
+// FORMAT only: the nonce chain and the plan-sha binding below are what make the verdict
+// non-forgeable, and neither is touched.
 let verdict;
-try { verdict = JSON.parse(raw); } catch { console.error("momus verdict is not valid JSON"); exit(6); }
+try {
+  verdict = JSON.parse(raw);
+} catch {
+  const prose = verdictFromProse(raw);
+  if (prose === "missing") {
+    console.error(
+      "momus verdict is neither valid JSON nor a prose artifact carrying an explicit " +
+      "`VERDICT: OKAY` / `VERDICT: REJECT` line (see references/momus-prompt.md). " +
+      "A verdict that says both, or neither, is refused rather than guessed."
+    );
+    exit(6);
+  }
+  verdict = {
+    verdict: prose === "approve" ? "OKAY" : "REJECT",
+    blockers: prose === "reject" ? blockersFromProse(raw) : [],
+    _format: "prose",
+    _raw: raw.slice(0, 4000),
+  };
+}
 
 const reviewsDir = join(repo, ".zcode", "reviews");
 mkdirSync(reviewsDir, { recursive: true });
