@@ -140,6 +140,31 @@ console.log("\n  interpreter eval + redirection (audit-3):");
   // ...and a real shell invocation must still block, or R2's fix went too far.
   for (const cmd of ["sh deploy.sh", "bash -c 'echo x > f'", "; sh evil", "zsh script.zsh"])
     check(`    CONTROL still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
+  // G-class (audit-4): DIRECT EXECUTION OF A PATH. No interpreter token exists in these, so no
+  // list of binaries reaches them — what identifies them is that the command HEAD is a path.
+  for (const cmd of ["./deploy.sh", "/tmp/evil", "src/foo.js", "~/bin/evil", "exec /tmp/evil"])
+    check(`    G ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
+  // The distinction that makes it usable: a path as an ARGUMENT is not an execution. Reading a
+  // file is not running it, and conflating the two would block most ordinary work.
+  for (const cmd of [
+    "cat ./deploy.sh", "ls /tmp/evil", "grep x src/foo.js", "wc -l ./src/foo.js",
+    "diff ./a ./b", "find /tmp -name x", "head -5 src/foo.js",
+  ]) check(`    G CONTROL (path as argument): ${cmd}`, bash(repo, cmd) === 0, `(exit ${bash(repo, cmd)})`);
+
+  // G-class: sed in-place forms the `-i\b` pattern missed — a clustered short flag has no word
+  // boundary before the `i`, and the long option is spelled out.
+  for (const cmd of ["sed -ni 's/a/b/' src/foo.js", "sed --in-place 's/a/b/' src/foo.js"])
+    check(`    G ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+  for (const cmd of ["sed -n 1,5p src/foo.js", "sed -e 1d src/foo.js"])
+    check(`    G CONTROL (read-only sed): ${cmd}`, bash(repo, cmd) === 0, `(exit ${bash(repo, cmd)})`);
+
+  // H-class, ACCEPTED over-block, asserted so it is a decision rather than a surprise: invoking a
+  // safe binary by absolute path is gated, because "is this path safe to execute" cannot be
+  // answered without a head allowlist — the structural change these rounds keep pointing at.
+  for (const cmd of ["/usr/bin/git status", "/bin/ls -la"])
+    check(`    H accepted over-block: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
 }
 
 // --- CRITICAL T1-7: unauthenticated run discovery ----------------------------

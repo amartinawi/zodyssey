@@ -100,7 +100,11 @@ const WRITE_PATTERNS = [
   // neither build ever caught them.
   (cmd) => /(^|[^->])\s*&?\d*>[>|&]?\s*[^\s>&|;]/.test(cmd.replace(FD_DUP, " ")),
   /\btee\b/,
-  /\bsed\s+[^&;\n]*-i\b/, // sed -i (in-place)
+  // sed in-place. `-i\b` alone missed two real forms (audit-4, G-class): a CLUSTERED short flag
+  // (`sed -ni 's/a/b/' f` — `-ni` has no word boundary before the `i`) and the long option
+  // (`sed --in-place`). `-i.bak` and `-e … -i` were already caught. This is the existing pattern
+  // being incomplete, not a new binary to enumerate.
+  /\bsed\s+[^&;\n]*(?:--in-place|-[a-z]*i)\b/i,
   /\b(?:perl|ruby)\s+-\w*(?:p|e)/, // perl -pi -e, perl -e, ruby -e
   /\bperl\s+[^&;\n]*-i\b/,
   /\bawk\s+[^&;\n]*-i\b/, // awk -i inplace (gawk ext)
@@ -166,6 +170,26 @@ const WRITE_PATTERNS = [
   /(?<![\w.-])wget\b(?![^;&|\n]*\s--spider\b)/,   // wget writes a file by default; --spider does not
   /(?<![\w.-])sed\b[^;&|\n]*\bw\s+\S/,       // sed's `w file` command writes, with no -i in sight
   /(?<![\w.-])busybox\b/,                    // busybox <applet> reaches sh/sed/dd/… behind one name
+  // DIRECT EXECUTION OF A PATH (audit-4, G-class). `./deploy.sh`, `/tmp/evil`, `~/bin/evil`,
+  // `src/foo.js` and `exec /tmp/evil` all ran as READ-ONLY pre-OKAY in any phase. No amount of
+  // naming interpreters reaches these — there is no interpreter token to name. What identifies
+  // them is structural: the COMMAND HEAD is a path, so the shell will execute that file with
+  // whatever privileges this agent has.
+  //
+  // Matched at command position only (start, or after ; & | && || ), so a path appearing as an
+  // ARGUMENT — `cat ./deploy.sh`, `ls /tmp/evil`, `grep x src/foo.js` — is untouched. That
+  // distinction is the whole point: reading a file is not running it.
+  (cmd) => {
+    for (const seg of String(cmd).split(/(?:^|[;&|\n])+|\|\||&&/)) {
+      const head = seg.trim().replace(/^(?:[A-Za-z_][\w]*=\S*\s+)*/, "").split(/\s+/)[0] || "";
+      if (!head) continue;
+      const bare = head.replace(/^(?:exec|command|builtin)$/i, "");
+      const t = bare === "" ? (seg.trim().split(/\s+/)[1] || "") : head;
+      if (/^(?:\.\/|\.\.\/|~\/|\/)/.test(t)) return true;   // ./x  ../x  ~/x  /abs/x
+      if (t.includes("/")) return true;                     // src/foo.js — a relative path head
+    }
+    return false;
+  },
   /\binstall\s+-m\b/,
   // CRITICAL T1-1 (audit 2026-08-14): the deny-list missed a whole family of ordinary write
   // primitives, so they classified as READ-ONLY and ran pre-OKAY in any phase. Chained with

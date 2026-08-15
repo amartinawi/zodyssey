@@ -2,6 +2,34 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.2] — 2026-08-15
+
+An independent paired run against v0.5.1 found **no new bypasses** — the first round in four that didn't. What it did confirm is that the remaining surface is no longer pattern-shaped. Two items here are that surface's narrow, structural end; the rest is documented as the queue it is.
+
+### Fixed — direct execution of a path (G-class)
+
+`./deploy.sh`, `/tmp/evil`, `~/bin/evil`, `src/foo.js` and `exec /tmp/evil` all ran as **read-only, pre-OKAY, in any phase**. This is the same severity as the v0.5.1 CRITICAL and no amount of naming interpreters reaches it — *there is no interpreter token to name*. What identifies these is structural: the command **head** is a path, so the shell executes that file with whatever privileges the agent has.
+
+Matched at command position only. A path as an **argument** — `cat ./deploy.sh`, `ls /tmp/evil`, `grep x src/foo.js` — is untouched, because reading a file is not running it and conflating the two would block most ordinary work.
+
+### Fixed — two sed in-place forms the pattern missed (G-class)
+
+`-i\b` missed a clustered short flag (`sed -ni` — no word boundary before the `i`) and the long option (`sed --in-place`). `-i.bak` and `-e … -i` were already caught. An incomplete pattern, not a new binary.
+
+### Known, not fixed — and why the next move is structural
+
+Three rounds of enumeration produced three bypasses; the fourth produced none only because the enumeration questions are exhausted. What remains does not yield to more patterns:
+
+- **F — shell-level escaping splits the token.** `p\ython -c`, `py''thon -c` reach the interpreter while defeating any regex over the raw string, because the *shell* reassembles the token after the gate has read it. Quoted (`"python"`), env-prefixed (`PATH=/tmp python`), and `env`/`command`-wrapped forms are all caught; the escaping forms are not, and cannot be without parsing shell grammar.
+- **G — interpreters outside the list.** `gawk`, `mawk`, `pypy`, `perl6`, `raku`, `jshell`, `ts-node`. Adding them is the fourth enumeration round and buys nothing structural: the list is unbounded by construction.
+- **H — accepted over-blocks.** Invoking a safe binary by absolute path (`/usr/bin/git status`) is now gated, because "is this path safe to execute" cannot be answered without an allowlist. Asserted in the test suite so it reads as a decision rather than a surprise.
+
+**The terminus is head-allowlist inversion:** classify by the command head against a list of known-safe *heads*, rather than denying known-bad shapes. It subsumes F, G and H at once — an escaped, unlisted, or absolute-path head simply is not on the allowlist. It is deliberately **not** in this release: it inverts the default for every command the gate has ever seen, `npm test` and friends need enumerating on the allow side, and shipping that days after a security deploy trades one risk for a larger one. It wants its own release and its own paired run.
+
+### Verification
+
+Probed against the **deployed** build, not the repo, for every claim. Gate-surface is 98 cases (was 80), including the argument-vs-head controls, the read-only `sed` controls, and the H-class over-block asserted explicitly.
+
 ## [0.5.1] — 2026-08-15
 
 A second independent audit of v0.5.0 found the CRITICAL takeover chain **reopened through a different door**, plus ungated waiver flags that reach `done` more cheaply than forging a verdict ever would. v0.5.0's central claim — "`.zcode/state/` now has no unsanctioned write path" — was false, and the marker system rests on it.
