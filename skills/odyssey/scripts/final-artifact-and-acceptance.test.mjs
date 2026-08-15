@@ -135,12 +135,27 @@ console.log("record-final-artifact + acceptance completeness\n");
   check("both nonces minted", !!before.f2 && !!before.f4);
 
   mkdirSync(join(repo, ".zcode", "staging"), { recursive: true });
-  const mk = (item) => {
+  // AUDIT-3 FINDING 2: this used to omit --nonce, which record-final-artifact silently tolerated —
+  // the check was `if (nonceArg && pending && …)`, so no nonce meant no comparison, and a missing
+  // pending nonce only warned. An artifact could be placed in .zcode/reviews/ with no reviewer
+  // dispatch behind it at all. The nonce is now required, so the fixture passes it, which is also
+  // what the real flow does.
+  const mk = (item, nonce) => {
     const p = join(repo, ".zcode", "staging", `${item}.json`);
     writeFileSync(p, JSON.stringify({ verdict: "APPROVE" }));
-    return (node(sc("record-final-artifact.mjs"), repo, "t", item, "--from", p).stdout || "").trim();
+    return (node(sc("record-final-artifact.mjs"), repo, "t", item, "--nonce", nonce, "--from", p).stdout || "").trim();
   };
-  const f2 = mk("F2"), f4 = mk("F4");
+  const f2 = mk("F2", before.f2), f4 = mk("F4", before.f4);
+
+  // The tightened contract itself: each refusal is a separate way the old check fell open.
+  {
+    const p = join(repo, ".zcode", "staging", "nononce.json");
+    writeFileSync(p, JSON.stringify({ verdict: "APPROVE" }));
+    check("    F2 artifact WITHOUT --nonce is refused",
+      node(sc("record-final-artifact.mjs"), repo, "t", "F2", "--from", p).status === 6);
+    check("    F2 artifact with a WRONG nonce is refused",
+      node(sc("record-final-artifact.mjs"), repo, "t", "F2", "--nonce", "not-the-nonce", "--from", p).status === 6);
+  }
   const f3 = join(repo, ".zcode", "qa.md");
   writeFileSync(f3, "- [ ] check it\n");
 
@@ -184,7 +199,7 @@ console.log("record-final-artifact + acceptance completeness\n");
     const f3 = join(repo, ".zcode", "staging", "f3.md");
     mkdirSync(join(repo, ".zcode", "staging"), { recursive: true });
     writeFileSync(f3, "checklist\n");
-    const r = node(sc("record-final-wave.mjs"), repo, "t", "--f3-checklist", f3, "--skip", "F2,F4", ...extra);
+    const r = node(sc("record-final-wave.mjs"), repo, "t", "--f3-checklist", f3, "--skip", "F2,F4", "--skip-reason", "test fixture: isolating one F-item", ...extra);
     try { return JSON.parse(r.stdout).results; } catch { return { parse_error: (r.stdout || "").slice(0, 200), stderr: (r.stderr || "").slice(0, 200) }; }
   };
   // `execute` = a post-plan phase (M5: routed capabilities must be observed once the plan exists).
@@ -268,7 +283,7 @@ console.log("record-final-artifact + acceptance completeness\n");
   }
   {
     const repo = makeRun();
-    const res = wave(repo, ["--skip", "F2,F4,F5"]);
+    const res = wave(repo, ["--skip", "F2,F4,F5", "--skip-reason", "test fixture: isolating one F-item"]);
     check("F5 is skippable (documented escape hatch)", res.F5?.skipped === true && res.F5?.passed === true, JSON.stringify(res.F5)?.slice(0, 200));
   }
 }

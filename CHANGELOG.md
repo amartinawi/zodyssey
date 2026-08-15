@@ -2,6 +2,71 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] — 2026-08-15
+
+A second independent audit of v0.5.0 found the CRITICAL takeover chain **reopened through a different door**, plus ungated waiver flags that reach `done` more cheaply than forging a verdict ever would. v0.5.0's central claim — "`.zcode/state/` now has no unsanctioned write path" — was false, and the marker system rests on it.
+
+### Fixed — CRITICAL: arbitrary code execution classified as read-only (audit-3 #1)
+
+The v0.5.0 sweep added ten write primitives and declared T1-1 closed. It missed the shape that needs no new primitive at all: the two interpreter patterns were **positional**.
+
+- The eval-flag pattern required the eval flag to be the *first* token after the interpreter, so `python -u -c`, `python3 -B -c`, `node --no-warnings -e` and `ruby -w -e` matched nothing.
+- The script-indirection pattern explicitly skipped any invocation whose next token starts with `-`, so those same commands fell through it too — as did `python - <<'EOF'`, where the operand is literally `-`.
+
+Chained with the marker key being readable through ungated `cat`, this restores the full forged-run takeover: compute a valid marker, write arbitrary state.
+
+Enumerating flag shapes is what failed twice. Interpreters are now **inverted to an allowlist**, the same posture SEC-2 took for git: any invocation is gated except a bare version/help query. The sanctioned `node <odyssey-script>` path is unaffected — it never relied on classifying as read-only, and `isTrustedScriptInvoke` allows it one step later.
+
+### Fixed — bare redirection disarmed every hook in one command (audit-3 #3)
+
+The redirect pattern required a *word* before the `>`, so a command consisting only of `> .zcode/state/t.json` matched nothing and ran as read-only. That truncates the state file; discovery then fails to parse it, finds no run, and every hook becomes a no-op. `shred` was also absent. The operator is matched wherever it appears now.
+
+### Fixed — F2/F4 artifacts could be written with no dispatch behind them (audit-3 #2)
+
+`record-final-artifact` checked the nonce as `if (nonceArg && pending && …)`: **omitting** `--nonce` skipped the comparison entirely, and a missing pending nonce only printed a warning. Both now refuse.
+
+**The residual is unchanged and is stated here because the apparatus reads stronger than it is:** the nonce proves a reviewer was *dispatched*, not what the reviewer *said*. It lives in `.zcode/state/`, readable by any agent, so an injected executor can wait for the legitimate dispatch, read the nonce, and submit its own verdict bytes under it. Closing that needs the artifact bound to the reviewer's transcript hash — a harness change, not a script change, and it is not done.
+
+### Fixed — waivers that reached `done` more cheaply than forgery (audit-3 #4, #5, #6)
+
+- **`--skip F2,F4,F5`** produced `all_pass: true` and `final.verdict: "pass"` — exactly what `set-phase done` requires — with no phase check, no evidence, and no confirmation. Skipping a security item now requires `--skip-reason`, is recorded in `state.final.waived`, and `done` refuses until acknowledged with `--accept-waivers`. This is **not** authorization: every script is invocable by any agent, so no argv flag authenticates anyone. What it removes is the *silent* path — two deliberate, separately-recorded actions instead of one flag.
+- **`set-phase done` blocked only on `status === "regressed"`**, so `toolchain-drift` — regression-gate *refusing to compare* because `toolchain.json` changed, which is precisely how the gate would be neutered — sailed through. The gate refused at the source and failed open at the consumer. A refusal is not a pass.
+- **`record-verify` checked only the COUNT of declared criteria, never the content.** `--criterion true --trust-argv --exit-code 0`, repeated as many times as the plan has criteria, marked every acceptance criterion passed with `executed: false`. Undeclared criteria are still recorded but no longer count toward covering the plan, so a fabricated criterion cannot substitute for a declared one.
+
+### Fixed — the round cap didn't agree with the minter about what "momus" is (audit-3 #7)
+
+`subagent === "momus"` guarded the round cap while the nonce minter used segment matching, so `evil:momus` skipped the cap and the pre-dispatch lint, then minted a review nonce. Bounded — `record-review` enforces the cap independently — but it is the one-path-not-its-twin shape v0.5.0 was written to hunt, left in the file by the release that hunted it.
+
+### Fixed — R1/R2/R3, found verifying this release
+
+An independent paired-probe verification of v0.5.1 found the redirect fix had **regressed its own class**.
+
+- **R1 (regression, deploy-blocking).** The first redirect pattern excluded `&` and a digit before the `>`, on the reasoning that they were fd forms. `2> .zcode/state/t.json`, `&> …`, `1> …`, `2>> …` and `exec 3> …` went **BLOCK (0.5.0) → ALLOW (0.5.1)** — one keystroke from the exact command the fix was written for, with the hole and the fix shipping in the same regex. `FD_DUP` already strips descriptor duplication, so a digit still sitting before a `>` is always a real file redirect. `>&` and `>|` are caught now too; neither build ever caught them. `FD_DUP` is also global — a non-global replace left every occurrence after the first in place.
+- **R2 (availability regression).** `\b` treats `.` as a word boundary, so `\bsh\b` matched the *extension* in `deploy.sh`, and `cat deploy.sh` / `wc -l build.sh` / `ls *.sh` started blocking in every phase. Interpreter tokens now require **command position** via lookbehind: a filename is not an invocation, while `sh script`, `; sh evil` and `/usr/bin/python3` all still match.
+- **R3 (pre-existing, both builds).** `source`, `.`, `curl -o`, `wget`, `sed 'w file'` and `busybox` all passed as read-only — `curl -o /tmp/x` followed by `source /tmp/x` is a two-command ungated arbitrary-execution chain, pre-OKAY, in any phase. The suggestion was to name these as residuals rather than enumerate them, since the honest fix is command-position-aware classification. R2 added exactly that, so they are closed *using* it rather than deferred.
+
+### Changed — interpreter eval is unavailable through Bash during a run
+
+A consequence worth stating rather than leaving to be discovered. `node -e` and `python -c` are gated in every phase, so inspecting run state with `node -e "require('./.zcode/state/…')"` no longer works. Use `dashboard.mjs` (on the trusted-script allowlist), the `Read` tool, or `cat`/`grep` — reads are never gated.
+
+Executable checks belong in **acceptance criteria**, where `record-verify` executes them *and records the result as evidence*, which a Bash one-liner never did. If you want to run an interpreter to prove something works, that is the signal it should be a criterion. SKILL.md documents this and the e2e fixture's checkpoints were repointed.
+
+### Known, not fixed
+
+Named here rather than left for a third audit to find:
+
+- **Nonces are readable from state** (see #2 above). Needs harness-supplied transcript binding.
+- **Segment-tolerant matching applies to the nonce minters and the read-only exemption**, so any third-party agent named `*:oracle` / `*:code-reviewer` / `*:momus` gets those lanes. `capability-name.mjs`'s header claims the nonce chain is exempt from the tolerance it introduces; that claim is false in code. The right fix is an allowlist for minters rather than open segment matching.
+- **The Edit-path scope gate is skipped for targets outside `PROJECT_DIR`** (`if (rel)` with `rel` empty), while the Bash twin fails closed.
+- **New-file classification falls back to lexical path resolution**, so a symlinked in-scope directory can redirect a Write into `.zcode/state/`.
+- **Three state writes still do unlocked read-modify-write** (`regression-gate` writeState, the record-verify stall counter, `scaffold --adopt`); the v0.5.0 fix covered the five `record-*` writers only.
+- **Deploy verification never content-compares `plugin.json`** — the file that decides which hooks run — and the cache is never pruned of files deleted from the repo.
+- **`scaffold --adopt` blesses whatever is on disk**, with no phase/verdict/provenance check.
+
+### Honest summary
+
+v0.5.1 closes every named finding from both audits. The adversarial residual is unchanged in kind: an executor-adversary with prompt injection reaches a forged `done` through whichever of the ungated paths is fixed last. Each round has raised the cost and narrowed the surface; none has eliminated the class, because the trusted-script allowlist gives every agent the same argv surface the operator has.
+
 ## [0.5.0] — 2026-08-15
 
 **A security release.** Two independent investigations landed together: a live e2e run surfaced three defects, and a 4-partition adversarial audit of v0.4.1 filed 52 findings (1 CRITICAL, 4 HIGH, 14 MEDIUM, 14 LOW, 19 INFO). Sweeping for the *classes* behind them found systemic siblings — including a second undiscovered SEC-6 bypass and a fail-open defect in a guard shipped in v0.4.1.

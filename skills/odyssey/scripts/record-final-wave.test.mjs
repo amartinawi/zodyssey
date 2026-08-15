@@ -88,39 +88,39 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   // THE REGRESSION: a REJECT artifact used to pass F2 outright.
   writeFileSync(art, JSON.stringify({ verdict: "REJECT", blockers: ["completely broken"] }));
   let n = armNonce(repo, "final_f2", art);
-  let r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4"]);
+  let r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F2 REJECTS a REJECT artifact", r.state?.final?.results?.F2?.passed === false,
     `(passed=${r.state?.final?.results?.F2?.passed})`);
 
   // An artifact with no verdict at all must fail closed, not sail through.
   writeFileSync(art, "The reviewer looked at things and had opinions.\n");
   n = armNonce(repo, "final_f2", art);
-  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4"]);
+  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F2 fails closed on a verdict-less artifact", r.state?.final?.results?.F2?.passed === false);
 
   // Says both → we do not know → must NOT approve.
   writeFileSync(art, "VERDICT: APPROVE\nOn reflection...\nVERDICT: REJECT\n");
   n = armNonce(repo, "final_f2", art);
-  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4"]);
+  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F2 fails closed on a contradictory artifact", r.state?.final?.results?.F2?.passed === false);
 
   // Discussion mentioning the words is not a verdict.
   writeFileSync(art, "This would REJECT under the old rules, but I APPROVE of the approach.\n");
   n = armNonce(repo, "final_f2", art);
-  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4"]);
+  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F2 does not treat prose keywords as a verdict", r.state?.final?.results?.F2?.passed === false);
 
   // The happy path still works, or the gate is unusable.
   writeFileSync(art, JSON.stringify({ verdict: "APPROVE", findings: [] }));
   n = armNonce(repo, "final_f2", art);
-  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4"]);
+  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F2 ACCEPTS an APPROVE artifact", r.state?.final?.results?.F2?.passed === true,
     `(reason=${r.state?.final?.results?.F2?.reason})`);
 
   // Markdown form.
   writeFileSync(art, "# Review\n\nAll good.\n\nVERDICT: APPROVE\n");
   n = armNonce(repo, "final_f2", art);
-  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4"]);
+  r = run(repo, ["--f2-artifact", art, "--f2-nonce", n, "--skip", "F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F2 accepts a markdown `VERDICT: APPROVE` line", r.state?.final?.results?.F2?.passed === true);
 }
 
@@ -131,14 +131,14 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   const art = join(repo, ".zcode", "reviews", "f4.json");
   writeFileSync(art, JSON.stringify({ verdict: "REJECT" }));
   const n = armNonce(repo, "final_f4", art);
-  const r = run(repo, ["--f4-artifact", art, "--f4-nonce", n, "--skip", "F2,F3"]);
+  const r = run(repo, ["--f4-artifact", art, "--f4-nonce", n, "--skip", "F2,F3", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F4 REJECTS a REJECT artifact", r.state?.final?.results?.F4?.passed === false);
 }
 
 // --- F1: the vacuous empty-diff pass -----------------------------------------
 {
   const { repo } = mk({});
-  const r = run(repo, ["--skip", "F2,F3,F4"]); // declared a file, changed NOTHING
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]); // declared a file, changed NOTHING
   check("F1 fails when the plan declares files but nothing changed",
     r.state?.final?.results?.F1?.passed === false, `(passed=${r.state?.final?.results?.F1?.passed})`);
   check("F1 reports which declared files were untouched",
@@ -149,7 +149,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
 {
   const { repo } = mk({ declared: ["src/foo.js", "src/bar.js"] });
   writeFileSync(join(repo, "src", "foo.js"), "// changed\n"); // touch ONE of two declared files
-  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F1 fails when a declared file was never touched (partial completion)",
     r.state?.final?.results?.F1?.passed === false &&
     (r.state?.final?.results?.F1?.declared_untouched || []).includes("src/bar.js"),
@@ -158,7 +158,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
 {
   const { repo } = mk({ declared: ["src/foo.js", "src/bar.js"] });
   writeFileSync(join(repo, "src", "foo.js"), "// changed\n");
-  const r = run(repo, ["--skip", "F2,F3,F4", "--allow-untouched"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item", "--allow-untouched"]);
   check("F1 --allow-untouched waives an untouched declared file",
     r.state?.final?.results?.F1?.passed === true && r.state?.final?.results?.F1?.untouched_waived === true,
     `(passed=${r.state?.final?.results?.F1?.passed})`);
@@ -169,7 +169,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   const { repo } = mk({});
   writeFileSync(join(repo, "src", "foo.js"), "// changed\n");
   writeFileSync(join(repo, "src", "stray.js"), "// not declared\n");
-  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F1 still catches out-of-scope files", r.state?.final?.results?.F1?.passed === false);
   check("F1 names the out-of-scope file",
     (r.state?.final?.results?.F1?.out_of_scope || []).includes("src/stray.js"));
@@ -181,7 +181,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   const { repo } = mk({ declared: ["src/foo.js", "test/foo.test.js"], withTest: true });
   writeFileSync(join(repo, "src", "foo.js"), "// changed\n");
   rmSync(join(repo, "test", "foo.test.js"));
-  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F1 fails when an in-scope test file is DELETED", r.state?.final?.results?.F1?.passed === false);
   check("F1 names the deleted test",
     (r.state?.final?.results?.F1?.test_integrity?.deleted || []).some((p) => p.includes("foo.test.js")));
@@ -191,7 +191,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   const { repo } = mk({ declared: ["src/foo.js", "test/foo.test.js"], withTest: true });
   writeFileSync(join(repo, "src", "foo.js"), "// changed\n");
   writeFileSync(join(repo, "test", "foo.test.js"), "it('a', () => expect(1).toBe(1));\n");
-  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F1 fails when a test file loses assertions (net-negative)",
     r.state?.final?.results?.F1?.passed === false);
 }
@@ -201,7 +201,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   writeFileSync(join(repo, "src", "foo.js"), "// changed\n");
   writeFileSync(join(repo, "test", "foo.test.js"),
     "it.skip('a', () => expect(1).toBe(1));\nit('b', () => expect(2).toBe(2));\nit('c', () => expect(3).toBe(3));\n");
-  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F1 fails when a skip marker is added to a test",
     r.state?.final?.results?.F1?.passed === false);
 }
@@ -211,7 +211,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   writeFileSync(join(repo, "src", "foo.js"), "// changed\n");
   writeFileSync(join(repo, "test", "foo.test.js"),
     "it('a', () => expect(1).toBe(1));\nit('b', () => expect(2).toBe(2));\nit('c', () => expect(3).toBe(3));\nit('d', () => expect(4).toBe(4));\n");
-  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F1 PASSES when source and tests both grow honestly",
     r.state?.final?.results?.F1?.passed === true,
     `(${JSON.stringify(r.state?.final?.results?.F1?.test_integrity)})`);
@@ -239,7 +239,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   writeFileSync(sp, JSON.stringify(st0, null, 2));
 
   writeFileSync(join(repo, "src", "foo.js"), "// the actual work\n");
-  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F1 PASSES despite an inherited dirty file", r.state?.final?.results?.F1?.passed === true,
     `(${JSON.stringify(r.state?.final?.results?.F1).slice(0, 300)})`);
   check("F1 reports what it ignored rather than hiding it",
@@ -254,7 +254,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   writeFileSync(sp, JSON.stringify(st0, null, 2));
   writeFileSync(join(repo, "src", "foo.js"), "// work\n");
   writeFileSync(join(repo, "src", "stray.js"), "// created DURING the run\n");
-  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F1 still FAILS on a file created during the run", r.state?.final?.results?.F1?.passed === false);
   check("...and names it", (r.state?.final?.results?.F1?.out_of_scope || []).includes("src/stray.js"));
 }
@@ -267,7 +267,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   writeFileSync(sp, JSON.stringify(st0, null, 2));
   writeFileSync(join(repo, "src", "foo.js"), "// work\n");
   rmSync(join(repo, "test", "foo.test.js"));      // ...then delete it
-  const r = run(repo, ["--skip", "F2,F3,F4"]);
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);
   check("F1 STILL fails on a deleted test even if marked dirty-at-start",
     r.state?.final?.results?.F1?.passed === false);
 }
@@ -276,7 +276,7 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
   const { repo } = mk({});
   writeFileSync(join(repo, "src", "foo.js"), "// work\n");
   writeFileSync(join(repo, "src", "stray.js"), "// out of scope\n");
-  const r = run(repo, ["--skip", "F2,F3,F4"]);   // no dirty_at_start field at all
+  const r = run(repo, ["--skip", "F2,F3,F4", "--skip-reason", "test fixture: isolating one F-item"]);   // no dirty_at_start field at all
   check("absent dirty_at_start = old behaviour (still fails on scope creep)",
     r.state?.final?.results?.F1?.passed === false);
 }

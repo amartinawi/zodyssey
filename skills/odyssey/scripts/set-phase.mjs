@@ -34,7 +34,7 @@ function capJsonl(path, max) {
 
 const [repo, slug, phase, ...rest] = argv.slice(2);
 if (!repo || !slug || !phase) {
-  console.error("usage: set-phase.mjs <repo> <slug> <phase> [--note <text>]");
+  console.error("usage: set-phase.mjs <repo> <slug> <phase> [--note <text>] [--accept-waivers]");
   exit(2);
 }
 const VALID = new Set(["plan", "consult", "review", "execute", "verify", "final", "done", "audited", "abandoned", "blocked", "remediate"]);
@@ -44,6 +44,8 @@ if (!VALID.has(phase)) {
 }
 let note;
 for (let i = 0; i < rest.length; i++) if (rest[i] === "--note") note = rest[++i];
+// AUDIT-3 FINDING 4: acknowledges a final wave that passed only because F2/F4 were waived.
+const acceptWaivers = rest.includes("--accept-waivers");
 
 const statePath = join(repo, ".zcode", "state", `${slug}.json`);
 if (!existsSync(statePath)) {
@@ -95,21 +97,48 @@ const TRANSITIONS = {
   abandoned: ["plan", "review", "execute", "blocked"],
 };
 // preconditions for entering a phase (read from the CURRENT state before mutation)
-function checkPrecondition(st, target) {
+function checkPrecondition(st, target, acceptWaivers = false) {
   if (target === "execute") {
     if (st.review?.verdict !== "OKAY") return "execute requires review.verdict === OKAY";
   }
   if (target === "done") {
     if (st.review?.verdict !== "OKAY") return "done requires review.verdict === OKAY";
     if (!st.final || st.final.verdict !== "pass") return "done requires final.verdict === pass (run record-final-wave.mjs first)";
-    // B8: a recorded regression blocks `done`. Only an explicit `regressed` verdict blocks —
-    // "inert" (no test command), "no-baseline", and absent state all pass, so this can never
-    // wedge a repo the gate cannot meaningfully evaluate.
+    // AUDIT-3 FINDING 4: `--skip F2,F4` produced a clean `pass`, so waiving code review and the
+    // scope-fidelity review reached `done` in a single argv flag — cheaper than forging a verdict.
+    // record-final-wave now records what was waived; `done` requires that to be acknowledged
+    // separately. This is not authorization (any agent can pass either flag) — it is the removal
+    // of the SILENT path: two deliberate, separately-recorded actions instead of one.
+    const waived = (st.final && Array.isArray(st.final.waived)) ? st.final.waived : [];
+    const securityWaived = waived.filter((w) => w === "F2" || w === "F4");
+    if (securityWaived.length && !acceptWaivers) {
+      return `done blocked: the final wave PASSED WITH WAIVERS — ${securityWaived.join(" and ")} ` +
+        `(${securityWaived.includes("F2") ? "code review" : ""}` +
+        `${securityWaived.length === 2 ? ", " : ""}` +
+        `${securityWaived.includes("F4") ? "scope-fidelity review" : ""}) ` +
+        `${securityWaived.length === 1 ? "was" : "were"} skipped, reason: ` +
+        `"${st.final.waived_reason || "(none recorded)"}". Dispatch the reviewer(s) and re-run ` +
+        `record-final-wave without --skip, or pass --accept-waivers to record that you are ` +
+        `finishing without them.`;
+    }
+    // B8: a recorded regression blocks `done`. "inert" (no test command) and "no-baseline" still
+    // pass, so this can never wedge a repo the gate cannot meaningfully evaluate.
+    //
+    // AUDIT-3 FINDING 5: the check was `status === "regressed"` alone, so the gate refused at the
+    // SOURCE and failed open at the CONSUMER. `toolchain-drift` is regression-gate.mjs refusing to
+    // compare because .zcode/toolchain.json changed since the baseline — which is exactly how the
+    // gate would be neutered, and it sailed through to `done`. A refusal is not a pass.
     if (st.regression && st.regression.status === "regressed") {
       const nf = (st.regression.new_failures || []).slice(0, 5);
       return "done blocked: the test suite passed before this run and fails now" +
         (nf.length ? ` (newly failing: ${nf.join(", ")})` : "") +
         ". Fix the regression and re-run regression-gate.mjs --check.";
+    }
+    if (st.regression && st.regression.status === "toolchain-drift") {
+      return "done blocked: regression-gate refused to compare — .zcode/toolchain.json changed " +
+        "since the baseline was taken, so the before/after comparison is meaningless. Restore the " +
+        "toolchain, or re-baseline deliberately with `regression-gate.mjs --snapshot --resnapshot` " +
+        "and re-run `--check`. (A gate that refused is not a gate that passed.)";
     }
   }
   return null; // no precondition
@@ -127,7 +156,7 @@ function checkPrecondition(st, target) {
     exit(6);
   }
   // check preconditions for the destination
-  const pc = checkPrecondition(cur, phase);
+  const pc = checkPrecondition(cur, phase, acceptWaivers);
   const forcing = rest.includes("--force");
   // SEC-3 (external audit 2026-08-04): --force bypassed BOTH preconditions (execute needs OKAY;
   // done needs final.verdict===pass), and done∈TERMINAL disarms every hook — a master bypass

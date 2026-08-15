@@ -324,26 +324,60 @@ function apply(st) {
   // Fail closed: if the plan cannot be read or the todo is not in it, fall back to the old
   // status gate rather than assuming completeness from an unknown denominator.
   let expectedCriteria = null;
+  let declaredCriteria = null;
   try {
     const planPath = st.plan_path || join(repoAbs, ".zcode", "plans", `${slug}.md`);
     const parsed = JSON.parse(execFileSync(process.execPath,
       [new URL("./parse-plan.mjs", import.meta.url).pathname, planPath],
       { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 }));
     const todo = (parsed.todos || []).find((t) => String(t.id) === String(todoId));
-    if (todo && Array.isArray(todo.acceptance)) expectedCriteria = todo.acceptance.length;
-  } catch { expectedCriteria = null; }
+    if (todo && Array.isArray(todo.acceptance)) {
+      expectedCriteria = todo.acceptance.length;
+      declaredCriteria = todo.acceptance;
+    }
+  } catch { expectedCriteria = null; declaredCriteria = null; }
 
-  const distinctRun = new Set(allForTodo.map((h) => h.criterion_index)).size;
+  // AUDIT-3 FINDING 6: only the COUNT of declared criteria was ever checked, never the content.
+  // The criterion command comes from argv and was never compared against what the plan declares, so
+  // `--criterion true --trust-argv --exit-code 0`, repeated as many times as the plan has criteria,
+  // marked every acceptance criterion passed with executed:false. The denominator was guarded and
+  // the numerator was free.
+  //
+  // Undeclared criteria are still RECORDED (they may be legitimate ad-hoc checks, and hiding them
+  // would be worse) but they no longer COUNT toward covering the plan. A fabricated criterion
+  // therefore cannot substitute for a declared one. Matching is containment-based in both
+  // directions: the plan stores `\`cmd\` exits 0` while callers pass `cmd`, so neither side is a
+  // prefix of the other in general.
+  const normCrit = (s) => String(s || "").toLowerCase().replace(/`/g, "").replace(/\s+/g, " ").trim();
+  const isDeclared = (cmd) => {
+    if (!Array.isArray(declaredCriteria) || declaredCriteria.length === 0) return true; // unknown → don't punish
+    const c = normCrit(cmd);
+    if (!c) return false;
+    return declaredCriteria.some((d) => {
+      const n = normCrit(d);
+      return n === c || n.includes(c) || c.includes(n);
+    });
+  };
+  const countable = allForTodo.filter((h) => isDeclared(h.criterion));
+  const undeclaredCount = allForTodo.length - countable.length;
+
+  const distinctRun = new Set(countable.map((h) => h.criterion_index)).size;
   const allRecordedPassed = allForTodo.length > 0 && allForTodo.every((h) => h.passed);
   const allPass = expectedCriteria === null
     ? (todoStatus === "done" && allRecordedPassed)              // unknown denominator → old gate
-    : (allRecordedPassed && distinctRun >= expectedCriteria);   // every declared criterion ran and passed
+    : (allRecordedPassed && distinctRun >= expectedCriteria);   // every DECLARED criterion ran and passed
+  if (undeclaredCount > 0) {
+    console.error(`record-verify.mjs: WARNING — ${undeclaredCount} recorded criterion/criteria do not ` +
+      `match any acceptance criterion the plan declares for todo ${todoId}. They are recorded but do ` +
+      `NOT count toward coverage; only declared criteria can satisfy the plan.`);
+  }
 
   st.acceptance[todoId] = {
     pass: allPass,
     at: evidence.recorded_at,
     evidence: artifactPath,
     criteria_run: distinctRun,
+    ...(undeclaredCount ? { criteria_undeclared: undeclaredCount } : {}),
     ...(expectedCriteria !== null ? { criteria_declared: expectedCriteria } : {}),
   };
 

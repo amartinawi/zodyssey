@@ -225,6 +225,27 @@ Before the run truly closes, write what's worth remembering to the `memory` know
 
 This is the cross-run learning loop: read at consult (phase 1), write at done.
 
+## Inspecting a run while it is active (v0.5.1)
+
+Interpreter invocation through Bash — `node -e`, `python -c`, `sh script.sh` — is **gated in every
+phase** while a run is active, including read-only-looking one-liners. This is deliberate: the write
+hides inside the payload, so the gate cannot tell `node -e "console.log(x)"` from
+`node -e "fs.writeFileSync(...)"` without executing it. Enumerating safe flag shapes was tried twice
+and failed twice (v0.5.0 and v0.5.1 both shipped bypasses), so interpreters are an allowlist now.
+
+That makes one previously common habit unavailable — reading run state with
+`node -e "require('./.zcode/state/<slug>.json')"`. Use instead:
+
+- **`node <plugin>/skills/odyssey/scripts/dashboard.mjs <repo> <slug>`** — the sanctioned run-state
+  view; it is on the trusted-script allowlist, so it runs while gated.
+- **The `Read` tool** on `.zcode/state/<slug>.json` — reads are never gated.
+- **`cat` / `grep` / `jq`** — plain read-only commands stay allowed.
+
+**Executable checks belong in acceptance criteria, not in Bash.** `record-verify.mjs` executes a
+todo's declared criteria itself, so `node -e "import('./src/x.js')…"` works there and is *recorded
+as evidence*, which a Bash one-liner never is. If you find yourself wanting to run an interpreter to
+prove something works, that is the signal it should be a criterion.
+
 ## External consult/audit gate (opt-in, via `/orchestrate-consult <slug>`)
 
 After a run is `done`, the user may invoke an **independent external audit**: a *separate* Claude

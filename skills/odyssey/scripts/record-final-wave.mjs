@@ -12,7 +12,7 @@
 // All four must pass; the run's state.final lane records the verdict. `done` is unreachable without it.
 //
 // Usage:
-//   record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5]
+//   record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5 --skip-reason "why"]
 //   exit: 0 ok (all pass) · 2 bad args · 3 no state · 6 an F-item failed
 //
 // Atomic write under O_EXCL lockfile with stale-lock reaping.
@@ -27,10 +27,10 @@ import { verdictFromProse } from "./lib/verdict-schema.mjs";
 
 const [repo, slug, ...rest] = argv.slice(2);
 if (!repo || !slug) {
-  console.error("usage: record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5]");
+  console.error("usage: record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5 --skip-reason <why>]");
   exit(2);
 }
-let f2Artifact, f2Nonce, f3Checklist, f4Artifact, f4Nonce, skipStr, allowUntouched = false;
+let f2Artifact, f2Nonce, f3Checklist, f4Artifact, f4Nonce, skipStr, skipReason, allowUntouched = false;
 for (let i = 0; i < rest.length; i++) {
   const k = rest[i];
   if (k === "--f2-artifact") f2Artifact = rest[++i];
@@ -39,11 +39,40 @@ for (let i = 0; i < rest.length; i++) {
   else if (k === "--f4-nonce") f4Nonce = rest[++i];
   else if (k === "--f4-artifact") f4Artifact = rest[++i];
   else if (k === "--skip") skipStr = rest[++i];
+  else if (k === "--skip-reason") skipReason = rest[++i];
   // SEC (audit M6): explicit waiver for declared-but-untouched files (e.g. a file listed for
   // context that legitimately needed no edit). Recorded in the F1 result for audit.
   else if (k === "--allow-untouched") allowUntouched = true;
 }
 const skip = new Set((skipStr || "").split(",").map((s) => s.trim()).filter(Boolean));
+
+// AUDIT-3 FINDING 4: `--skip F2,F4,F5` was an ungated waiver that produced `all_pass: true` and
+// `final.verdict: "pass"` — which is exactly what `set-phase done` requires. An executor could
+// finish a run with no code review, no oracle and no routing check, never touching the nonce
+// apparatus at all. That route is cheaper than forging a verdict.
+//
+// What is enforceable here, honestly: not authorization. Every script under scripts/ is invocable
+// by any agent via the trusted-script allowlist, so no argv flag authenticates anyone. What CAN be
+// enforced is that a waiver is never SILENT and never laundered into a clean pass:
+//   · skipping a security item requires a stated reason;
+//   · the waiver is recorded in state.final.waived, naming each item and its reason;
+//   · `set-phase done` refuses on a waived F2/F4 unless separately acknowledged.
+// Two explicit, separately-recorded actions instead of one flag. F1/F3 are unchanged — F1 has its
+// own machine check and F3 is a human checklist.
+const SECURITY_ITEMS = ["F2", "F4", "F5"];
+const waivedItems = SECURITY_ITEMS.filter((i) => skip.has(i));
+if (waivedItems.length && !skipReason) {
+  console.error(
+    `record-final-wave.mjs: --skip ${waivedItems.join(",")} requires --skip-reason "<why>". ` +
+    `Skipping ${waivedItems.join("/")} waives ${waivedItems.includes("F2") ? "code review" : ""}` +
+    `${waivedItems.includes("F2") && waivedItems.includes("F4") ? " and " : ""}` +
+    `${waivedItems.includes("F4") ? "scope-fidelity review" : ""}` +
+    `${waivedItems.includes("F5") ? (waivedItems.length > 1 ? " and the routing check" : "the routing check") : ""}` +
+    ` — the reason is recorded in state.final.waived and \`set-phase done\` will require it to be ` +
+    `acknowledged. Re-run without --skip if the reviewers simply have not been dispatched yet.`
+  );
+  exit(2);
+}
 // Recorded in state.final so a resuming orchestrator (and any human reading the evidence) can see
 // WHAT the reviewer said, not merely that one was summoned.
 let f2Verdict = null, f4Verdict = null;
@@ -553,7 +582,8 @@ function acquireLock() {
   }
 }
 function apply(s) {
-  s.final = { verdict: allPass ? "pass" : "fail", at: now, results, artifact: fwArtifact };
+  s.final = { verdict: allPass ? "pass" : "fail", at: now, results, artifact: fwArtifact,
+    ...(waivedItems.length ? { waived: waivedItems, waived_reason: skipReason } : {}) };
   s.updated_at = now;
   return s;
 }

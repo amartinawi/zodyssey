@@ -87,13 +87,33 @@ if (!/^(APPROVE|APPROVED|OKAY|OK|PASS|PASSED|ACCEPT|ACCEPTED|REJECT|REJECTED|FAI
 
 const field = item === "F2" ? "final_f2" : "final_f4";
 const pending = st[field] && st[field].pending_nonce && st[field].pending_nonce.nonce;
-if (nonceArg && pending && nonceArg !== pending) {
-  console.error(`record-final-artifact.mjs: --nonce does not match state.${field}.pending_nonce. The hook mints that nonce when it observes the ${item === "F2" ? "code-reviewer" : "oracle"} dispatch in phase=final; pass the one from state (or the hook's stderr line).`);
+// AUDIT-3 FINDING 2: this check was soft in two directions, and both were writable.
+// `if (nonceArg && pending && ...)` meant OMITTING --nonce skipped the comparison entirely, and a
+// missing pending nonce only printed a WARNING — the artifact was written either way. So an
+// artifact could be placed in .zcode/reviews/ with no dispatch behind it at all. Require both, and
+// refuse. record-final-wave still consumes and sha-binds the nonce later; this is the cheap
+// early refusal that keeps a malformed artifact from ever reaching the gate.
+const reviewer = item === "F2" ? "code-reviewer" : "oracle";
+if (!nonceArg) {
+  console.error(`record-final-artifact.mjs: --nonce <nonce> is required. The hook mints it when it observes the ${reviewer} dispatch in phase=final and prints it on stderr; it is also at state.${field}.pending_nonce.`);
   exit(6);
 }
 if (!pending) {
-  console.error(`record-final-artifact.mjs: WARNING — state.${field}.pending_nonce is absent. Dispatch the ${item === "F2" ? "code-reviewer" : "oracle"} reviewer first so the hook mints a nonce, or record-final-wave will reject this artifact.`);
+  console.error(`record-final-artifact.mjs: state.${field}.pending_nonce is absent — no ${reviewer} dispatch has been observed for this run, so there is no verdict to record. Dispatch the reviewer first.`);
+  exit(6);
 }
+if (nonceArg !== pending) {
+  console.error(`record-final-artifact.mjs: --nonce does not match state.${field}.pending_nonce. The hook mints that nonce when it observes the ${reviewer} dispatch in phase=final; pass the one from state (or the hook's stderr line).`);
+  exit(6);
+}
+
+// RESIDUAL, stated plainly because the nonce apparatus reads stronger than it is: this proves a
+// reviewer was DISPATCHED, not what the reviewer SAID. The nonce lives in .zcode/state/, which any
+// agent can read with ungated `cat`, so an injected executor can wait for the legitimate dispatch,
+// read the minted nonce, and submit its own verdict bytes under it. Closing that needs the artifact
+// bound to something the executor cannot produce — the reviewer's transcript hash, handed to the
+// hook by the harness (see record-momus-artifact.mjs's SEC-6 note, which proposes the same thing
+// for the review lane). That is a harness change, not a script change, and is NOT done.
 
 const reviewsDir = join(repo, ".zcode", "reviews");
 mkdirSync(reviewsDir, { recursive: true });

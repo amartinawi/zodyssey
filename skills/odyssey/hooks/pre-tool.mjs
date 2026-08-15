@@ -76,11 +76,29 @@ const PARSE_PLAN_PATH = join(dirname(dirname(fileURLToPath(import.meta.url))), "
 // docker run -v (all slipped the enumerative list), AND inverted git to a safe-verb allowlist
 // (merge/pull/fetch/branch/tag/checkout<branch>/bare-stash all mutated the worktree but were absent).
 // SEC-2 also fixed the `2>&1` false-positive: fd-duplication is not a redirection-to-file.
-const FD_DUP = /\d*>&\d/; // 2>&1, 1>&2, etc. — fd duplication, NOT a file write
+// fd duplication (2>&1, 1>&2), NOT a file write. GLOBAL: a command can carry more than one
+// (`ls 2>&1 3>&2`) and a non-global replace left every occurrence after the first in place.
+const FD_DUP = /\d*>&\d/g;
 const WRITE_PATTERNS = [
-  // Redirection to a file. Strip fd-duplication first so `2>&1`/`1>&2` don't false-trip, then
-  // match `> f`/`>f`/`>> f` that write to a real target.
-  (cmd) => /(^|[\s;&|])\S+(\.\w+)?\s*>>?\s*\S/.test(cmd.replace(FD_DUP, " ")),
+  // Redirection to a file. Strip fd-duplication first so `2>&1`/`1>&2` don't false-trip.
+  //
+  // AUDIT-3 FINDING 3 (CRITICAL in effect): this required a WORD before the `>`
+  // (`\S+(\.\w+)?\s*>>?`), so a command consisting only of a redirect — `> .zcode/state/t.json` —
+  // matched nothing and ran as "read-only". That truncates the state file; discovery then fails to
+  // parse it, finds no run, and EVERY hook becomes a no-op. A one-command kill switch for the whole
+  // gate, reachable pre-OKAY in any phase. Match the redirect operator itself wherever it appears.
+  //
+  // R1 (audit-3 verification): the first attempt at this excluded `&` and a DIGIT before the `>`,
+  // on the reasoning that they were fd forms. Wrong — and it REGRESSED the very kill switch this
+  // fix closed. `2> .zcode/state/t.json`, `&> …`, `1> …`, `2>> …` and `exec 3> …` all went
+  // BLOCK (0.5.0) -> ALLOW (0.5.1): one keystroke from the command the fix was written for, with
+  // the hole and the fix shipping in the same regex. FD_DUP already strips `\d*>&\d`, so a digit
+  // still sitting before a `>` is a REAL file redirect, never a descriptor duplication.
+  //
+  // Exclude only `-` (so `grep -- '->'` does not trip — which the pre-0.5.1 pattern got wrong in
+  // the opposite direction) and `>` (so `>>` counts once). `>&` and `>|` are admitted explicitly;
+  // neither build ever caught them.
+  (cmd) => /(^|[^->])\s*&?\d*>[>|&]?\s*[^\s>&|;]/.test(cmd.replace(FD_DUP, " ")),
   /\btee\b/,
   /\bsed\s+[^&;\n]*-i\b/, // sed -i (in-place)
   /\b(?:perl|ruby)\s+-\w*(?:p|e)/, // perl -pi -e, perl -e, ruby -e
@@ -94,23 +112,60 @@ const WRITE_PATTERNS = [
   /\bgit\s+(?!(?:status|diff|log|show|ls-files|ls-tree|blame|annotate|rev-parse|cat-file|name-rev|describe|shortlog|reflog|config\s+--get|remote\s+--verbose|remote\s+-v|fetch\s+--dry-run|help|version|range-diff|cherry\b)(?:\s|$))/,
   /\bpatch\b/,
   /\bdd\s+[^&;\n]*of=/,
-  /\b(?:mv|cp|rm|install|truncate|chmod|chown|mkdir|cpio)\b/,
+  /\b(?:mv|cp|rm|install|truncate|chmod|chown|mkdir|cpio|shred|wipe)\b/,
   /\bln\b/, // SEC-2: hard/symlinks — `ln src dst` places a file under dst (the reviews/ attack)
   /\b(?:tar|unzip|zip|7z|7za|gzip|gunzip|zstd|unzstd|xz|unxz|bz2|bunzip2)\b/, // SEC-2: archive extract/write
   /\brsync\b/, // SEC-2: rsync copies files into arbitrary paths
   /\bmake\b/, // SEC-2: arbitrary build output
   /\b(?:gcc|g\+\+|cc|clang|clang\+\+|rustc|cargo|go\s+build|go\s+install)\b/, // SEC-2: compilers emit binaries
   /\bdocker\s+run\b/, // SEC-2: -v bind-mount writes; gate the whole verb (conservative)
-  // interpreter eval flags (NOT just -c): -c, -e, --eval, -pi. node's is -e/--eval.
-  /\b(?:python|python3|node|ruby|perl)\s+(?:-[ce]|--eval|--exec|-[pi]\w*)\b/,
-  // script indirection: running ANY file via an interpreter can do anything the interpreter can.
-  // W7-3: extension-INDEPENDENT (the old pattern required .mjs/.sh/etc, so an extensionless
-  // file under agent-writable notepads/ bypassed the gate). Match a positional operand unless
-  // it starts with - (a flag) — the trusted-script allowlist (isTrustedScriptInvoke) handles
-  // the sanctioned node <odyssey-script> case separately.
-  /\b(?:node|bash|sh|zsh|python|python3|ruby|perl)\s+(?!-)\S+/,
+  // INTERPRETERS — inverted to an allowlist (AUDIT-3 FINDING 1, CRITICAL).
+  //
+  // The two patterns here used to be positional and both were trivially sidestepped:
+  //   · the eval-flag pattern required the eval flag to be the FIRST token after the interpreter,
+  //     so `python -u -c "…"`, `python3 -B -c "…"`, `node --no-warnings -e "…"` and `ruby -w -e`
+  //     matched nothing;
+  //   · the script-indirection pattern skipped any invocation whose next token starts with `-`
+  //     (`(?!-)`), so those same commands fell through it too, as did `python - <<'EOF'` (stdin
+  //     heredoc — the operand is literally `-`).
+  // Result: arbitrary code execution classified as READ-ONLY and ran pre-OKAY in any phase. That
+  // is the full forged-run takeover chain this release exists to close, reopened through a
+  // different door — and made worse by the marker key being readable via ungated `cat`.
+  //
+  // Enumerating flag shapes is what failed. Invert instead, the same posture SEC-2 took for git:
+  // ANY invocation of a general-purpose interpreter is gated, except a bare version/help query.
+  // Over-blocking is safe here — the sanctioned `node <odyssey-script>` path does not rely on this
+  // returning read-only; it is allowed one step later by isTrustedScriptInvoke, which runs after
+  // looksReadOnly and applies a realpath-checked allowlist.
+  // R2 (audit-3 verification): `\b` treats `.` as a word boundary, so `\bsh\b` matched the
+  // EXTENSION in `deploy.sh` and `cat deploy.sh` / `wc -l build.sh` / `ls *.sh` all started
+  // blocking — an availability regression in every phase, and the version-flag carve-out cannot
+  // help because `sh` is not the command token there. The lookbehind requires COMMAND POSITION:
+  // the token may follow start-of-string, a separator, or `/` (so `/usr/bin/python3` works), but
+  // never a word character, `.` or `-`. `deploy.sh` and `run-node.js` are filenames; `sh script`,
+  // `; sh evil` and `xargs sh` are invocations.
+  /(?<![\w.-])(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell)\b(?!\s+(?:--version|-V|--help|-h)\s*$)/,
+  // Shell interpreters, same rule: `bash -c`, `sh script.sh` and bare `bash` are gated;
+  // `bash --version` is not, and a `.sh` filename in a read-only command is not a shell.
+  /(?<![\w.-])(?:bash|sh|zsh|ksh|dash|fish)\b(?!\s+(?:--version|-V|--help|-h)\s*$)/,
   /\bcurl\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
   /\bwget\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
+  // R3 (audit-3 verification): these passed as read-only on BOTH builds. `source`/`.` execute a
+  // file in the current shell, and the downloaders write one — so `curl -o /tmp/x <url>` followed
+  // by `source /tmp/x` is a two-command ungated arbitrary-execution chain, pre-OKAY, in any phase.
+  // Same class as the interpreter finding, reachable without an interpreter.
+  //
+  // The auditor suggested naming these as residuals rather than enumerating them, on the grounds
+  // that the honest fix is command-position-aware classification. R2 just added exactly that, so
+  // they are enumerated HERE with the position rule applied — which is the same fix, not a
+  // guess-the-next-binary list: `source`/`.` only count at command position, so `foo.source` and
+  // a bare `.` inside a path are unaffected.
+  /(?<![\w.-])source\s+\S/,
+  /(^|[;&|(]\s*)\.\s+\S/,                    // dot-sourcing: `. /tmp/x`, `; . ./env`
+  /(?<![\w.-])curl\b[^;&|\n]*\s-(?:o\b|-output\b|O\b|-remote-name\b)/,
+  /(?<![\w.-])wget\b(?![^;&|\n]*\s--spider\b)/,   // wget writes a file by default; --spider does not
+  /(?<![\w.-])sed\b[^;&|\n]*\bw\s+\S/,       // sed's `w file` command writes, with no -i in sight
+  /(?<![\w.-])busybox\b/,                    // busybox <applet> reaches sh/sed/dd/… behind one name
   /\binstall\s+-m\b/,
   // CRITICAL T1-1 (audit 2026-08-14): the deny-list missed a whole family of ordinary write
   // primitives, so they classified as READ-ONLY and ran pre-OKAY in any phase. Chained with
@@ -1315,7 +1370,13 @@ if (isDispatch) {
   // so gating the dispatch closes the loop. Non-momus dispatches are NOT affected. No-active-run
   // already exited at the top (AC3). Reads the same state.* fields record-review uses, so the two
   // agree on the cap.
-  if (subagent === "momus") {
+  // AUDIT-3 FINDING 7: this was a bare `subagent === "momus"` while the nonce minter below uses
+  // isAgent() (final-segment matching). So `evil:momus` skipped the round cap AND the pre-dispatch
+  // lint here, then minted a review nonce down there — the same one-path-not-its-twin shape this
+  // release was written to hunt, left in the file by the release that hunted it. Bounded in impact
+  // (record-review enforces the cap independently), but the two sites must agree on what counts as
+  // momus or the guard is decorative.
+  if (isAgent("momus")) {
     const _rr = (state.review && typeof state.review === "object") ? state.review : {};
     const _round = Number.isFinite(_rr.round) ? _rr.round : 0;
     const _max = Number.isFinite(_rr.max_rounds) ? _rr.max_rounds : 3;
