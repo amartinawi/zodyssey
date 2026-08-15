@@ -15,9 +15,10 @@ import { join, resolve as pathResolve } from "node:path";
 import { exit } from "node:process";
 import { spawnSync } from "node:child_process";
 import { findActiveRuns, mostRecent, STALE_MS_DEFAULT, TERMINAL } from "./lib/find-run.mjs";
+import { resolvePath } from "../scripts/lib/repo-path.mjs";
 
 const PROJECT_DIR =
-  process.env.CLAUDE_PROJECT_DIR || process.env.ZCODE_PROJECT_DIR || process.cwd();
+  resolvePath(process.env.CLAUDE_PROJECT_DIR || process.env.ZCODE_PROJECT_DIR || process.cwd());
 const STALE_MS = (() => {
   const h = parseFloat(process.env.ZODYSSEY_STALE_HOURS || "24");
   return Number.isFinite(h) && h > 0 ? h * 3600 * 1000 : STALE_MS_DEFAULT;

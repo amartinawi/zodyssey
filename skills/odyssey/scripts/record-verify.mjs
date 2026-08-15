@@ -358,7 +358,9 @@ function apply(st) {
 }
 const lockFd = acquireLock();
 if (lockFd === null) {
-  try { writeFileSync(statePath, JSON.stringify(apply(JSON.parse(readFileSync(statePath, "utf8"))), null, 2) + "\n"); } catch {}
+  // T2-1: was a non-atomic unlocked write that silently clobbered the lock holder. Refuse instead.
+  console.error("record-verify.mjs: could not acquire the state lock (real contention or a stuck lock). Refusing to write non-atomically — nothing was written. The verify record was NOT written.");
+  exit(6);
 } else {
   try {
     const st = apply(JSON.parse(readFileSync(statePath, "utf8")));

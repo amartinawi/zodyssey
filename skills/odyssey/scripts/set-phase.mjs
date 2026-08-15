@@ -152,8 +152,11 @@ function checkPrecondition(st, target) {
 
 const lockFd = acquireLock();
 if (lockFd === null) {
-  try { writeFileSync(statePath, JSON.stringify(apply(JSON.parse(readFileSync(statePath, "utf8"))), null, 2) + "\n"); } catch {}
-  exit(0);
+  // T2-1 (audit 2026-08-14): this fell back to a NON-ATOMIC, UNLOCKED writeFileSync, silently
+  // clobbering whatever the lock holder was writing. record-todo already refused; five writers did
+  // not. Losing a write loudly beats corrupting state quietly.
+  console.error("set-phase.mjs: could not acquire the state lock (real contention or a stuck lock). Refusing to write non-atomically — nothing was written. The phase was NOT changed.");
+  exit(6);
 }
 try {
   const st = apply(JSON.parse(readFileSync(statePath, "utf8")));

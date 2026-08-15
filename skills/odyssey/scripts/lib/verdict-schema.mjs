@@ -103,3 +103,52 @@ export function normalizeConsultVerdict(raw) {
     raw: verdict,
   };
 }
+
+// ---------------------------------------------------------------------------
+// T3-2: parse a verdict out of a PROSE artifact.
+//
+// momus-prompt.md documents the reviewer's output as a text block headed
+// `VERDICT: OKAY | REJECT`, while record-momus-artifact.mjs accepted strict
+// JSON only — so a reviewer following her own prompt got exit 6 and the run
+// deadlocked at the review gate. record-final-wave already had a hardened
+// version of this parser; duplicating it is how the two would drift, which is
+// the mistake this release exists to stop repeating. One definition, two
+// callers.
+//
+// Deliberately NOT a bare keyword search. "this would REJECT under the old
+// rules" is discussion, not a verdict, and a reviewer narrating its reasoning
+// must never accidentally close (or open) the gate. Requires an explicit
+// line-anchored `VERDICT:` token; says-both and says-neither both fail closed.
+const VERDICT_APPROVE =
+  /^\s*(?:\*\*)?VERDICT(?:\*\*)?\s*[:=]\s*(?:\*\*)?\s*(APPROVE[D]?|OKAY|OK|PASS(?:ED)?|ACCEPT(?:ED)?)\b/im;
+const VERDICT_REJECT =
+  /^\s*(?:\*\*)?VERDICT(?:\*\*)?\s*[:=]\s*(?:\*\*)?\s*(REJECT(?:ED)?|FAIL(?:ED)?|BLOCK(?:ED)?)\b/im;
+
+// -> "approve" | "reject" | "missing"
+export function verdictFromProse(text) {
+  const s = String(text || "");
+  const approve = VERDICT_APPROVE.test(s);
+  const reject = VERDICT_REJECT.test(s);
+  if (approve && reject) return "missing";   // says both -> we don't know -> fail closed
+  if (approve) return "approve";
+  if (reject) return "reject";
+  return "missing";
+}
+
+// Blockers from the documented `BLOCKERS:` block: subsequent `- ` bullets until
+// a blank line or the next ALL-CAPS section header. Capped at 5, matching the
+// prompt's own limit.
+export function blockersFromProse(text) {
+  const lines = String(text || "").split("\n");
+  const i = lines.findIndex((l) => /^\s*(?:\*\*)?BLOCKERS(?:\*\*)?\s*:/i.test(l));
+  if (i === -1) return [];
+  const out = [];
+  for (const line of lines.slice(i + 1)) {
+    if (/^\s*$/.test(line)) { if (out.length) break; continue; }
+    if (/^\s*(?:\*\*)?[A-Z][A-Z -]{2,}(?:\*\*)?\s*:/.test(line)) break;   // next section
+    const m = line.match(/^\s*[-*]\s+(.*\S)\s*$/);
+    if (m) out.push(m[1].replace(/`/g, ""));
+    else if (out.length) break;
+  }
+  return out.slice(0, 5);
+}

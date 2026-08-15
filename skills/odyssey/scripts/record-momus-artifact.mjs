@@ -18,6 +18,8 @@ import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSyn
 import { join } from "node:path";
 import { argv, exit, stdin } from "node:process";
 import { createHash } from "node:crypto";
+import { resolveRepo, resolvePath, containedIn } from "./lib/repo-path.mjs";
+import { verdictFromProse, blockersFromProse } from "./lib/verdict-schema.mjs";
 
 const [repo, slug, ...tail] = argv.slice(2);
 // <round> is optional, so the third positional may actually be the first FLAG. Only treat it as a
@@ -83,10 +85,13 @@ if (fromFile) {
   // (.zcode/notepads/, .zcode/plans/), which are the cheapest place to pre-stage a forged verdict.
   // Stdin and non-bookkeeping --from paths are still allowed (the legit orchestrator path).
   try {
-    const fromAbs = realpathSync(fromFile);
-    const zcode = join(repo, ".zcode");
-    if (fromAbs.startsWith(join(zcode, "notepads") + "/") || fromAbs.startsWith(join(zcode, "plans") + "/")) {
-      console.error(`record-momus-artifact.mjs: --from <file> under agent-writable bookkeeping (${fromAbs}) refused — pipe the verdict via stdin or use a non-bookkeeping path. (SEC-6: the artifact content must not be pre-staged where an agent can write it.)`);
+    // Class B fix (audit 2026-08-14): this guard built its prefix from the repo argument AS PASSED
+    // while comparing against an absolute realpath, so with a relative repo arg (`.` — the form the
+    // docs themselves used) `startsWith` could never match and SEC-6 was a no-op. Proven bypassed.
+    // containedIn normalizes BOTH sides; that is the whole point of routing through it.
+    const zcode = join(resolveRepo(repo), ".zcode");
+    if (containedIn(fromFile, join(zcode, "notepads")) || containedIn(fromFile, join(zcode, "plans"))) {
+      console.error(`record-momus-artifact.mjs: --from <file> under agent-writable bookkeeping (${resolvePath(fromFile)}) refused — SEC-6: the artifact content must not be pre-staged where an agent can write it. Stage it in .zcode/staging/ (writable pre-OKAY, and not a dir the planner writes) or pipe the verdict on stdin.`);
       exit(6);
     }
   } catch (e) {
@@ -104,8 +109,38 @@ if (fromFile) {
   } catch { raw = ""; }
   if (!raw || !raw.trim()) { console.error("no verdict on stdin and no --from <file>; pipe the momus JSON or use --from"); exit(6); }
 }
+// T3-2: accept the shape momus-prompt.md actually documents.
+//
+// The prompt tells the reviewer to emit a text block headed `VERDICT: OKAY | REJECT` with LENSES
+// and BLOCKERS sections; this script accepted strict JSON only. A reviewer following her own
+// prompt therefore got exit 6 and the run deadlocked at the review gate with a message about
+// invalid JSON — a documentation/parser contract mismatch, not reviewer error.
+//
+// JSON stays the preferred wire form and is tried first, unchanged. The prose fallback requires an
+// explicit line-anchored VERDICT: token (shared with record-final-wave via lib/verdict-schema.mjs
+// so the two cannot drift) and fails closed when the text says both or neither. This loosens the
+// FORMAT only: the nonce chain and the plan-sha binding below are what make the verdict
+// non-forgeable, and neither is touched.
 let verdict;
-try { verdict = JSON.parse(raw); } catch { console.error("momus verdict is not valid JSON"); exit(6); }
+try {
+  verdict = JSON.parse(raw);
+} catch {
+  const prose = verdictFromProse(raw);
+  if (prose === "missing") {
+    console.error(
+      "momus verdict is neither valid JSON nor a prose artifact carrying an explicit " +
+      "`VERDICT: OKAY` / `VERDICT: REJECT` line (see references/momus-prompt.md). " +
+      "A verdict that says both, or neither, is refused rather than guessed."
+    );
+    exit(6);
+  }
+  verdict = {
+    verdict: prose === "approve" ? "OKAY" : "REJECT",
+    blockers: prose === "reject" ? blockersFromProse(raw) : [],
+    _format: "prose",
+    _raw: raw.slice(0, 4000),
+  };
+}
 
 const reviewsDir = join(repo, ".zcode", "reviews");
 mkdirSync(reviewsDir, { recursive: true });

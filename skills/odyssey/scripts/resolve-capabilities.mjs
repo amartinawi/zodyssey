@@ -37,6 +37,7 @@ import { argv, exit, env } from "node:process";
 import { execFileSync } from "node:child_process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { sameName } from "./lib/capability-name.mjs";
 
 const HOME = env.HOME || "";
 const AGENTS_DIR = join(HOME, ".zcode", "agents");
@@ -388,7 +389,11 @@ function parseCapsMdRoutes(mdText) {
   for (const m of mdText.matchAll(/skill:\s*([a-z0-9][a-z0-9:-]*)/gi)) skills.add(m[1]);
   // Task: is CASE-SENSITIVE (the dispatch token is always capitalized). A lowercase "task:"
   // appears in prose ("current task: architectural decisions") and would otherwise be matched.
-  for (const m of mdText.matchAll(/Task:\s*([a-z0-9][a-z0-9-]*)/g)) agents.add(m[1]);
+  // Class C fix (audit 2026-08-14): the char class excluded `:`, so every `Task: zodyssey:<agent>`
+  // route truncated to the phantom agent "zodyssey" — reported as a stale route while all eight
+  // real agents were reported as orphaned installs. The skill regex above already allowed colons;
+  // the two disagreed inside one function.
+  for (const m of mdText.matchAll(/Task:\s*([a-z0-9][a-z0-9:-]*)/g)) agents.add(m[1]);
   // <name> MCP — the name may be wrapped in backticks/quotes ("the `codegraph` MCP"). Allow an
   // optional closing quote/backtick + whitespace between the identifier and "MCP".
   for (const m of mdText.matchAll(/\b([a-z][a-z0-9-]*)[`'"]?\s+MCP\b/gi)) {
@@ -425,15 +430,21 @@ function runDriftCheck(inventory, capsMdPath) {
   const lockAgents = new Set(inventory.agents);
   const lockMcps = new Set(inventory.mcps);
 
+  // Class C: routes are written namespaced (`Task: zodyssey:oracle`) while the inventory records
+  // the bare frontmatter `name:`. Comparing raw strings reports every real agent as BOTH a stale
+  // route and an orphaned install — noise that buries genuine drift. Compare by name segment, the
+  // same rule F5 uses.
+  const hasName = (set, want) => { for (const v of set) if (sameName(v, want)) return true; return false; };
+
   // (1) stale routes: routed but NOT installed
-  for (const s of routes.skills) if (!lockSkills.has(s)) { report.stale_routes.skills.push(s); drift = true; }
-  for (const a of routes.agents) if (!lockAgents.has(a)) { report.stale_routes.agents.push(a); drift = true; }
-  for (const m of routes.mcps) if (!lockMcps.has(m)) { report.stale_routes.mcps.push(m); drift = true; }
+  for (const s of routes.skills) if (!hasName(lockSkills, s)) { report.stale_routes.skills.push(s); drift = true; }
+  for (const a of routes.agents) if (!hasName(lockAgents, a)) { report.stale_routes.agents.push(a); drift = true; }
+  for (const m of routes.mcps) if (!hasName(lockMcps, m)) { report.stale_routes.mcps.push(m); drift = true; }
 
   // (2) unrouted present: installed but NOT routed anywhere in capabilities.md
-  for (const s of inventory.skills) if (!routes.skills.has(s)) { report.unrouted_present.skills.push(s); drift = true; }
-  for (const a of inventory.agents) if (!routes.agents.has(a)) { report.unrouted_present.agents.push(a); drift = true; }
-  for (const m of inventory.mcps) if (!routes.mcps.has(m)) { report.unrouted_present.mcps.push(m); drift = true; }
+  for (const s of inventory.skills) if (!hasName(routes.skills, s)) { report.unrouted_present.skills.push(s); drift = true; }
+  for (const a of inventory.agents) if (!hasName(routes.agents, a)) { report.unrouted_present.agents.push(a); drift = true; }
+  for (const m of inventory.mcps) if (!hasName(routes.mcps, m)) { report.unrouted_present.mcps.push(m); drift = true; }
 
   // (3) duplicate-domain: two installed skills in the same domain where exactly one is routed.
   //     Names BOTH in the report — the orphan + its routed twin.

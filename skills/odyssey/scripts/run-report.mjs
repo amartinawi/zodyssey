@@ -15,6 +15,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
+import { collectRunTokens } from "./lib/tokens.mjs";
 
 const [repoRoot, slug, ...rest] = argv.slice(2);
 if (!repoRoot || !slug) {
@@ -82,8 +83,12 @@ for (const c of capArr) {
 }
 const caps = { ...capsDeclared, ...capsObserved };
 
-// --- headline ratio placeholder (tokens if/when attributed; null for now) ---
-const tokensPerTodo = null; // populated when ZCode exposes per-run token counts
+// --- token accounting (was a null placeholder: "populated when ZCode exposes per-run token
+// counts"). ZCode does expose them — every model request is recorded in its own SQLite DB — so
+// this was waiting on plumbing, not a platform feature. collectRunTokens returns null (never
+// throws) when the DB is absent, so a report never fails on missing telemetry.
+const tokens = collectRunTokens({ repoRoot, startMs: start, endMs: end });
+const tokensPerTodo = tokens ? Math.round(tokens.totals.total / Math.max(1, done)) : null;
 
 const report = {
   slug,
@@ -108,6 +113,8 @@ const report = {
   hook_blocks: hookBlocks,
   capabilities_used: caps,
   tokens_per_todo: tokensPerTodo,
+  tokens, // null when telemetry is unavailable; see lib/tokens.mjs for the arithmetic rules
+
   generated_at: new Date().toISOString(),
 };
 
@@ -136,6 +143,12 @@ if (logPath) console.log(`  hook blocks       ${hookBlocks}`);
 console.log(`  ${"─".repeat(48)}`);
 const capStr = Object.entries(caps).map(([k, v]) => `${k}×${v}`).join(" · ");
 console.log(`  capabilities used ${capStr || "(none recorded)"}`);
-console.log(`  tokens/todo       ${tokensPerTodo ?? "n/a (needs token attribution)"}`);
+console.log(`  tokens/todo       ${tokensPerTodo ?? "n/a (no telemetry for this window)"}`);
+if (tokens) {
+  const k = (n) => n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n);
+  console.log(`  tokens total      ${k(tokens.totals.total)}  (billable input ${k(tokens.totals.billable_input)}, cache read ${k(tokens.totals.cache_read)}, output ${k(tokens.totals.output)})`);
+  console.log(`  cache hit ratio   ${(tokens.cache_hit_ratio * 100).toFixed(1)}%   [${tokens.confidence} — attributed by ${tokens.attribution}]`);
+  console.log(`  orchestrator/sub  ${k(tokens.by_role.orchestrator.total)} / ${k(tokens.by_role.subagent.total)}`);
+}
 console.log(`  ${"─".repeat(48)}`);
 console.log(`  append to trend:  run-report.mjs <repo> ${slug} --json >> ~/.zcode/orchestration/eval/results.jsonl\n`);

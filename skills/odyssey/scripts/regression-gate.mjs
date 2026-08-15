@@ -33,6 +33,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "
 import { join } from "node:path";
 import { argv, exit } from "node:process";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const [repo, slug, ...rest] = argv.slice(2);
 if (!repo || !slug) {
@@ -49,6 +50,11 @@ const TIMEOUT_MS = (() => {
 
 const statePath = join(repo, ".zcode", "state", `${slug}.json`);
 if (!existsSync(statePath)) { console.error("no state file: " + statePath); exit(3); }
+
+function toolchainSha() {
+  try { return createHash("sha256").update(readFileSync(join(repo, ".zcode", "toolchain.json"))).digest("hex"); }
+  catch { return null; }
+}
 
 function loadToolchain() {
   const p = join(repo, ".zcode", "toolchain.json");
@@ -78,8 +84,11 @@ function extractFailures(output) {
 
 function runSuite(testCmd) {
   // shell:true because test_cmd is a command LINE from toolchain.json ("npm test", "go test ./...").
-  // It is machine-derived by probe-toolchain.mjs from the repo's own config, not agent-authored,
-  // so this is not an injection surface the way an agent-supplied criterion would be.
+  // T2-3 (audit 2026-08-14): the comment below claimed toolchain.json is "machine-derived, not
+  // agent-authored" — but a plan that DECLARES `.zcode/toolchain.json` in its Files: makes it
+  // executor-writable, at which point `test_cmd` becomes arbitrary code run by a trusted script
+  // (or simply `true`, pinning the regression gate green forever). The sha bound at baseline below
+  // closes that: if the toolchain changed after the baseline was taken, refuse rather than run it.
   const r = spawnSync(testCmd, {
     cwd: repo, shell: true, encoding: "utf8", timeout: TIMEOUT_MS, maxBuffer: 40 * 1024 * 1024,
   });
@@ -130,6 +139,10 @@ if (mode === "snapshot") {
   writeState((st) => {
     st.regression = {
       status: "baselined",
+      // T2-3: bind the toolchain that produced this baseline. --check refuses if it changed,
+      // so an executor that rewrites test_cmd (possible whenever a plan declares
+      // .zcode/toolchain.json in Files:) cannot pin the gate green or run arbitrary code.
+      toolchain_sha256: toolchainSha(),
       baseline: { ...res, green: baselineGreen, cmd: testCmd },
       at: res.at,
     };
@@ -150,6 +163,14 @@ if (!baseline) {
   exit(0);
 }
 
+// T2-3: fail CLOSED if the toolchain changed since the baseline — a changed test_cmd means the
+// "before" and "after" measurements are of different things, and the change itself may be the
+// attack (test_cmd rewritten to `true`).
+if (st0.regression.toolchain_sha256 && st0.regression.toolchain_sha256 !== toolchainSha()) {
+  console.error("regression-gate: .zcode/toolchain.json changed since the baseline was taken — refusing to compare. The gate measures one command against itself; a changed test_cmd invalidates the comparison (and rewriting it is how the gate would be neutered). Re-run --snapshot --resnapshot deliberately if the toolchain legitimately changed.");
+  writeState((st) => { st.regression = { ...(st.regression || {}), status: "toolchain-drift", at: new Date().toISOString() }; });
+  exit(6);
+}
 const after = runSuite(testCmd);
 const regressed = baseline.green === true && after.exit_code !== 0;
 const newFailures = after.failures.filter((f) => !(baseline.failures || []).includes(f));

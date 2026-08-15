@@ -22,6 +22,8 @@ import { join } from "node:path";
 import { argv, exit } from "node:process";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { matchesCapability } from "./lib/capability-name.mjs";
+import { verdictFromProse } from "./lib/verdict-schema.mjs";
 
 const [repo, slug, ...rest] = argv.slice(2);
 if (!repo || !slug) {
@@ -84,12 +86,11 @@ function classifyVerdict(text) {
   // Prose artifacts must carry an explicit `VERDICT: X` line. Deliberately NOT a bare keyword
   // search: "this would REJECT under the old rules" is discussion, not a verdict, and a reviewer
   // narrating its reasoning must never accidentally close the gate.
-  const approve = /^\s*(?:\*\*)?VERDICT(?:\*\*)?\s*[:=]\s*(?:\*\*)?\s*(APPROVE[D]?|OKAY|OK|PASS(?:ED)?|ACCEPT(?:ED)?)\b/im.test(text);
-  const reject = /^\s*(?:\*\*)?VERDICT(?:\*\*)?\s*[:=]\s*(?:\*\*)?\s*(REJECT(?:ED)?|FAIL(?:ED)?|BLOCK(?:ED)?)\b/im.test(text);
-  if (approve && reject) return "missing"; // says both → we don't know → fail closed
-  if (approve) return "approve";
-  if (reject) return "reject";
-  return "missing";
+  //
+  // T3-2: this parser now lives in lib/verdict-schema.mjs because record-momus-artifact needs the
+  // identical rule (its prompt documents the same VERDICT: block). Two copies of a verdict parser
+  // is exactly the drift this release exists to stop.
+  return verdictFromProse(text);
 }
 
 // Test-file detection for the integrity guard. Conservative by design: a false positive here
@@ -198,7 +199,14 @@ try {
     // is empty, so F1 passed — the vacuous pass this file's own SEC-H1 comment above concedes.
     // Combined with --skip F2,F4 that was a clean path to `done` having changed nothing at all.
     const untouched = [...declared].filter((p) => !actual.has(p));
-    const didNothing = declared.size > 0 && actual.size === 0;
+    // ORCH-1: `--allow-untouched` waived SOME declared files being untouched but never ALL of
+    // them, so a run whose diff is legitimately empty — an audit or review that produces a report
+    // and changes no declared file — had no way to reach `done` at all. That asymmetry is
+    // arbitrary: didNothing is just the degenerate case of untouched. The guard exists to stop a
+    // SILENT vacuous pass, and an explicit operator waiver is not silent; it is recorded in the
+    // artifact below either way.
+    const didNothing = declared.size > 0 && actual.size === 0 && !allowUntouched;
+    const didNothingWaived = declared.size > 0 && actual.size === 0 && allowUntouched;
 
     // B3 — TEST-INTEGRITY GUARD. Nothing in the ecosystem implements this (verified against omo,
     // prime-agent, spec-kit, SWE-agent, Cline/Roo, claude-flow). It matters because the cheapest
@@ -260,7 +268,8 @@ try {
       declared_untouched: untouched,
       ...(untouched.length && allowUntouched ? { untouched_waived: true } : {}),
       test_integrity: testIntegrity,
-      ...(didNothing ? { error: "F1: the plan declares files but the diff is EMPTY — nothing was done. This is the vacuous pass; it is not a completed run." } : {}),
+      ...(didNothing ? { error: "F1: the plan declares files but the diff is EMPTY — nothing was done. This is the vacuous pass; it is not a completed run. If the run is legitimately read-only (an audit or review that changes no declared file), pass --allow-untouched to waive this explicitly." } : {}),
+      ...(didNothingWaived ? { empty_diff_waived: true } : {}),
       ...(untouchedBlocks ? { untouched_error: `F1: ${untouched.length} declared file(s) were never touched: ${untouched.slice(0, 8).join(", ")}. The plan's work is incomplete. Finish them, remove them from the plan's Files:, or pass --allow-untouched if they were context-only.` } : {}),
       ...(testsIntact ? {} : { test_integrity_error: testIntegrity.error
         ? "F1: test-integrity check could not run: " + testIntegrity.error
@@ -298,7 +307,7 @@ function consumeFinalNonce(field, argvNonce, artifactAbs) {
     const st = JSON.parse(readFileSync(statePath, "utf8"));
     const pending = st[field] && st[field].pending_nonce;
     if (!pending || pending.nonce !== argvNonce) {
-      return { ok: false, reason: "nonce mismatch — the hook only mints state." + field + ".pending_nonce for a real dispatch" };
+      return { ok: false, reason: "nonce mismatch — the hook mints state." + field + ".pending_nonce only when it observes a real Task(" + (field === "final_f2" ? "code-reviewer" : "oracle") + ") dispatch in phase=final. Dispatching a different reviewer (momus, say) mints nothing, which is the usual cause of this. Dispatch " + (field === "final_f2" ? "code-reviewer for F2" : "oracle for F4") + ", then pass the nonce it mints." };
     }
     // bind to the actual artifact bytes on disk (detects post-stamp tampering)
     let diskSha = "";
@@ -488,31 +497,34 @@ if (skip.has("F5")) {
   if (!routing) {
     results.F5 = { passed: false, reason: "F5 routing: the plan has no valid `## Capability routing` tri-state declaration (missing section or placeholder-only). The review lint should have caught this; re-declare the routing decision and re-review." };
   } else if (routing.token === "routed" && norm(routing.value).startsWith("agent:")) {
-    // SEC (audit M4): agent routing is now behaviorally verified, not declaration-only. post-tool.mjs
-    // records `agent:<subagent_type>` as an observed capability when a Task dispatch completes, so a
-    // declared `routed: agent:X` must have a matching observed dispatch. The `zodyssey:` namespace
-    // prefix is normalized away on both sides so `agent:oracle` and `agent:zodyssey:oracle` match.
-    const stripNs = (c) => c.replace(/^agent:zodyssey:/, "agent:");
-    const need = stripNs(norm(routing.value));
-    const ok = hasObserved((c) => stripNs(c) === need);
+    // M4: agent routing is behaviorally verified — post-tool records `agent:<subagent_type>` when a
+    // Task dispatch completes. Class C fix (audit 2026-08-14): this branch stripped ONLY
+    // `agent:zodyssey:`, so a declared `agent:code-reviewer` never matched the observed
+    // `agent:feature-dev:code-reviewer`. matchesCapability is segment-tolerant for any namespace.
+    const need = routing.value;
+    const ok = hasObserved((c) => matchesCapability(need, c));
     results.F5 = ok
       ? { passed: true, reason: null, routing, evidence: `observed dispatch of ${routing.value} in state.capabilities[]` }
       : { passed: false, reason: `F5 routing: declaration says \`routed: ${routing.value}\` but there is NO observed dispatch of \`${routing.value}\` in state.capabilities[]. post-tool records every Task dispatch — if that agent was never dispatched, the routing was declared but not honored. Dispatch it (or re-declare honestly) and re-run the final wave.`, routing };
   } else {
     const val = norm(routing.value);
-    let need;
-    if (routing.token === "routed" && val.startsWith("skill:")) {
-      need = val;
-    } else if (routing.token === "routed" && val.startsWith("mcp:")) {
-      need = "mcp__" + val.slice(4); // records keep full tool names, e.g. mcp__codegraph__explore
-    } else { // discovered / generic — both require the discovery attempt on record
-      need = "skill:find-skills";
-    }
+    // Class C fix (audit 2026-08-14): all three of these matched by raw string equality, and all
+    // three were wrong for real installs.
+    //   skill:     `skill:test-driven-development` (what capabilities.md lists and plans declare)
+    //              never matched the observed `skill:superpowers:test-driven-development`. 34 of
+    //              the installed skills are plugin-namespaced — this is the live F5 failure.
+    //   mcp:       tolerated a tool-name SUFFIX but not a plugin PREFIX, so `mcp:socraticode`
+    //              missed `mcp__plugin_socraticode_socraticode__codebase_search`.
+    //   discovery: hard-coded the literal `skill:find-skills` and DISCARDED the declared value, so
+    //              on a host where find-skills is namespaced the branch was UNSATISFIABLE — worse
+    //              than the skill branch, because no per-plan workaround existed at all.
+    // matchesCapability handles all three uniformly: exact wins, else final-segment match.
+    const isDiscovery = routing.token !== "routed";
+    const need = isDiscovery ? "skill:find-skills" : routing.value;
     // M5: a routed capability must be observed at/after the plan exists (post-plan pool); discovery
     // legitimately happens during consult, so discovered:/generic: search the full pool.
-    const isDiscovery = routing.token !== "routed";
     const ok = hasObserved(
-      (c) => c === need || (val.startsWith("mcp:") && c.startsWith(need + "__")),
+      (c) => matchesCapability(need, c),
       isDiscovery ? observedAll : observedPostPlan,
     );
     results.F5 = ok
@@ -547,7 +559,9 @@ function apply(s) {
 }
 const lockFd = acquireLock();
 if (lockFd === null) {
-  try { writeFileSync(statePath, JSON.stringify(apply(JSON.parse(readFileSync(statePath, "utf8"))), null, 2) + "\n"); } catch {}
+  // T2-1: was a non-atomic unlocked write that silently clobbered the lock holder. Refuse instead.
+  console.error("record-final-wave.mjs: could not acquire the state lock (real contention or a stuck lock). Refusing to write non-atomically — nothing was written. The final-wave verdict was NOT recorded.");
+  exit(6);
 } else {
   try { const s = apply(JSON.parse(readFileSync(statePath, "utf8"))); const t = statePath + ".tmp." + process.pid; writeFileSync(t, JSON.stringify(s, null, 2) + "\n"); renameSync(t, statePath); }
   finally { try { closeSync(lockFd); unlinkSync(lockPath); } catch {} }

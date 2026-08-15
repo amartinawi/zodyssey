@@ -18,6 +18,7 @@
 
 import { readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
 import { join, resolve as pathResolve, sep } from "node:path";
+import { verifyMarker } from "../../scripts/lib/state-auth.mjs";
 
 export const TERMINAL = new Set(["done", "audited", "abandoned"]);
 export const STALE_MS_DEFAULT = 24 * 3600 * 1000;
@@ -38,7 +39,11 @@ function discoverStateDirs(projectDir) {
     if (seen.has(real)) continue;
     seen.add(real);
     if (isZcodeChild) {
-      stateDirs.push(join(dir, "state"));
+      // Class B fix: `real` is computed two lines up and was then DISCARDED, pushing the
+      // non-realpath'd `dir` instead. RUN_STATE_DIR therefore carried symlink components while
+      // pre-tool realpaths the edit target before comparing — an asymmetry that misclassifies
+      // bookkeeping as product code (the deadlock the nested-repo fix claimed to have closed).
+      stateDirs.push(join(real, "state"));
       continue;
     }
     if (depth >= MAX_DEPTH) continue;
@@ -76,6 +81,11 @@ export function findActiveRuns({ projectDir, staleMs = STALE_MS_DEFAULT }) {
       const p = join(dir, f);
       let st;
       try { st = JSON.parse(readFileSync(p, "utf8")); } catch { continue; }
+      // CRITICAL T1-7: same authenticity requirement as pre-tool's own discovery. This copy feeds
+      // selectByTarget (edit/dispatch re-selection) and both post-tool and stop — leaving it
+      // unauthenticated would let a dropped state file win by target-ancestry even after the
+      // primary discovery path started rejecting it.
+      if (!verifyMarker(st, st.slug || f.replace(/\.json$/, "")).ok) continue;
       if (!st.phase || TERMINAL.has(st.phase)) continue;
       const updated = st.updated_at ? new Date(st.updated_at).getTime() : 0;
       if (updated && now - updated > staleMs) continue; // stale → treat as abandoned

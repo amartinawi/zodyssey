@@ -24,6 +24,7 @@ import { readFileSync, existsSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { argv, exit } from "node:process";
 import { scanText } from "./lint-untrusted.mjs";
+import { capabilityToken } from "./lib/capability-name.mjs";
 
 const args = argv.slice(2);
 if (args.length === 0) {
@@ -79,13 +80,21 @@ function parseRouting(block) {
     const m = ln.match(/^\s*[-*]?\s*`?(routed|discovered|generic)`?\s*:\s*(.+?)\s*$/i);
     if (!m) continue;
     const token = m[1].toLowerCase();
-    const value = m[2].replace(/`/g, "").trim();
-    if (!value || value.startsWith("<") || /choose one/i.test(value)) continue;
+    const raw = m[2].replace(/`/g, "").trim();
+    if (!raw || raw.startsWith("<") || /choose one/i.test(raw)) continue;
     // SEC (audit M4): `routed:` must name a recognized capability kind (skill:/mcp:/agent:), or the
     // F5 gate has nothing typed to verify against. A bare `routed: something` used to lint clean and
     // then pass F5's declaration-only fallback — a hole. discovered:/generic: keep free-text values.
+    //
+    // ORCH-2: for `routed:`, store the capability TOKEN, not the whole rest of the line. Routing
+    // lines are documentation too — `routed: skill:x — primary; generic fallback` is how people
+    // actually write them — and carrying the prose into state.capabilities made F5 compare a name
+    // that could never match. The parser and the matcher must agree on where the token ends, so
+    // both call capabilityToken(). discovered:/generic: keep their free text: those values are
+    // prose by design and are never name-matched.
+    const value = token === "routed" ? capabilityToken(raw) : raw;
     if (token === "routed" && !/^(skill|mcp|agent):/i.test(value)) continue;
-    return { token, value };
+    return { token, value, raw };
   }
   return null;
 }

@@ -2,6 +2,98 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-08-15
+
+**A security release.** Two independent investigations landed together: a live e2e run surfaced three defects, and a 4-partition adversarial audit of v0.4.1 filed 52 findings (1 CRITICAL, 4 HIGH, 14 MEDIUM, 14 LOW, 19 INFO). Sweeping for the *classes* behind them found systemic siblings — including a second undiscovered SEC-6 bypass and a fail-open defect in a guard shipped in v0.4.1.
+
+Minor-versioned rather than a patch because run state gains a required authenticity marker (a state-contract change) and the Bash gate tightens materially.
+
+### ⚠️ Upgrade order
+
+Run discovery is now authenticated. A run created before v0.5.0 has no marker and **stops being discovered** until adopted once:
+
+```
+node <plugin>/skills/odyssey/scripts/scaffold.mjs <repo> <slug> --adopt
+```
+
+Adopt any in-flight runs BEFORE deploying, or finish them first. `--adopt` only stamps a state file that already exists; it cannot bless a dropped one.
+
+### Fixed — CRITICAL: forged-run takeover (T1-1, T1-7)
+
+The audit reproduced an end-to-end takeover. Two independent halves, both fixed:
+
+- **Write primitives classified as read-only.** Ten passed `looksReadOnly` and ran pre-OKAY in any phase: `sort -o`, `touch`, `sponge`, `gsed -i`, `crontab`, `scp`, `sftp`, `sqlite3 <db> <sql>`, `at` and `batch`. (`dd`, `truncate`, `xargs` and `busybox sed -i` are also in the pattern list now, but v0.4.1 already blocked all four — they are belt-and-braces, not closed holes. Each of the ten was confirmed by running the same command against both builds: allowed on 0.4.1, blocked on 0.5.0.)
+- **Unauthenticated run discovery.** `findActiveRun` trusted ANY parseable `.json` in a state dir, newest `updated_at` winning — so a dropped `decoy.json` carrying `verdict: OKAY` governed the review gate, the scope gate and the tamper guard at once. Discovery now requires an identity-bound marker, applied in `hooks/lib/find-run.mjs` too, since that copy feeds `selectByTarget` and the other two hooks.
+
+The marker's header states plainly what it does *not* buy: with arbitrary read+write as this user, no in-band marker is unforgeable. It makes a *dropped* file inert; the durable control is that `.zcode/state/` now has no unsanctioned write path.
+
+### Fixed — HIGH: the Bash path never got the Edit path's guards (T1-2..T1-6)
+
+Every protection added to the Edit path over three releases had a `sed -i`/redirect twin that walked straight through. `TEST_PATH_RE` had exactly one use in the whole file, inside the Edit branch.
+
+- Notepad clobbering via Bash now blocks; append and new-notepad creation stay allowed.
+- `sed -i` / `awk -i` / `tee` push EVERY operand — previously one, so `sed -i 's/a/b/' out-of-scope.js in-scope.js` passed the scope check on the in-scope file and mutated both.
+- The verify/final test freeze applies on the Bash path.
+- `isState` was computed at two sites, returned, and never used in a conditional: a plan declaring `.zcode/state/` in `Files:` made verdict, phase and acceptance directly editable. v0.4.1's guard covered MCP tools but not the native Edit path.
+
+  The first attempt at this fix armed `isState` on the Edit path **only** — the same one-path-not-its-twin shape as the rest of this section. `quickClassify`, the Bash-path target classifier, did not even compute `isState`, with a comment asserting that was safe "because the Bash path blocks anything non-bookkeeping that isn't in declared scope". Declaring the path in `Files:` is precisely what puts it *in* scope, so `sed -i 's/OKAY/X/' .zcode/state/t.json` was still allowed. Caught by re-verifying the release against 0.4.1 rather than by the suite.
+- Rewriting the plan post-OKAY blocks; the tamper guard previously noticed only on the next gated call, after the command had run.
+
+### Fixed — normalized compared against un-normalized (Class B)
+
+Three guards failed OPEN because one side was realpath'd and the other was not: SEC-6 in `record-momus-artifact` (proven bypassed with a relative repo arg), a byte-identical undiscovered clone in `record-final-artifact`, and **the `.zcode/state`/`.zcode/reviews` guard added in v0.4.1**, which realpath'd neither side. All three route through `lib/repo-path.mjs` now, as do the persisted `plan_path`, the three hooks' `PROJECT_DIR`, and `find-run`'s state-dir discovery.
+
+**Docs moved in the same change, deliberately.** `scripts.md` and `SKILL.md` told the conductor to stage verdicts in `.zcode/plans/` — exactly what SEC-6 refuses. That flow worked only *because* the guard was bypassed, so arming it without repointing the docs at `.zcode/staging/` would have recreated the SEC-6b total review-gate deadlock.
+
+### Fixed — capability names compared four different ways (Class C)
+
+- **F5 skill branch** used exact equality, so `skill:test-driven-development` (what `capabilities.md` lists and every plan declares) never matched an observed `skill:superpowers:test-driven-development`. 34 installed skills are plugin-namespaced; this is the failure the live run hit.
+- **F5 discovery branch** hard-coded `skill:find-skills` and discarded the declared value, making it UNSATISFIABLE wherever find-skills is namespaced — with no per-plan workaround.
+- **F5 mcp branch** tolerated a tool-name suffix but not a plugin prefix, missing `mcp__plugin_<plugin>_<server>__<tool>`.
+- **Nonce minters** used bare equality plus one hard-coded special case, so a namespaced reviewer minted nothing and the wave failed later with no hint that the dispatch name was the cause.
+- **The dispatch phase gate**, which runs *before* the minters, was bare-set membership (`READONLY_AGENTS.has(subagent)`) with three hard-coded `feature-dev:` entries — the same shape one function earlier. A third-party-namespaced read-only agent was rejected there as an "executor" and never reached the fixed minter, so fixing the minters alone changed nothing observable. Also found by re-verification.
+- **drift-check** truncated `Task: zodyssey:<agent>` at the colon and compared namespaced routes against a bare inventory, reporting every real agent as both stale and orphaned.
+
+Matching is segment-tolerant everywhere now: exact wins, else the final name segment. Declaring the bare or the namespaced form both work.
+
+### Fixed — state integrity and injection (T2-1, T2-2, T2-3)
+
+- Five trusted writers fell back to a **non-atomic, unlocked** `writeFileSync` on lock contention, one commented "rather than lose the verdict" — trading a visible failure for a silent last-writer-wins clobber. All five now refuse, as `record-todo` already did.
+- `lint-untrusted` masked EVERY nested bullet, so an injected directive in `  - What to do:` was never flagged while identical text at column 0 was — and the nested form is what reaches dispatch prompts. The exemption now tracks field context, so only acceptance-criteria and QA payloads are exempt.
+- `regression-gate` ran `toolchain.json`'s `test_cmd` with `shell:true` on the stated basis that the file is machine-derived — but a plan declaring it in `Files:` makes it executor-writable. The toolchain sha is bound at baseline and `--check` fails closed on drift.
+
+### Added — real token accounting
+
+`lib/tokens.mjs` fills run-report's long-standing `tokens_per_todo` placeholder from ZCode's durable telemetry. The rollout JSONL is ephemeral (deleted at session end), so the durable store is the session DB. Three arithmetic rules are encoded because each silently corrupts a total: `inputTokens` already includes `cacheReadTokens`; `model_usage` and `turn_usage` are the same data at different granularity; `retry_count` is not extra requests. Cost is opt-in — this provider is flat-rate and lists `cost: 0` locally, so a dollar figure would be a shadow price rather than a bill.
+
+### Changed — drift detection covered half the deploy surface (T4-4)
+
+`--verify` and smoke-gate compared 3 code trees while `--sync-cache` deploys 6, so a drifted `agents/momus.md` would run a stale reviewer prompt with both gates green. Prompts are enforcement; they are compared now.
+
+Widening the list was not enough. Running `--verify` during this release showed the widened list was still **flat**, so `skills/odyssey/hooks/lib/find-run.mjs` was deployed but never compared — the file that authenticates run discovery, the CRITICAL fix above. The root cause was never the list's contents but that a list existed at all. `scripts/lib/deploy-surface.mjs` now holds one definition that the deployer copies from and both gates walk recursively — every file under a deployed tree, with nothing left to keep in sync by hand. (The earlier fix widened a hard-coded list from 3 directories to 6; the count is deliberately not restated here, because a number in a release note is the same brittle artifact as a list in the code.)
+
+### Tests
+
+32 suites, up from 26. New: `pre-tool.gate-surface.test.mjs` (23 cases ported from the auditor's probes), `sec6-repo-arg.test.mjs` (10 cases), and `deploy-surface.test.mjs`, which asserts *coverage* rather than a blessed list of filenames — a list would be the same bug in test form. `pipeline-integration` now loads a **namespaced** skill and still reaches `done`, so the live F5 failure is regression-locked end to end.
+
+The suite was structurally blind to both classes: all 62 fixtures passed absolute repo paths, and no F5 fixture used a namespaced name — the one that looked namespaced compared two identical strings and would pass with the stripper deleted.
+
+### Fixed — found by the deep verification of this branch
+
+An independent verification pass re-ran every claim against a v0.4.1 worktree and found five more items. Four are defects; one is a reporting flaw.
+
+- **ORCH-2: F5 still failed on a routing line carrying prose.** Segment-tolerant matching fixed the *namespace* half of the live F5 failure and left the other half standing. `norm()` strips ALL whitespace — the tolerance that lets `skill: x` read as one token — so `routed: skill:x — primary; generic fallback` became `skill:x—primary;genericfallback`, a name matching nothing. A plan written the way people actually write them failed F5 with a message about the skill never being observed. New `capabilityToken()` ends the token at the first character a capability name cannot contain, and the parser and the matcher both call it so lint and gate agree on where the token ends.
+- **T3-2: momus following her own prompt deadlocked the review gate.** `momus-prompt.md` documents a `VERDICT: OKAY | REJECT` text block; `record-momus-artifact.mjs` accepted strict JSON only and answered a conforming artifact with exit 6. JSON remains the preferred wire form and is tried first; the prose fallback requires an explicit line-anchored `VERDICT:` token and fails closed when the text says both or neither. The parser is shared with `record-final-wave` via `lib/verdict-schema.mjs` rather than duplicated — two copies of a verdict parser is exactly the drift this release exists to stop.
+- **ORCH-1: read-only runs were unfinishable.** `--allow-untouched` waived *some* declared files being untouched but never *all* of them, so a run whose diff is legitimately empty — an audit or review that produces a report and changes no declared file — could not reach `done`. The guard exists to stop a *silent* vacuous pass; an explicit operator waiver is not silent, and is now recorded in the artifact as `empty_diff_waived`.
+- **ORCH-3:** `.zcode/reports/` was unignored while `.zcode/audits/` was, so future run reports would accumulate as tracked files. Now ignored, with the v0.4.1 report kept by name as this release's provenance.
+- **Token figures are now self-describing.** Attribution is scoped by *(repo × window)* and the output named neither, so two readers summarising "the same run" reached 10.8M and 24.3M and both were right. `collectRunTokens` echoes the repo it matched and reports `shares` with the denominator in the key name. A bare percentage is unfalsifiable without its denominator, and these are estimates by construction — `attribution: "time-window"` was always in the output and should be read as a caveat, not decoration.
+
+### Verification method
+
+Every finding was re-verified by running the **identical scenario against both builds** — a worktree at v0.4.1 and this branch — asserting two things, not one: that 0.4.1 behaves as the finding claims (the defect was real), and that 0.5.0 behaves as the fix claims (the remediation landed). 18 findings, 61 paired assertions.
+
+That second direction is what a normal green suite cannot give you, and it earned its cost immediately: it found **two incomplete fixes in this very release** (T1-5 on the Bash path, and the dispatch phase gate above), and corrected an overstated claim — `dd`, `truncate`, `xargs` and `busybox sed -i` were listed as closed holes when v0.4.1 already blocked all four. Three probes also had to be fixed first, each failing on both builds, which is the harness reporting a bad probe rather than a fixed bug.
+
 ## [0.4.1] — 2026-08-14
 
 **Security remediation of the v0.4.0 full audit.** The audit found the core property — a non-forgeable OKAY review verdict — broken two independent ways, the flagship F5 routing gate at risk of being inert in production, several softer gate weaknesses, secret-leak / prompt-injection holes in the measurement loop, and a cluster of documentation drift. This release fixes every finding, each security fix shipping with a regression test that fails on the old code.

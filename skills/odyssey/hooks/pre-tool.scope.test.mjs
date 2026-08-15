@@ -29,6 +29,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { stampMarker } from "../scripts/lib/state-auth.mjs";
 
 const HOOK = join(new URL(".", import.meta.url).pathname, "pre-tool.mjs");
 let pass = 0, fail = 0;
@@ -47,10 +48,11 @@ function repoWithScope(scopeBody, { phase = "execute", verdict = "OKAY" } = {}) 
   const planPath = join(repo, ".zcode", "plans", "t.md");
   const planText = `# t\n\n## Scope\n\n${scopeBody}\n\n## Todos\n\n- [ ] 1. go\n  - Files: [\`src/text.js\`]\n`;
   writeFileSync(planPath, planText);
-  writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
+  // v0.5.0: authenticated run discovery — an unmarked fixture state file is ignored by the hook.
+  writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify(stampMarker({
     slug: "t", phase, updated_at: new Date().toISOString(), plan_path: planPath,
     review: { verdict, round: 1, max_rounds: 3, plan_sha256: createHash("sha256").update(planText).digest("hex") },
-  }, null, 2));
+  }, "t"), null, 2));
   return repo;
 }
 const hook = (repo, tool_name, tool_input) => spawnSync(process.execPath, [HOOK], {

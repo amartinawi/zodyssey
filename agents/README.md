@@ -54,7 +54,7 @@ top of these worker agents. See the "Next step" section below.
 ## Quick test
 
 After writing these, restart ZCode (or open a new session) and check
-**Settings → Subagents** — all six should appear. Then try a one-liner in any
+**Settings → Subagents** — all eight should appear. Then try a one-liner in any
 workspace, e.g.:
 
 > Use the `zodyssey:explore` sub-agent to find where MCP servers are configured in this

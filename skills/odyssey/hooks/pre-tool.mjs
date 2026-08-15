@@ -27,6 +27,9 @@ import { exit, env } from "node:process";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { findActiveRuns, selectByTarget } from "./lib/find-run.mjs";
+import { verifyMarker, adoptHint } from "../scripts/lib/state-auth.mjs";
+import { resolvePath, containedIn } from "../scripts/lib/repo-path.mjs";
+import { sameName } from "../scripts/lib/capability-name.mjs";
 
 // W5-minor: realpath the project dir so a symlinked/env-logical path resolves consistently
 // with realpath'd edit targets (otherwise in-repo files mis-classify as out-of-repo → gate deadlock).
@@ -109,6 +112,28 @@ const WRITE_PATTERNS = [
   /\bcurl\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
   /\bwget\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
   /\binstall\s+-m\b/,
+  // CRITICAL T1-1 (audit 2026-08-14): the deny-list missed a whole family of ordinary write
+  // primitives, so they classified as READ-ONLY and ran pre-OKAY in any phase. Chained with
+  // unauthenticated run discovery (see findActiveRun) this was the forged-run takeover: a
+  // prompt-injected executor writes a decoy run-state with `sort -o` or `touch`, and the forged
+  // run then governs the review gate, the scope gate, and the tamper guard. Reproduced end-to-end
+  // by the auditor. Every entry below was verified absent from this list before being added.
+  /\bsort\b[^&;\n]*\s-o\b/,                       // sort -o FILE (writes anywhere)
+  /\btouch\b/,                                     // creates/updates files
+  /\bsponge\b/,                                    // moreutils: soaks stdin then writes the file
+  /\b(?:g|busybox\s+)sed\s+[^&;\n]*-i\b/,          // gsed/busybox sed -i (the bare `sed -i` is above)
+  /\bcrontab\b/,                                   // installs a crontab from a file/stdin
+  /\b(?:scp|sftp)\b/,                              // remote copy writes local paths too
+  /\bsqlite3\s+\S+\s+\S/,                          // sqlite3 <db> <sql> mutates a file
+  /\b(?:at|batch)\b/,                              // schedules a command to run later
+  // The next four were NOT gaps — v0.4.1 already blocked every one (verified by running each
+  // command against both builds). They are kept as explicit, narrower-to-read duplicates of
+  // patterns that block them incidentally: `dd of=` and `truncate` were already enumerated,
+  // `busybox sed -i` is caught by the bare `sed …-i` rule, and `xargs rm` by `rm`. Listing them
+  // by name means a future edit to those broader rules cannot silently reopen them.
+  /\bdd\b/,                                        // (already covered by the `dd …of=` rule above)
+  /\btruncate\b/,                                  // (already covered by the mv|cp|rm|… rule above)
+  /\bxargs\b/,                                     // xargs can drive a writer the operand scan misses
 ];
 
 // Heuristic: does this Bash command ONLY read? If so, allow it even pre-review.
@@ -138,16 +163,24 @@ function bashWriteTargets(cmd) {
     const t = m[2];
     if (t && !/^&\d/.test(t)) targets.push(t);
   }
-  // 2. tee FILE
-  for (const m of clean.matchAll(/\btee(?:\s+-\w+)*\s+(\S+)/g)) targets.push(m[1]);
+  // 2. tee FILE... — HIGH T1-3: tee writes EVERY file operand, but only the first was captured,
+  // so `tee in-scope.js out-of-scope.js` passed the scope check on the first and silently wrote
+  // the second. Push them all; over-blocking here is safe (the operator can split the command).
+  for (const m of clean.matchAll(/\btee((?:\s+-\w+)*(?:\s+[^\s;&|<>]+)+)/g)) {
+    for (const tok of m[1].trim().split(/\s+/)) if (tok && !tok.startsWith("-")) targets.push(tok);
+  }
   // 3. sed -i / awk -i inplace: the file is the trailing non-flag arg(s). Extract them; only fall
   // back to fail-closed if there's no file arg at all (just `-i` with no operand).
   for (const m of clean.matchAll(/\b(?:sed|awk|gawk)\s+([^&;|\n]+)/g)) {
     if (!/-i\b/.test(m[1])) continue; // only the inplace forms write
     const toks = m[1].trim().split(/\s+/).filter((t) => t && !t.startsWith("-"));
-    // sed's last non-flag token is the file (the `-i` script may be quoted prose; ignore quoted)
+    // sed's script may be a quoted expression; ignore quoted tokens, the rest are FILES.
     const fileToks = toks.filter((t) => !/^['"].*['"]$/.test(t));
-    if (fileToks.length) targets.push(fileToks[fileToks.length - 1]);
+    // HIGH T1-3: only the LAST file was pushed, so `sed -i 's/a/b/' out-of-scope.js in-scope.js`
+    // passed the scope check on the in-scope file and mutated both. sed -i edits every operand —
+    // push them all. An unquoted script (e.g. `sed -i s/a/b/ f.js`) shows up as a leading token
+    // that is not a real path; it will simply fail the scope check, which is the safe direction.
+    if (fileToks.length) for (const t of fileToks) targets.push(t);
     else confident = false; // -i with no discernible file → fail closed
   }
   // 4. cp/mv/install: last positional is the DESTINATION (conservative: take the last two tokens' latter)
@@ -163,18 +196,28 @@ function bashWriteTargets(cmd) {
   }
   return { targets: [...new Set(targets)], confident };
 }
-// SEC-H5: lightweight classifier for Bash write-targets (we only need rel + bookkeeping here,
-// not the full state-vs-product distinction, because the Bash path blocks anything non-bookkeeping
-// that isn't in declared scope). abs is realpath'd; runRepo is the run's repo root.
+// SEC-H5: lightweight classifier for Bash write-targets. abs is realpath'd; runRepo is the run's
+// repo root.
+//
+// This used to return only { rel, bookkeeping }, on the stated reasoning that the state-vs-product
+// distinction was unnecessary "because the Bash path blocks anything non-bookkeeping that isn't in
+// declared scope". That reasoning is false in the one case that matters: a plan which DECLARES
+// `.zcode/state/t.json` in Files: puts it IN declared scope, so the scope gate passes it and
+// nothing else looked at it — `sed -i 's/OKAY/X/' .zcode/state/t.json` was allowed.
+//
+// This is T1-5 on the Bash path. The v0.5.0 fix for T1-5 armed `isState` on the Edit path only,
+// which is the very Class A shape this release exists to close — a guard added to one path and not
+// its Bash twin. Caught re-verifying the release against 0.4.1.
 function quickClassify(abs, runRepo) {
   const runPrefix = runRepo + sep;
   if (abs === runRepo || abs.startsWith(runPrefix)) {
     const rel = abs === runRepo ? "" : abs.slice(runPrefix.length);
     const bookkeeping = rel.startsWith(".zcode/plans/") || rel.startsWith(".zcode/notepads/") || rel.startsWith(".zcode/staging/");
-    return { rel, bookkeeping };
+    const isState = rel.startsWith(".zcode/state/") || rel.startsWith(".zcode/reviews/");
+    return { rel, bookkeeping, isState };
   }
   // outside the run repo entirely → treat as product code (will fail the inScope check, blocking it)
-  return { rel: abs, bookkeeping: false };
+  return { rel: abs, bookkeeping: false, isState: false };
 }
 
 // SEC-H5: extract the plan's declared editable-file set (shared by the Edit scope gate and the
@@ -379,6 +422,24 @@ function findActiveRun() {
       } catch {
         continue;
       }
+      // CRITICAL T1-7 (audit 2026-08-14): discovery used to trust ANY parseable .json here, so a
+      // dropped `decoy.json` carrying review.verdict:"OKAY" became the governing run and defeated
+      // the review gate, scope gate and tamper guard at once. Require the authenticity marker that
+      // scaffold/trusted writers mint. Fail CLOSED: an unmarked file is not a run.
+      // Legitimate pre-v0.5.0 runs are adopted once via `scaffold.mjs <repo> <slug> --adopt`;
+      // the warning names that command so an operator whose run stopped being discovered is not
+      // left guessing (silence here would look identical to "no run active").
+      {
+        const auth = verifyMarker(st, st.slug || f.replace(/\.json$/, ""));
+        if (!auth.ok) {
+          if (env.ZODYSSEY_DEBUG) {
+            process.stderr.write(
+              `ZOdyssey: ignoring run state ${join(dir, f)} — ${auth.reason}. ${adoptHint("<repo>", st.slug || f.replace(/\.json$/, ""))}\n`
+            );
+          }
+          continue;
+        }
+      }
       if (!st.phase || TERMINAL.has(st.phase)) continue;
       const updated = st.updated_at ? new Date(st.updated_at).getTime() : 0;
       if (updated && now - updated > STALE_MS) continue;
@@ -578,6 +639,22 @@ function classifyTarget(p) {
 
 if (isEdit) {
   const { rel, bookkeeping, isState } = classifyTarget(targetPath());
+
+  // T1-5 (audit 2026-08-14): `isState` was computed here and at the projRel branch, returned from
+  // classifyTarget — and then never used in a single conditional. The file header's claim that
+  // "an agent cannot self-authorize a verdict by writing state.json" held only incidentally,
+  // because plans do not normally declare `.zcode/state/` in Files:. A plan that DOES declare it
+  // made verdict, phase and acceptance directly rewritable with the Edit tool. (v0.4.1's H3 guard
+  // closed this for MCP/non-native tools but not for the native Edit path.) State is written only
+  // by the trusted scripts; there is no legitimate direct edit.
+  if (isState) {
+    block(
+      `run state is not directly editable: ${rel} holds the review verdict, phase and acceptance ` +
+        `records, which are exactly what the gate reads to decide whether to allow anything. Use the ` +
+        `trusted writers (record-review / set-phase / record-todo / record-verify) — they are the only ` +
+        `sanctioned path and they bind their writes to hook-minted evidence. (slug=${state.slug})`
+    );
+  }
 
   // B2 — APPEND-ONLY NOTEPADS. Notepads are the evidence F1-F4 consume, and until 2026-08-11
   // `if (bookkeeping) exit(0)` let ANY agent replace one wholesale, in any phase, before or
@@ -992,8 +1069,64 @@ if (isBash) {
       // still classify it; quickClassify's prefix test catches ../ escape lexically too.
       abs = pathResolve(PROJECT_DIR, t);
     }
-    const { rel, bookkeeping } = quickClassify(abs, runRepo);
-    if (bookkeeping) continue; // .zcode/plans/, .zcode/notepads/ — always writable
+    const { rel, bookkeeping, isState } = quickClassify(abs, runRepo);
+
+    // HIGH T1-5, Bash path. State is written ONLY by the trusted writers, which bind their writes
+    // to hook-minted evidence. This check must come BEFORE the scope gate, because the bypass is
+    // precisely that a plan declaring `.zcode/state/t.json` in Files: puts it IN declared scope —
+    // so the scope gate passes it and, until now, nothing else looked. Trusted-writer invocations
+    // never reach here: isTrustedScriptInvoke returns earlier.
+    if (isState) {
+      block(
+        `run state is not directly writable: this command would modify ${rel}, which holds the ` +
+          `review verdict, phase and acceptance records — exactly what the gate reads to decide ` +
+          `whether to allow anything. Declaring it in the plan's Files: does not make it writable. ` +
+          `Use the trusted writers (record-review / set-phase / record-todo / record-verify). ` +
+          `Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+      );
+    }
+
+    if (bookkeeping) {
+      // HIGH T1-2/T1-6 (audit 2026-08-14): "bookkeeping is always writable" was true for the Write
+      // tool only because the Write path applies its own guards first. The Bash path skipped them
+      // entirely, so `echo x > notepad.md` clobbered evidence the final wave reads, and
+      // `echo x > plan.md` rewrote the plan's Files: — the tamper guard only notices on the NEXT
+      // gated call, by which time the command has already run. Mirror both Edit/Write guards here.
+      const isNotepad = typeof rel === "string" && rel.startsWith(".zcode/notepads/");
+      const isPlan = typeof rel === "string" && rel.startsWith(".zcode/plans/");
+      // Append is the INTENDED way to grow a notepad (the Edit tool is allowed on the Write path
+      // for exactly this reason), so only clobber-shaped writes are blocked. Recognise `>> tok`
+      // and `tee -a`; anything else touching an existing notepad is treated as a replace.
+      const tokRe = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const isAppend = new RegExp(`>>\\s*['"]?${tokRe}`).test(cmd) ||
+        /\btee\s+(?:-\w+\s+)*-a\b/.test(cmd) || /\btee\s+-\w*a/.test(cmd);
+      if (isNotepad && existsSync(abs) && !isAppend) {
+        block(
+          `notepads are APPEND-ONLY: this command would replace ${rel} wholesale, destroying evidence ` +
+            `the final wave (F1-F4) reads. Append instead (\`>>\`), use the Edit tool, or write a new ` +
+            `notepad file. Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+        );
+      }
+      if (isPlan && state.review?.verdict === "OKAY") {
+        block(
+          `the plan is FROZEN after review: this command would rewrite ${rel}, which is what the ` +
+            `review verdict is bound to (plan_sha256). Changing the plan post-OKAY re-scopes the run ` +
+            `without re-review. Send it back to the planner and re-review instead. ` +
+            `Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+        );
+      }
+      continue; // otherwise bookkeeping stays freely writable
+    }
+    // HIGH T1-4: B5 test-freeze was enforced on the Edit path only (TEST_PATH_RE had exactly one
+    // use, at the Edit branch), so `sed -i` on a test file in verify/final sailed through. Same
+    // ImpossibleBench rationale: weakening a failing test is the cheapest way to turn it green.
+    if ((state.phase === "verify" || state.phase === "final") && typeof rel === "string" && TEST_PATH_RE.test(rel)) {
+      block(
+        `test files are FROZEN in phase=${state.phase}: this command would modify ${rel}. ` +
+          `Acceptance criteria are being evaluated against the tests as written — fix the code, not the test. ` +
+          `Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+      );
+    }
     // Same inScope test as the Edit gate (exact match, or either contains the other as a dir).
     const inScope = declared.size > 0 &&
       [...declared].some((d) => rel === d || rel.startsWith(d + "/") || d.startsWith(rel + "/"));
@@ -1029,6 +1162,12 @@ if (isDispatch) {
   // `feature-dev:` (external, e.g. `feature-dev:code-reviewer` at line ~881) or any other prefix.
   const _rawSubagent = toolInput.subagent_type || toolInput.agent_type || toolInput.type || "";
   const subagent = _rawSubagent.replace(/^zodyssey:/, "");
+  // Class C fix (audit 2026-08-14): the nonce minters below matched by bare equality with a single
+  // hard-coded `feature-dev:code-reviewer` special case, so ANY other namespace (someplugin:oracle,
+  // a differently-packaged code-reviewer) minted NO nonce — and the failure is silent until the
+  // final wave rejects the artifact, by which point the reviewer round has been spent. isAgent
+  // compares the final name segment, so every packaging of a given reviewer mints its lane.
+  const isAgent = (want) => sameName(want, subagent);
   const READONLY_AGENTS = new Set([
     "explore", "librarian", "oracle", "metis", "momus", "multimodal-looker",
     "code-explorer", "code-architect", "code-reviewer", "feature-dev:code-explorer",
@@ -1039,8 +1178,19 @@ if (isDispatch) {
   const PLANNER_AGENTS = new Set(["prometheus"]);
   const EXEC_PHASES = new Set(["execute", "verify", "final", "remediate"]);
   const PLANNING_PHASES = new Set(["plan", "review", "consult"]);
-  const isReadonlyAgent = READONLY_AGENTS.has(subagent);
-  const isPlanner = PLANNER_AGENTS.has(subagent);
+
+  // Class C, second site. These were `.has(subagent)` — bare-set membership with three hard-coded
+  // `feature-dev:` entries, i.e. the same "exact match plus one special case" shape the nonce
+  // minters had. It runs BEFORE the minters, so a third-party-namespaced read-only agent
+  // (`someplugin:momus`) was blocked here as an "executor" and never reached the fixed minter at
+  // all — the minter fix alone did not deliver the outcome. Found re-verifying against 0.4.1.
+  //
+  // This widens who counts as read-only to any packaging of a known read-only agent. That grants
+  // no write capability: the phase gate governs DISPATCH only, and every file write the dispatched
+  // agent then attempts goes through this same hook with the same scope and verdict gates.
+  const inSet = (set) => [...set].some((member) => sameName(member, subagent));
+  const isReadonlyAgent = inSet(READONLY_AGENTS);
+  const isPlanner = inSet(PLANNER_AGENTS);
   if (!EXEC_PHASES.has(state.phase) && !isReadonlyAgent && !(isPlanner && PLANNING_PHASES.has(state.phase))) {
     block(
       `dispatch of ${subagent || "executor"} blocked in phase=${state.phase} ` +
@@ -1220,7 +1370,7 @@ if (isDispatch) {
   // no in-run recovery. The phase was never a security boundary: non-forgeability only needs the
   // nonce bound to a real, hook-witnessed dispatch. Drop the phase condition; keep a loud warning
   // so a dispatch in the wrong phase is visible rather than silently accepted.
-  if (subagent === "momus") {
+  if (isAgent("momus")) {
     if (state.phase !== "review") {
       process.stderr.write(
         `ZOdyssey WARNING: momus dispatched in phase=${state.phase} (expected "review") — nonce minted anyway so the verdict is recordable, but the phase was not transitioned. Run 'node ${SET_PHASE_PATH} <repo> <slug> review' to reconcile, or the recorded verdict will not auto-advance to execute.\n`
@@ -1228,7 +1378,7 @@ if (isDispatch) {
     }
     mintNonceFor("review");
   }
-  if (subagent === "code-reviewer" || subagent === "feature-dev:code-reviewer") {
+  if (isAgent("code-reviewer")) {
     if (state.phase !== "final") {
       process.stderr.write(
         `ZOdyssey WARNING: code-reviewer dispatched in phase=${state.phase} (expected "final" for F2) — nonce minted anyway; reconcile the phase if this was not intended.\n`
@@ -1236,7 +1386,7 @@ if (isDispatch) {
     }
     mintNonceFor("final_f2");
   }
-  if (subagent === "oracle") {
+  if (isAgent("oracle")) {
     if (state.phase !== "final") {
       process.stderr.write(
         `ZOdyssey WARNING: oracle dispatched in phase=${state.phase} (expected "final" for F4) — nonce minted anyway; reconcile the phase if this was not intended.\n`
@@ -1257,7 +1407,12 @@ if (isDispatch) {
 // paths is unaffected — this is a targeted forge-surface guard, not a blanket MCP block.)
 if (!isEdit && !isBash && !isDispatch) {
   try {
-    const runRepo = pathResolve(RUN_STATE_DIR, "..", "..");
+    // Class B fix (audit 2026-08-14): this guard — added in v0.4.1 to close the MCP write hole —
+    // had the same defect it was written to close. `protectedDirs` came from a pathResolve'd
+    // RUN_STATE_DIR and the candidate below was pathResolve'd with no realpath at all, so a
+    // symlinked path (or one an MCP server resolves against its own cwd) walked straight past.
+    // containedIn normalizes both sides.
+    const runRepo = resolvePath(pathResolve(RUN_STATE_DIR, "..", ".."));
     const protectedDirs = [join(runRepo, ".zcode", "state"), join(runRepo, ".zcode", "reviews")];
     const strings = [];
     (function collect(v, depth) {
@@ -1269,10 +1424,10 @@ if (!isEdit && !isBash && !isDispatch) {
     for (const s of strings) {
       if (typeof s !== "string" || s.length > 4096) continue;
       if (!s.includes("/") && !s.includes(sep)) continue; // not path-shaped
-      let resolved;
-      try { resolved = pathResolve(runRepo, s); } catch { continue; }
       for (const d of protectedDirs) {
-        if (resolved === d || resolved.startsWith(d + sep)) {
+        // containedIn realpaths both sides, so a symlinked repo root or a symlinked .zcode no
+        // longer slips past. Relative strings resolve against the run's repo, not the caller's cwd.
+        if (containedIn(pathResolve(runRepo, s), d)) {
           block(
             `tool ${toolName} targets a trust-critical path (${s.slice(0, 120)}). Writes under ` +
               `.zcode/state and .zcode/reviews are reserved for the trusted-writer scripts — a ` +

@@ -5,7 +5,7 @@ This repo is the **source of truth** for ZOdyssey. The workflow is:
 ```
 ~/Desktop/ZOdyssey/  ←  edit here, branch, PR, merge, tag releases
         ↓ (on release)
-~/.zcode/             ←  the ACTIVE install; upgrade via scripts/install.mjs
+~/.zcode/             ←  the ACTIVE install; upgrade via marketplace Update + scripts/install.mjs
 ```
 
 ## Setup
@@ -26,7 +26,7 @@ Set the local git identity (don't rely on global) so commits are attributed corr
 3. Smoke-test the hook if you touched `pre-tool.mjs`:
    ```bash
    echo '{"tool_name":"Bash","tool_input":{"command":"echo hi"}}' | node skills/odyssey/hooks/pre-tool.mjs
-   # should exit 0 (bash ungated by default)
+   # should exit 0 (no active run — the hook is a no-op; Bash IS gated when a run is active)
    ```
 4. Commit, push, open a PR, squash-merge.
 5. Delete the branch post-merge: `gh pr merge <n> --squash --delete-branch`.

@@ -23,6 +23,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { stampMarker } from "./lib/state-auth.mjs";
 
 const S = new URL(".", import.meta.url).pathname;
 const HOOK = join(S, "..", "hooks", "pre-tool.mjs");
@@ -54,13 +55,14 @@ function makeRun({ phase = "final", criteria = 2 } = {}) {
   // state.capabilities[]). Fixture default: routed to prompt-master AND observed — the happy path.
   writeFileSync(planPath,
     `# t\n\n## Capability routing\n- \`routed: skill:prompt-master\`\n- Evidence: fixture default routing.\n\n## Todos\n\n- [ ] 1. go\n  - Files: [\`src/a.js\`]\n  - Acceptance criteria:\n${crits.map((c) => "    " + c).join("\n")}\n\n## Final verification wave\n`);
-  writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
+  // v0.5.0: authenticated run discovery — an unmarked fixture state file is ignored by the hook.
+  writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify(stampMarker({
     slug: "t", phase, updated_at: new Date().toISOString(), plan_path: planPath, run_start_sha: sha,
     review: { verdict: "OKAY", round: 1, max_rounds: 3 },
     // M5: a `routed:` capability must be observed at/after the plan exists — `execute` is the
     // realistic phase (the conductor loads the routed skill in the parent thread before dispatching).
     capabilities: [{ at: new Date().toISOString(), phase: "execute", capability: "skill:prompt-master", observed: true }],
-  }, null, 2));
+  }, "t"), null, 2));
   return repo;
 }
 const state = (r) => JSON.parse(readFileSync(join(r, ".zcode", "state", "t.json"), "utf8"));

@@ -129,9 +129,13 @@ Add a \`truncate\` helper to the text module, with tests.
 
   // The conductor honors the plan's routing declaration by loading the skill in the parent
   // thread. The hook witnesses the Skill call → state.capabilities gains an observed entry.
-  loadSkill("test-driven-development");
+  // The host reports the skill under its PLUGIN-NAMESPACED name while the plan declares the bare
+  // one (which is what capabilities.md lists). This test used to load the bare name and assert the
+  // bare name, hard-coding the assumption production violates — and that is precisely why the F5
+  // exact-match bug reached a live run. Load namespaced; F5 must still reconcile it below.
+  loadSkill("superpowers:test-driven-development");
   check("hook records the routed skill load as an observed capability",
-    (state().capabilities || []).some((c) => c.observed === true && c.capability === "skill:test-driven-development"),
+    (state().capabilities || []).some((c) => c.observed === true && c.capability === "skill:superpowers:test-driven-development"),
     JSON.stringify(state().capabilities || []));
 
   const d = dispatch("zodyssey:momus");

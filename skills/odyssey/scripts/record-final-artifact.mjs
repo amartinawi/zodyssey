@@ -25,6 +25,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
+import { resolveRepo, resolvePath, containedIn } from "./lib/repo-path.mjs";
 
 const [repo, slug, itemRaw, ...rest] = argv.slice(2);
 if (!repo || !slug || !itemRaw) {
@@ -52,10 +53,12 @@ if (fromFile) {
   // SEC-6 parity with the review lane: refuse a verdict pre-staged in the dirs the PLANNER writes.
   // `.zcode/staging/` is fine (SEC-6b) — it exists precisely so there IS a writable path.
   try {
-    const fromAbs = realpathSync(fromFile);
-    const zcode = join(repo, ".zcode");
-    if (fromAbs.startsWith(join(zcode, "notepads") + "/") || fromAbs.startsWith(join(zcode, "plans") + "/")) {
-      console.error(`record-final-artifact.mjs: --from <file> under agent-writable bookkeeping (${fromAbs}) refused. Use .zcode/staging/ or pipe the verdict on stdin.`);
+    // Class B fix: byte-identical to the record-momus-artifact bypass and undiscovered until the
+    // 2026-08-14 sweep — the prefix was built from the as-passed repo arg and compared against an
+    // absolute realpath, so a relative repo arg silently disabled this guard too.
+    const zcode = join(resolveRepo(repo), ".zcode");
+    if (containedIn(fromFile, join(zcode, "notepads")) || containedIn(fromFile, join(zcode, "plans"))) {
+      console.error(`record-final-artifact.mjs: --from <file> under agent-writable bookkeeping (${resolvePath(fromFile)}) refused. Stage it in .zcode/staging/ or pipe the verdict on stdin.`);
       exit(6);
     }
   } catch (e) {

@@ -18,9 +18,10 @@ import { readFileSync, writeFileSync, openSync, closeSync, unlinkSync, renameSyn
 import { join } from "node:path";
 import { exit } from "node:process";
 import { findActiveRuns, mostRecent, STALE_MS_DEFAULT, TERMINAL } from "./lib/find-run.mjs";
+import { resolvePath } from "../scripts/lib/repo-path.mjs";
 
 const PROJECT_DIR =
-  process.env.CLAUDE_PROJECT_DIR || process.env.ZCODE_PROJECT_DIR || process.cwd();
+  resolvePath(process.env.CLAUDE_PROJECT_DIR || process.env.ZCODE_PROJECT_DIR || process.cwd());
 // A run whose updated_at is older than this is treated as inactive (abandoned mid-run).
 const STALE_MS = (() => {
   const h = parseFloat(process.env.ZODYSSEY_STALE_HOURS || "24");

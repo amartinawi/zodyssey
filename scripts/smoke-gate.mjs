@@ -35,6 +35,32 @@ import { join, resolve as pathResolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { enumerateDeployed } from "./lib/deploy-surface.mjs";
+
+// Run-state authenticity marker (v0.5.0+). The fixtures below hand-write state files, and an
+// UNMARKED state file is not a run — the hook finds nothing and no-ops, so every gate probe reads
+// as "allowed". That is indistinguishable from enforcement being offline, which is the exact
+// failure this whole script exists to detect, so an unstamped fixture would make the release gate
+// cry wolf on a correctly-armed build. (It did, on the first post-deploy run of 0.5.0.)
+//
+// Loaded from the DEPLOYED plugin, not the repo: the marker must be minted by the same build whose
+// hook will verify it. Null on pre-0.5.0 deploys, which have no marker and need none.
+// Lazy: installPath is resolved in section 1, below this import block.
+let _stampMarker;
+async function stamp(st, slug) {
+  if (_stampMarker === undefined) {
+    _stampMarker = null;
+    const cands = [
+      installPath ? join(installPath, "skills/odyssey/scripts/lib/state-auth.mjs") : null,
+      join(REPO, "skills/odyssey/scripts/lib/state-auth.mjs"),
+    ];
+    for (const cand of cands) {
+      if (!cand || !existsSync(cand)) continue;
+      try { ({ stampMarker: _stampMarker } = await import(cand)); break; } catch { /* next */ }
+    }
+  }
+  return _stampMarker ? _stampMarker(st, slug) : st;
+}
 
 const REPO = pathResolve(new URL("..", import.meta.url).pathname);
 const HOME = homedir();
@@ -127,35 +153,33 @@ if (installPath && existsSync(installPath)) {
 // external audit. A drifted script runs OLD enforcement just as silently as a drifted hook.
 console.log("\n3. Cached plugin integrity (the check --verify still lacks)");
 if (installPath && existsSync(installPath)) {
-  const SURFACES = [
-    join("skills", "odyssey", "hooks"),
-    join("skills", "odyssey", "scripts"),
-    join("skills", "odyssey", "scripts", "lib"),
-  ];
+  // T4-4: --sync-cache deploys 6 trees; drift detection covered 3. A stale agents/*.md runs an
+  // old reviewer prompt with both gates green — prompts are enforcement.
+  //
+  // Enumeration is recursive and shared with the deployer (lib/deploy-surface.mjs). A flat list
+  // fell behind twice — most recently missing hooks/lib/find-run.mjs, which authenticates run
+  // discovery. A stale copy there re-opens the v0.5.0 CRITICAL with this gate reporting green.
   const drifted = [], missing = [], unparsed = [];
   let compared = 0;
-  for (const rel of SURFACES) {
-    const repoDir = join(REPO, rel);
-    if (!existsSync(repoDir)) continue;
-    for (const name of readdirSync(repoDir)) {
-      if (!name.endsWith(".mjs")) continue;
-      const cachedFile = join(installPath, rel, name);
-      compared++;
-      if (!existsSync(cachedFile)) { missing.push(name); continue; }
+  for (const rel of enumerateDeployed(REPO)) {
+    const cachedFile = join(installPath, rel);
+    compared++;
+    if (!existsSync(cachedFile)) { missing.push(rel); continue; }
+    if (rel.endsWith(".mjs")) {
       const parse = spawnSync(process.execPath, ["--check", cachedFile], { encoding: "utf8" });
-      if (parse.status !== 0) { unparsed.push(name); continue; }
-      if (sha(cachedFile) !== sha(join(repoDir, name))) drifted.push(name);
+      if (parse.status !== 0) { unparsed.push(rel); continue; }
     }
+    if (sha(cachedFile) !== sha(join(REPO, rel))) drifted.push(rel);
   }
   if (drifted.length + missing.length + unparsed.length === 0) {
-    ok(`all ${compared} plugin .mjs files cached == repo`);
+    ok(`all ${compared} plugin code+prompt files cached == repo`);
   } else {
     const detail = [
       drifted.length ? `${drifted.length} drifted (${drifted.slice(0, 4).join(", ")}${drifted.length > 4 ? ", …" : ""})` : "",
       missing.length ? `${missing.length} missing from cache` : "",
       unparsed.length ? `${unparsed.length} fail to parse` : "",
     ].filter(Boolean).join("; ");
-    bad(`all ${compared} plugin .mjs files cached == repo`,
+    bad(`all ${compared} plugin code+prompt files cached == repo`,
       `${detail}. The deployed plugin is not your source — it runs OLD enforcement. ` +
       `Fix: node scripts/install.mjs --sync-cache (a plain install.mjs run does NOT refresh the cache).`);
   }
@@ -194,11 +218,13 @@ if (installPath && existsSync(installPath)) {
     writeFileSync(join(probe, "src", "foo.js"), "// probe\n");
     const planText = "# probe\n\n## Todos\n\n- [ ] 1. x\n  Files: [`src/foo.js`]\n";
     writeFileSync(join(probe, ".zcode", "plans", "probe.md"), planText);
-    writeFileSync(join(probe, ".zcode", "state", "probe.json"), JSON.stringify({
-      slug: "probe", phase: "execute", updated_at: new Date().toISOString(),
-      plan_path: join(probe, ".zcode", "plans", "probe.md"),
-      review: { verdict: "REJECT", round: 1, max_rounds: 3 },
-    }));
+    writeFileSync(join(probe, ".zcode", "state", "probe.json"),
+      JSON.stringify(await stamp({
+        slug: "probe", phase: "execute", updated_at: new Date().toISOString(),
+        started_at: "2026-08-15T00:00:00Z", run_start_sha: "smoke",
+        plan_path: join(probe, ".zcode", "plans", "probe.md"),
+        review: { verdict: "REJECT", round: 1, max_rounds: 3 },
+      }, "probe")));
     const call = (input, env = {}) => spawnSync(process.execPath, [hook], {
       input: JSON.stringify(input), encoding: "utf8",
       env: { ...process.env, CLAUDE_PROJECT_DIR: probe, ZODYSSEY_UNGATE_BASH: "", ...env },
@@ -228,11 +254,12 @@ writeFileSync(join(FIXTURE, "src", "foo.js"), "// Try to edit me from a live ZCo
 writeFileSync(join(FIXTURE, "src", "out-of-scope.js"), "// Not in the plan's Files:. Expected: BLOCKED even after OKAY.\n");
 const planText = "# smoke\n\n## Todos\n\n- [ ] 1. smoke check\n  Files: [`src/foo.js`]\n";
 writeFileSync(join(FIXTURE, ".zcode", "plans", "smoke.md"), planText);
-writeFileSync(join(FIXTURE, ".zcode", "state", "smoke.json"), JSON.stringify({
+writeFileSync(join(FIXTURE, ".zcode", "state", "smoke.json"), JSON.stringify(await stamp({
   slug: "smoke", phase: "execute", updated_at: new Date().toISOString(),
+  started_at: "2026-08-15T00:00:00Z", run_start_sha: "smoke",
   plan_path: join(FIXTURE, ".zcode", "plans", "smoke.md"),
   review: { verdict: "REJECT", round: 1, max_rounds: 3 },
-}, null, 2));
+}, "smoke"), null, 2));
 
 console.log(`\n${failed === 0 ? "AUTOMATED CHECKS PASSED" : `AUTOMATED CHECKS FAILED (${failed})`}`);
 console.log(`

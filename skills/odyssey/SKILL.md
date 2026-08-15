@@ -58,7 +58,7 @@ The table above is **not a menu of suggestions** — it is the default source of
 
 This is **gated, not advisory**:
 - **Review gate (phase 3):** `parse-plan --lint` fails OKAY if the plan lacks a `## Capability routing` section with a non-vacuous tri-state token. `zodyssey:momus` rejects it as a missing required section.
-- **Final wave (phase 6):** `record-final-wave` cross-checks the declaration against `state.capabilities[]` (the hook-witnessed log of every `Skill` / `mcp__*` call, phase-stamped). `routed: skill:X` requires an observed `skill:X`; `discovered` / `generic` requires an observed `skill:find-skills`. No matching observation ⇒ the final wave fails ⇒ the run cannot reach `done`.
+- **Final wave (phase 6):** `record-final-wave` cross-checks the declaration against `state.capabilities[]` (the hook-witnessed log of every **successful** `Skill` / `mcp__*` load, phase-stamped — errored loads are not recorded as observed). `routed: skill:X` requires an observed `skill:X`; `discovered` / `generic` requires an observed `skill:find-skills`. Matching is on the final name segment, so a bare declaration matches a plugin-namespaced observation (`skill:test-driven-development` ≡ `skill:superpowers:test-driven-development`). No matching observation ⇒ the final wave fails ⇒ the run cannot reach `done`.
 
 Because sub-agents cannot load skills (trust anchor), **the orchestrator loads the chosen skill / `find-skills` in the parent thread** — that load is what the hook observes and what the final-wave gate checks. Telling a dispatched sub-agent to "use skill X" without loading it yourself produces zero observation and fails the gate.
 
@@ -118,8 +118,9 @@ Because sub-agents cannot load skills (trust anchor), **the orchestrator loads t
         │      < max_rounds (3): re-dispatch zodyssey:promethe-│
         │      us with the blockers, then re-review. If ≥ 3:   │
         │      STOP and surface to user (no unbounded loop).   │
-        │    • OKAY → write verdict to state.json, set         │
-        │      phase = "execute".                              │
+        │    • OKAY → record-review.mjs (the ONLY sanctioned    │
+        │      verdict write; a direct state.json edit is      │
+        │      what the gate blocks), then set-phase execute.  │
         │    (Optional, for architecture intent: also dispatch │
         │    zodyssey:oracle for an independent review; both   │
         │    must OKAY.)                                       │
@@ -350,7 +351,7 @@ On `/orchestrate resume <slug>`, read `state.json`, find the last checkpoint, an
 - **Phase transitions:** `scripts/set-phase.mjs <repo> <slug> <phase>` — the *only* sanctioned way to move phases. (Escape hatches: `blocked`/`abandoned` always allowed.)
 - **Scaffold the plan:** `scripts/scaffold.mjs <repo-root> <slug> <title> <intent> [task-brief]`.
 - **Parse todos:** `scripts/parse-plan.mjs <plan.md> --lint|--files|--waves|--todo N`.
-- **Review gate (phase 3):** dispatch zodyssey:momus → read the minted nonce from `state.review.pending_nonce` → `record-momus-artifact.mjs … --nonce <nonce> --from <bookkeeping-file>` → `record-review.mjs … OKAY --momus-artifact <path> --plan-sha <full-64-char-sha>`. Full order + the `--from`-vs-stdin caveat in `references/scripts.md`.
+- **Review gate (phase 3):** dispatch zodyssey:momus → read the minted nonce from `state.review.pending_nonce` → `record-momus-artifact.mjs … --nonce <nonce> --from <file under .zcode/staging/>` (SEC-6 refuses `--from` under `plans/` or `notepads/`) → `record-review.mjs … OKAY --momus-artifact <path> --plan-sha <full-64-char-sha>`. Full order + the `--from`-vs-stdin caveat in `references/scripts.md`.
 - **Record todo/verify/final-wave:** see `references/scripts.md` for exact flags (record-verify, record-final-wave, record-todo).
 - **Diagnostics:** `scripts/status.mjs <repo> <slug>` (where is this run), `scripts/resolve-capabilities.mjs` (tool-grant reconciliation).
 

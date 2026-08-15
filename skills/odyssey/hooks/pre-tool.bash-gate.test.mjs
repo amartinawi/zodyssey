@@ -26,6 +26,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { stampMarker } from "../scripts/lib/state-auth.mjs";
 
 const HOOK = join(new URL(".", import.meta.url).pathname, "pre-tool.mjs");
 
@@ -68,7 +69,10 @@ function makeRepo({ verdict = "REJECT", phase = "execute", planFiles = ["src/foo
       ...(bindSha ? { plan_sha256: createHash("sha256").update(planText).digest("hex") } : {}),
     },
   };
-  writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify(state, null, 2));
+  // v0.5.0: run discovery is authenticated (CRITICAL T1-7), so a fixture state file must carry
+  // the marker a real scaffold mints — otherwise the hook correctly ignores it and every
+  // "expected 2" assertion below silently degrades to "no active run, exit 0".
+  writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify(stampMarker(state, "t"), null, 2));
   return { repo, planPath };
 }
 
