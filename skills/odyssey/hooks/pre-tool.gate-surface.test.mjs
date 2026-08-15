@@ -13,7 +13,7 @@
 //
 // Run:  node pre-tool.gate-surface.test.mjs   (exit 0 = pass, 1 = fail)
 
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync, symlinkSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync, symlinkSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -21,6 +21,7 @@ import { createHash } from "node:crypto";
 import { stampMarker } from "../scripts/lib/state-auth.mjs";
 
 const HOOK = join(new URL(".", import.meta.url).pathname, "pre-tool.mjs");
+const SCRIPTS_DIR = join(new URL("../scripts/", import.meta.url).pathname);
 let pass = 0, fail = 0;
 const check = (n, c, d = "") => c ? (console.log(`  ✓ ${n}`), pass++) : (console.log(`  ✗ ${n} ${d}`), fail++);
 const cleanup = [];
@@ -38,7 +39,10 @@ function makeRun({ phase = "execute", verdict = "OKAY", declared = ["src/foo.js"
   writeFileSync(join(repo, "test", "foo.test.js"), "it('a',()=>{});\n");
   writeFileSync(join(repo, ".zcode", "notepads", "t", "1.md"), "# evidence\n");
   const planPath = join(repo, ".zcode", "plans", "t.md");
-  const planText = `# t\n\n## Todos\n\n- [ ] 1. go\n  Files: [${declared.map((f) => `\`${f}\``).join(", ")}]\n`;
+  // Lint-clean on purpose: the dispatch gate refuses to spend a review round on a plan that
+  // `parse-plan --lint` already rejects, so a minimal plan blocks BEFORE the nonce minters and
+  // makes every dispatch probe read as a false negative.
+  const planText = `# t\n\n## Capability routing\n- \`generic: no specialised capability applies\`\n- Evidence: gate-surface fixture.\n\n## Todos\n\n- [ ] 1. go\n  - Files: [${declared.map((f) => `\`${f}\``).join(", ")}]\n  - Acceptance criteria:\n    - \`test -f ${declared[0]}\` exits 0\n`;
   writeFileSync(planPath, planText);
   const st = {
     slug: "t", phase, updated_at: new Date().toISOString(), plan_path: planPath,
@@ -58,6 +62,10 @@ const bash = (repo, command) => gate(repo, "Bash", { command });
 console.log("pre-tool.mjs — gate surface (the audit's untested invariants)\n");
 
 // --- CRITICAL T1-1: write primitives that classified as READ-ONLY ------------
+//
+// The first ten were REAL gaps: each was confirmed allowed on v0.4.1 and blocked on v0.5.0 by
+// running the identical command against both builds. `dd` is included as a control — v0.4.1
+// already blocked it, so it must stay blocked without being credited as a fix.
 console.log("  write primitives (all must BLOCK pre-OKAY):");
 {
   const repo = makeRun({ verdict: "REJECT", phase: "plan" });
@@ -65,10 +73,14 @@ console.log("  write primitives (all must BLOCK pre-OKAY):");
     "sort -o src/secret.js src/foo.js",
     "touch src/newfile.js",
     "sponge src/foo.js",
+    "gsed -i 's/a/b/' src/foo.js",
     "crontab /tmp/evil",
     "scp remote:/x src/foo.js",
+    "sftp remote:/x",
     "sqlite3 db.sqlite 'update t set x=1'",
-    "dd if=/dev/zero of=src/foo.js",
+    "at now + 1 min",
+    "batch",
+    "dd if=/dev/zero of=src/foo.js",   // control: was already blocked in v0.4.1
   ]) check(`    ${cmd.slice(0, 34)}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
   check("    control: read-only still ALLOWED", bash(repo, "ls -la") === 0);
 }
@@ -124,6 +136,52 @@ console.log("\n  Bash path parity with the Edit path:");
   const repo = makeRun({ declared: ["src/foo.js", ".zcode/state/t.json"] });
   check("    T1-5 editing run state BLOCKS even when the plan declares it",
     gate(repo, "Edit", { file_path: join(repo, ".zcode", "state", "t.json") }) === 2);
+
+  // ...and the Bash twin. The v0.5.0 fix for T1-5 armed `isState` on the Edit path ONLY, so these
+  // three were still allowed — quickClassify did not even compute isState, on the explicit (and
+  // false) reasoning that the scope gate would catch it. Declaring the path in Files: is exactly
+  // what puts it IN scope. Caught re-verifying the release against 0.4.1, not by the suite.
+  check("    T1-5 sed -i on run state BLOCKS on the Bash path",
+    bash(repo, "sed -i 's/OKAY/X/' .zcode/state/t.json") === 2);
+  check("    T1-5 redirect over run state BLOCKS on the Bash path",
+    bash(repo, "echo '{}' > .zcode/state/t.json") === 2);
+  check("    T1-5 APPEND to run state BLOCKS too (not a notepad)",
+    bash(repo, "echo '{}' >> .zcode/state/t.json") === 2);
+  check("    T1-5 writing .zcode/reviews/ BLOCKS on the Bash path",
+    bash(repo, "echo '{}' > .zcode/reviews/forged.json") === 2);
+  // The sanctioned path must stay open, or every run deadlocks at the first verdict write.
+  check("    CONTROL: the trusted writers still reach state",
+    bash(repo, `node ${join(SCRIPTS_DIR, "set-phase.mjs")} ${repo} t execute`) !== 2);
+}
+
+// --- Class C: dispatch names, at BOTH sites that compare them ----------------
+//
+// The nonce minters were made segment-tolerant in v0.5.0, but the phase gate that runs first was
+// still bare-set membership with three hard-coded `feature-dev:` entries. A third-party-namespaced
+// read-only agent was rejected there as an "executor" and never reached the fixed minter, so the
+// minter fix alone changed nothing observable. Both sites are covered here for that reason.
+console.log("\n  dispatch name matching (Class C):");
+{
+  const nonceFor = (agent, phase = "review") => {
+    const repo = makeRun({ phase, verdict: "REJECT" });
+    const code = gate(repo, "Task", { subagent_type: agent, prompt: "review the plan" });
+    let pending = false;
+    try {
+      pending = Boolean(JSON.parse(readFileSync(join(repo, ".zcode", "state", "t.json"), "utf8"))
+        .review?.pending_nonce);
+    } catch { /* leave false */ }
+    return { code, pending };
+  };
+  for (const agent of ["momus", "zodyssey:momus", "feature-dev:momus", "someplugin:momus"]) {
+    const r = nonceFor(agent);
+    check(`    \`${agent}\` is dispatchable AND mints a review nonce`,
+      r.code === 0 && r.pending, `(exit ${r.code}, nonce ${r.pending})`);
+  }
+  // Tolerance must not turn an executor into a read-only agent by renaming it.
+  const exec = nonceFor("sisyphus-junior", "plan");
+  check("    CONTROL: an executor is still phase-gated out of plan", exec.code === 2, `(exit ${exec.code})`);
+  const execNs = nonceFor("someplugin:sisyphus-junior", "plan");
+  check("    CONTROL: and so is a NAMESPACED executor", execNs.code === 2, `(exit ${execNs.code})`);
 }
 
 // --- Class B: the protected-dirs guard must survive a symlinked root --------

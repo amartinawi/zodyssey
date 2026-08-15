@@ -126,9 +126,14 @@ const WRITE_PATTERNS = [
   /\b(?:scp|sftp)\b/,                              // remote copy writes local paths too
   /\bsqlite3\s+\S+\s+\S/,                          // sqlite3 <db> <sql> mutates a file
   /\b(?:at|batch)\b/,                              // schedules a command to run later
-  /\bdd\b/,                                        // dd without of= can still write via redirect forms
-  /\btruncate\b/,                                  // (also matched above; kept explicit for clarity)
-  /\bxargs\b/,                                     // xargs can drive any writer; conservative
+  // The next four were NOT gaps — v0.4.1 already blocked every one (verified by running each
+  // command against both builds). They are kept as explicit, narrower-to-read duplicates of
+  // patterns that block them incidentally: `dd of=` and `truncate` were already enumerated,
+  // `busybox sed -i` is caught by the bare `sed …-i` rule, and `xargs rm` by `rm`. Listing them
+  // by name means a future edit to those broader rules cannot silently reopen them.
+  /\bdd\b/,                                        // (already covered by the `dd …of=` rule above)
+  /\btruncate\b/,                                  // (already covered by the mv|cp|rm|… rule above)
+  /\bxargs\b/,                                     // xargs can drive a writer the operand scan misses
 ];
 
 // Heuristic: does this Bash command ONLY read? If so, allow it even pre-review.
@@ -191,18 +196,28 @@ function bashWriteTargets(cmd) {
   }
   return { targets: [...new Set(targets)], confident };
 }
-// SEC-H5: lightweight classifier for Bash write-targets (we only need rel + bookkeeping here,
-// not the full state-vs-product distinction, because the Bash path blocks anything non-bookkeeping
-// that isn't in declared scope). abs is realpath'd; runRepo is the run's repo root.
+// SEC-H5: lightweight classifier for Bash write-targets. abs is realpath'd; runRepo is the run's
+// repo root.
+//
+// This used to return only { rel, bookkeeping }, on the stated reasoning that the state-vs-product
+// distinction was unnecessary "because the Bash path blocks anything non-bookkeeping that isn't in
+// declared scope". That reasoning is false in the one case that matters: a plan which DECLARES
+// `.zcode/state/t.json` in Files: puts it IN declared scope, so the scope gate passes it and
+// nothing else looked at it — `sed -i 's/OKAY/X/' .zcode/state/t.json` was allowed.
+//
+// This is T1-5 on the Bash path. The v0.5.0 fix for T1-5 armed `isState` on the Edit path only,
+// which is the very Class A shape this release exists to close — a guard added to one path and not
+// its Bash twin. Caught re-verifying the release against 0.4.1.
 function quickClassify(abs, runRepo) {
   const runPrefix = runRepo + sep;
   if (abs === runRepo || abs.startsWith(runPrefix)) {
     const rel = abs === runRepo ? "" : abs.slice(runPrefix.length);
     const bookkeeping = rel.startsWith(".zcode/plans/") || rel.startsWith(".zcode/notepads/") || rel.startsWith(".zcode/staging/");
-    return { rel, bookkeeping };
+    const isState = rel.startsWith(".zcode/state/") || rel.startsWith(".zcode/reviews/");
+    return { rel, bookkeeping, isState };
   }
   // outside the run repo entirely → treat as product code (will fail the inScope check, blocking it)
-  return { rel: abs, bookkeeping: false };
+  return { rel: abs, bookkeeping: false, isState: false };
 }
 
 // SEC-H5: extract the plan's declared editable-file set (shared by the Edit scope gate and the
@@ -1054,7 +1069,23 @@ if (isBash) {
       // still classify it; quickClassify's prefix test catches ../ escape lexically too.
       abs = pathResolve(PROJECT_DIR, t);
     }
-    const { rel, bookkeeping } = quickClassify(abs, runRepo);
+    const { rel, bookkeeping, isState } = quickClassify(abs, runRepo);
+
+    // HIGH T1-5, Bash path. State is written ONLY by the trusted writers, which bind their writes
+    // to hook-minted evidence. This check must come BEFORE the scope gate, because the bypass is
+    // precisely that a plan declaring `.zcode/state/t.json` in Files: puts it IN declared scope —
+    // so the scope gate passes it and, until now, nothing else looked. Trusted-writer invocations
+    // never reach here: isTrustedScriptInvoke returns earlier.
+    if (isState) {
+      block(
+        `run state is not directly writable: this command would modify ${rel}, which holds the ` +
+          `review verdict, phase and acceptance records — exactly what the gate reads to decide ` +
+          `whether to allow anything. Declaring it in the plan's Files: does not make it writable. ` +
+          `Use the trusted writers (record-review / set-phase / record-todo / record-verify). ` +
+          `Command: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. (slug=${state.slug})`
+      );
+    }
+
     if (bookkeeping) {
       // HIGH T1-2/T1-6 (audit 2026-08-14): "bookkeeping is always writable" was true for the Write
       // tool only because the Write path applies its own guards first. The Bash path skipped them
@@ -1147,8 +1178,19 @@ if (isDispatch) {
   const PLANNER_AGENTS = new Set(["prometheus"]);
   const EXEC_PHASES = new Set(["execute", "verify", "final", "remediate"]);
   const PLANNING_PHASES = new Set(["plan", "review", "consult"]);
-  const isReadonlyAgent = READONLY_AGENTS.has(subagent);
-  const isPlanner = PLANNER_AGENTS.has(subagent);
+
+  // Class C, second site. These were `.has(subagent)` — bare-set membership with three hard-coded
+  // `feature-dev:` entries, i.e. the same "exact match plus one special case" shape the nonce
+  // minters had. It runs BEFORE the minters, so a third-party-namespaced read-only agent
+  // (`someplugin:momus`) was blocked here as an "executor" and never reached the fixed minter at
+  // all — the minter fix alone did not deliver the outcome. Found re-verifying against 0.4.1.
+  //
+  // This widens who counts as read-only to any packaging of a known read-only agent. That grants
+  // no write capability: the phase gate governs DISPATCH only, and every file write the dispatched
+  // agent then attempts goes through this same hook with the same scope and verdict gates.
+  const inSet = (set) => [...set].some((member) => sameName(member, subagent));
+  const isReadonlyAgent = inSet(READONLY_AGENTS);
+  const isPlanner = inSet(PLANNER_AGENTS);
   if (!EXEC_PHASES.has(state.phase) && !isReadonlyAgent && !(isPlanner && PLANNING_PHASES.has(state.phase))) {
     block(
       `dispatch of ${subagent || "executor"} blocked in phase=${state.phase} ` +

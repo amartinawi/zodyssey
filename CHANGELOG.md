@@ -22,7 +22,7 @@ Adopt any in-flight runs BEFORE deploying, or finish them first. `--adopt` only 
 
 The audit reproduced an end-to-end takeover. Two independent halves, both fixed:
 
-- **Write primitives classified as read-only.** `sort -o`, `touch`, `sponge`, `gsed`/`busybox sed -i`, `crontab`, `scp`/`sftp`, `sqlite3 <db> <sql>`, `at`/`batch`, `dd` and `xargs` all passed `looksReadOnly` and ran pre-OKAY in any phase.
+- **Write primitives classified as read-only.** Ten passed `looksReadOnly` and ran pre-OKAY in any phase: `sort -o`, `touch`, `sponge`, `gsed -i`, `crontab`, `scp`, `sftp`, `sqlite3 <db> <sql>`, `at` and `batch`. (`dd`, `truncate`, `xargs` and `busybox sed -i` are also in the pattern list now, but v0.4.1 already blocked all four — they are belt-and-braces, not closed holes. Each of the ten was confirmed by running the same command against both builds: allowed on 0.4.1, blocked on 0.5.0.)
 - **Unauthenticated run discovery.** `findActiveRun` trusted ANY parseable `.json` in a state dir, newest `updated_at` winning — so a dropped `decoy.json` carrying `verdict: OKAY` governed the review gate, the scope gate and the tamper guard at once. Discovery now requires an identity-bound marker, applied in `hooks/lib/find-run.mjs` too, since that copy feeds `selectByTarget` and the other two hooks.
 
 The marker's header states plainly what it does *not* buy: with arbitrary read+write as this user, no in-band marker is unforgeable. It makes a *dropped* file inert; the durable control is that `.zcode/state/` now has no unsanctioned write path.
@@ -35,6 +35,8 @@ Every protection added to the Edit path over three releases had a `sed -i`/redir
 - `sed -i` / `awk -i` / `tee` push EVERY operand — previously one, so `sed -i 's/a/b/' out-of-scope.js in-scope.js` passed the scope check on the in-scope file and mutated both.
 - The verify/final test freeze applies on the Bash path.
 - `isState` was computed at two sites, returned, and never used in a conditional: a plan declaring `.zcode/state/` in `Files:` made verdict, phase and acceptance directly editable. v0.4.1's guard covered MCP tools but not the native Edit path.
+
+  The first attempt at this fix armed `isState` on the Edit path **only** — the same one-path-not-its-twin shape as the rest of this section. `quickClassify`, the Bash-path target classifier, did not even compute `isState`, with a comment asserting that was safe "because the Bash path blocks anything non-bookkeeping that isn't in declared scope". Declaring the path in `Files:` is precisely what puts it *in* scope, so `sed -i 's/OKAY/X/' .zcode/state/t.json` was still allowed. Caught by re-verifying the release against 0.4.1 rather than by the suite.
 - Rewriting the plan post-OKAY blocks; the tamper guard previously noticed only on the next gated call, after the command had run.
 
 ### Fixed — normalized compared against un-normalized (Class B)
@@ -49,6 +51,7 @@ Three guards failed OPEN because one side was realpath'd and the other was not: 
 - **F5 discovery branch** hard-coded `skill:find-skills` and discarded the declared value, making it UNSATISFIABLE wherever find-skills is namespaced — with no per-plan workaround.
 - **F5 mcp branch** tolerated a tool-name suffix but not a plugin prefix, missing `mcp__plugin_<plugin>_<server>__<tool>`.
 - **Nonce minters** used bare equality plus one hard-coded special case, so a namespaced reviewer minted nothing and the wave failed later with no hint that the dispatch name was the cause.
+- **The dispatch phase gate**, which runs *before* the minters, was bare-set membership (`READONLY_AGENTS.has(subagent)`) with three hard-coded `feature-dev:` entries — the same shape one function earlier. A third-party-namespaced read-only agent was rejected there as an "executor" and never reached the fixed minter, so fixing the minters alone changed nothing observable. Also found by re-verification.
 - **drift-check** truncated `Task: zodyssey:<agent>` at the colon and compared namespaced routes against a bare inventory, reporting every real agent as both stale and orphaned.
 
 Matching is segment-tolerant everywhere now: exact wins, else the final name segment. Declaring the bare or the namespaced form both work.
@@ -74,6 +77,12 @@ Widening the list was not enough. Running `--verify` during this release showed 
 32 suites, up from 26. New: `pre-tool.gate-surface.test.mjs` (23 cases ported from the auditor's probes), `sec6-repo-arg.test.mjs` (10 cases), and `deploy-surface.test.mjs`, which asserts *coverage* rather than a blessed list of filenames — a list would be the same bug in test form. `pipeline-integration` now loads a **namespaced** skill and still reaches `done`, so the live F5 failure is regression-locked end to end.
 
 The suite was structurally blind to both classes: all 62 fixtures passed absolute repo paths, and no F5 fixture used a namespaced name — the one that looked namespaced compared two identical strings and would pass with the stripper deleted.
+
+### Verification method
+
+Every finding was re-verified by running the **identical scenario against both builds** — a worktree at v0.4.1 and this branch — asserting two things, not one: that 0.4.1 behaves as the finding claims (the defect was real), and that 0.5.0 behaves as the fix claims (the remediation landed). 18 findings, 61 paired assertions.
+
+That second direction is what a normal green suite cannot give you, and it earned its cost immediately: it found **two incomplete fixes in this very release** (T1-5 on the Bash path, and the dispatch phase gate above), and corrected an overstated claim — `dd`, `truncate`, `xargs` and `busybox sed -i` were listed as closed holes when v0.4.1 already blocked all four. Three probes also had to be fixed first, each failing on both builds, which is the harness reporting a bad probe rather than a fixed bug.
 
 ## [0.4.1] — 2026-08-14
 
