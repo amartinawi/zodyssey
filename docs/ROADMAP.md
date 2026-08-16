@@ -1,38 +1,9 @@
 # ZOdyssey accuracy roadmap
 
 **Date:** 2026-08-11
-**Status:** roadmap — direction agreed, not scheduled. Phase 0 has landed (uncommitted);
-Phases A–C are planned but not started. Nothing here is committed work in progress.
+**Status:** ⚠️ **STALE IN BOTH DIRECTIONS — read the Status addendum at the END of this file first.**
+Verbatim 2026-08-11 text: *roadmap — direction agreed, not scheduled. Phase 0 has landed (uncommitted); Phases A–C are planned but not started.*
 **Scope:** make ZOdyssey produce more accurate output, ranked by evidence
-
-> ## Status addendum — 2026-08-16
->
-> **The Status line above is stale in both directions and is kept verbatim as the record of what
-> was believed on 2026-08-11.** Read this block first.
->
-> Most of Phase B shipped across v0.3.2–v0.5.2. B1–B7 and B9 landed; B10 did not. The §7 table
-> below is therefore a *proposal table*, not a status table — do not read a row in it as a claim
-> that the item is unbuilt, and do not read it as a claim that a shipped item works.
->
-> **B8 is half-shipped, and the roadmap's own framing hid it.** The row reads "Snapshot passing
-> tests at `phase→execute`, re-run at verify, any pass→fail is a hard failure." The snapshot half is
-> wired (`set-phase.mjs:208`, `record-review.mjs:265`, both `--snapshot`). The re-run half is not:
-> `regression-gate.mjs --check` has **zero code callers**, and `--check` is the only writer of
-> `status: "regressed"` (`regression-gate.mjs:181`) — the exact field `set-phase.mjs:131` refuses
-> `done` on. So the baseline is taken automatically, the comparison never runs, and the refusal
-> reads a field nothing populates. **The gate has never fired.**
->
-> This matters for §2's ecosystem null result (§81–82). "No orchestrator implements a pass-to-pass
-> regression gate" remains true of the surveyed field — and is now also true of ZOdyssey, which
-> ships one that never runs. The claim should not be used as a differentiator until `--check` is
-> invoked from a transition.
->
-> §9 open question 1 ("should B8 hard-fail or record evidence in v1") is therefore not yet live:
-> the gate does neither. Answer it after wiring, not before.
->
-> A4 is likewise half-true: no unified registry exists, but four standing doc-claim invariant
-> suites deliver its function domain-by-domain. The current successor documents are
-> `docs/OPPORTUNITY-MAP.md`, `docs/ideation-report.md`, and the build queue in `docs/impl/`.
 
 **How to use this document.** Phase A is specified in enough detail to turn into an
 implementation plan directly. Phases B and C are ranked and costed but deliberately not
@@ -319,3 +290,40 @@ Every ZOdyssey-specific claim in §1 was verified by reading the source directly
 a subagent report. Claims about third-party projects (the ecosystem null result, claude-flow's
 ADR-093 and its fail-open witness chain) are relayed from the competitive scan and are **not**
 independently verified.
+
+---
+
+## Status addendum — 2026-08-16
+
+**Appended, not inserted.** The body above is kept byte-for-byte as the record of what was believed
+on 2026-08-11, and this block lives at the end so that every `file:line` citation into this document
+stays valid. Fourteen citations across `docs/ideation-report.md`, `docs/impl/07`, `docs/impl/08` and
+`docs/impl/00-INDEX.md` point into the sections above; an insertion at the top would have silently
+broken all of them. (That is not hypothetical — it was done, measured, and reverted to produce this
+form. The check that would have caught it is queued as `docs/impl/15-anchor-drift-check.md`.)
+
+**Most of Phase B shipped** across v0.3.2–v0.5.2. B1–B7 and B9 landed; B10 did not. §7 is therefore
+a *proposal table*, not a status table — do not read a row in it as a claim that the item is
+unbuilt, and do not read it as a claim that a shipped item works.
+
+**B8 is half-shipped, and this document's framing hid it.** The §7 row reads "Snapshot passing tests
+at `phase→execute`, re-run at verify, any pass→fail is a hard failure." The snapshot half is wired
+(`set-phase.mjs:208`, `record-review.mjs:265`, both `--snapshot`). The re-run half is not:
+`regression-gate.mjs --check` has **zero code callers**, and `--check` is the only writer of
+`status: "regressed"` (`regression-gate.mjs:181`) — the exact field `set-phase.mjs:131` refuses
+`done` on. The baseline is taken automatically, the comparison never runs, and the refusal reads a
+field nothing populates. **The gate has never fired.**
+
+This bears on §2's ecosystem null result. "No orchestrator implements a pass-to-pass regression
+gate" remains true of the surveyed field — and is now also true of ZOdyssey, which ships one that
+never runs. Do not use it as a differentiator until `--check` is invoked from a transition
+(queued as `docs/impl/02-wire-zero-caller-checks.md`).
+
+§9 open question 1 — whether B8 should hard-fail or record evidence — is therefore not yet live:
+the gate does neither. Answer it after wiring, not before.
+
+**A4 is half-true.** No unified registry exists, but four standing doc-claim invariant suites
+deliver its function domain-by-domain. Queued as `docs/impl/08-claim-assertion-coverage-ledger.md`.
+
+Successor documents: `docs/OPPORTUNITY-MAP.md`, `docs/ideation-report.md`, and the build queue in
+`docs/impl/00-INDEX.md`.
