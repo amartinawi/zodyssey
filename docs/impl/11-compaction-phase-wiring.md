@@ -16,7 +16,7 @@ Census re-measured 2026-08-16 (this run, not an ideation-doc number): grep for `
 run `scripts/compact.mjs <repo> <slug>`" — an instruction addressed to the conductor, inside the
 phase-6 OPTIONAL COMPACTION box at `:156-163`), `skills/odyssey/SKILL.md:211` ("the **optional**
 `_compact-brief.md`"), `skills/odyssey/references/scripts.md:17` ("OPTIONAL pre-final-wave
-notepad compactor"), `README.md:59`, `README.md:81`, `README.md:253`, `CHANGELOG.md:508`. The
+notepad compactor"), `README.md:59`, `README.md:81`, `README.md:264`, `CHANGELOG.md:508`. The
 script's own header admits it: `skills/odyssey/scripts/compact.mjs:20-21` — "OPT-IN: the
 orchestrator MAY call this before phase-6 dispatch. It is not mandatory and not wired into any
 phase transition or hook."
@@ -325,7 +325,7 @@ its own"), each checked against the 2026-08-16 tree:
   unchanged; `--min-lines` documented; the additive invariant stated as tested, not promised.
 - `README.md:59`, `README.md:81` — the diagram and phase-list "(optional)" qualifiers update to
   "automatic for large runs".
-- `README.md:253` — the comparison-table row ("Notepad compaction (#8)") states the transition
+- `README.md:264` — the comparison-table row ("Notepad compaction (#8)") states the transition
   and the never-mutates-sources claim now carries "asserted by test".
 - `docs/DESIGN.md` — the phase-transition/state-flow description gains the final-entry compaction
   as a derived artifact (verify the exact section — §6 and the components table — at build time;

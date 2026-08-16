@@ -128,6 +128,7 @@ flowchart TD
 | **No pass-to-pass regressions** | not enforced | ⚠️ **half-wired — see note below.** The suite is snapshotted entering `execute` (`set-phase.mjs:208`), and `regression-gate.mjs --check` exits 8 on green→red with `set-phase … done` refusing while `status === "regressed"` — but **nothing invokes `--check`**, so the comparison never runs and the refusal reads a field nothing writes. An already-red suite is never blamed on the run |
 | **Imports resolve** | not enforced | ⚠️ **built, not wired — see note below.** `check-imports.mjs` flags packages that are in neither the manifest nor `node_modules`, offline and exiting 9 — but its only caller is prose (`references/scripts.md:45`), so it runs only when a conductor remembers |
 | **No retrying an unchanged workspace** | not enforced | `record-verify` refuses to re-run a criterion whose worktree is byte-identical to its last failure (exit `10`). Ported from prime-agent |
+| **Citations still point where they claim** | not enforced | 411 `file:line` citations across 53 docs are content-pinned in `scripts/anchors.lock.json`; `check-anchors.test.mjs` fails `npm test` when a cited line changes. Pins content, not line numbers, so an in-place edit is caught too |
 
 > **⚠️ Two rows above are not yet enforced, corrected 2026-08-16.** Both mechanisms are built and
 > tested; neither is invoked from code. `regression-gate.mjs --check` and `check-imports.mjs` each
