@@ -174,6 +174,29 @@ compares repo↔live content, which this change does not alter).
   failure of the class the change exists to remove. (The `--verify` stale-count line informs,
   never fails; the default-install prune step warns and continues, never aborts the install.)
 
+### Anchor-drift reconciliation (amendment, 2026-08-16)
+
+`scripts/check-anchors.test.mjs` landed after this prompt was written and runs inside
+`node scripts/run-tests.mjs`. It content-pins every `file:line` citation in the repo's docs, so
+**editing a cited file makes the suite go red until the citations are reconciled.** That is the
+check working, not a defect in your change.
+
+**This change's exposure: 29 pinned citations point into the files it edits.** Heaviest: `scripts/install.mjs` (13), `docs/DEVELOPMENT.md` (6), `scripts/run-tests.mjs` (6).
+
+Procedure, in this order:
+
+1. Make the code change and get your own criteria passing.
+2. Run `node scripts/check-anchors.mjs`. Every reported `[drift]` names the citing document, the
+   cited file and line, and what that line now holds.
+3. **Reconcile each one at the source** — fix the citation to point where the content actually
+   moved. Do not skip to step 4.
+4. Only then run `node scripts/check-anchors.mjs --update` to re-pin, and re-run the suite.
+
+**The footgun is running `--update` first.** It re-pins whatever is there, including citations that
+were already wrong, and the drift becomes invisible. That happened during item 15's own build: the
+lock was seeded over a README citation that had already drifted 11 lines, and the check
+could only flag the *next* shift. The lock records "unchanged since seeding", never "correct".
+
 ## Acceptance criteria
 
 Every criterion is an exact command from the repo root plus its expected exit code. `record-verify`
@@ -201,7 +224,7 @@ not a criterion. No criterion deletes anything outside a throwaway fixture or a 
    `HOME=<fixture> node scripts/install.mjs --dry-run` (no flags) — exit 0 and the output contains
    `[dry-run] rm` lines for exactly the prune set (the default flow carries the step, preview
    only); (j) in-process unit checks of the semver compare (equal, older, newer, differing major).
-4. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 32/32 suites,
+4. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 33/33 suites,
    2026-08-16; after this change it must read 33/33 (the new suite is discovered — a count that
    stays 32 means the file is misnamed or misplaced, and a runner that reports success over an
    empty set is this repo's documented false-green).

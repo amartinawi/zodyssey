@@ -38,7 +38,7 @@ at `:1472`) and `:1474` (`isAgent("oracle")` → `mintNonceFor("final_f4")` at `
 asserts the hole as *intended* behavior — `skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:257-260`
 loops `["momus", "zodyssey:momus", "feature-dev:momus", "someplugin:momus"]` and checks each
 `\`${agent}\` is dispatchable AND mints a review nonce` (`r.code === 0 && r.pending`). The suite is
-green (32/32, 2026-08-16) with the tolerance enforced as a feature. There is also an in-repo prior
+green (33/33, 2026-08-16) with the tolerance enforced as a feature. There is also an in-repo prior
 that already named this exact shape as a bug: v0.5.1, audit-3 finding 7
 (`CHANGELOG.md:64-66` and the comment at `skills/odyssey/hooks/pre-tool.mjs:1397-1402`) —
 "`evil:momus` skipped the cap and the pre-dispatch lint, then minted a review nonce" — fixed the
@@ -148,6 +148,29 @@ exactly that). Do not widen the set by default.
 - A repo-capability check degrades to a recorded `inert`, never to a block. Over-blocking is a new
   failure of the class the change exists to remove.
 
+### Anchor-drift reconciliation (amendment, 2026-08-16)
+
+`scripts/check-anchors.test.mjs` landed after this prompt was written and runs inside
+`node scripts/run-tests.mjs`. It content-pins every `file:line` citation in the repo's docs, so
+**editing a cited file makes the suite go red until the citations are reconciled.** That is the
+check working, not a defect in your change.
+
+**This change's exposure: 63 pinned citations point into the files it edits.** Heaviest: `skills/odyssey/hooks/pre-tool.mjs` (51), `skills/odyssey/hooks/pre-tool.gate-surface.test.mjs` (7), `skills/odyssey/scripts/lib/capability-name.mjs` (5).
+
+Procedure, in this order:
+
+1. Make the code change and get your own criteria passing.
+2. Run `node scripts/check-anchors.mjs`. Every reported `[drift]` names the citing document, the
+   cited file and line, and what that line now holds.
+3. **Reconcile each one at the source** — fix the citation to point where the content actually
+   moved. Do not skip to step 4.
+4. Only then run `node scripts/check-anchors.mjs --update` to re-pin, and re-run the suite.
+
+**The footgun is running `--update` first.** It re-pins whatever is there, including citations that
+were already wrong, and the drift becomes invisible. That happened during item 15's own build: the
+lock was seeded over a README citation that had already drifted 11 lines, and the check
+could only flag the *next* shift. The lock records "unchanged since seeding", never "correct".
+
 ## Acceptance criteria
 
 Every criterion is an exact command from the repo root plus its expected exit code. `record-verify`
@@ -162,7 +185,7 @@ not a criterion.
 5. `node skills/odyssey/hooks/pre-tool.bash-gate.test.mjs` — expected exit **0**. Mandatory after
    ANY `pre-tool.mjs` edit: this is the suite that exists to catch a third silent deletion of the
    Bash gate.
-6. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 32/32 suites,
+6. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 33/33 suites,
    2026-08-16. The count may legitimately grow; the exit code must not change.
 7. The paired direction — proof the flipped assertions actually run against the broken code. In
    TDD order you demonstrate this BEFORE writing the fix (flip the two lookalike assertions in the

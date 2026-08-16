@@ -225,7 +225,7 @@ not a criterion.
    `version-consistency.test.mjs` convention).
 5. `node scripts/run-tests.mjs --filter check-claims` — expected exit **0**, and the runner's
    output names the suite: this is the wiring proof, the anti-zero-caller criterion.
-6. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 32 suites plus every
+6. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 33 suites plus every
    suite added by already-landed queue items (01-04); the count grows by exactly this change's
    one suite; the exit code must not change.
 7. `node --test skills/odyssey/scripts/coverage-delta.test.mjs` — expected exit **0**: an indexed

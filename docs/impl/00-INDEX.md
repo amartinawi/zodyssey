@@ -38,6 +38,37 @@ its own measurement date.
 | 14 | otel-genai-span-emission | — | Externally blocked: semconv `gen_ai.*` attributes are still "Development" stability (caveat carried from docs/OPPORTUNITY-MAP.md:265, not re-fetched). Last in the queue. | One run-level span at close (built-ins-only OTLP/JSON, inert when unconfigured); per-dispatch granularity named Known-not-fixed — dispatch timestamps do not exist yet. (Outcome narrowed from "per-dispatch spans" while writing prompt 14, 2026-08-16.) |
 | 15 | anchor-drift-check | — | Added 2026-08-16, after the queue was written. This repo documents itself by `file:line` — 761 citations across 28 documents into 68 files (measured 2026-08-16) — and nothing verifies a cited line still says what the citation claims. Two anchors broke in one week: agents/sisyphus-junior.md:93 had drifted onto an unrelated line, and a one-line insertion into skills/odyssey/references/scripts.md invalidated nine citations at once, seven of them in docs/ideation-report.md. No blocking edge, so it takes the next free id rather than renumbering a committed queue — but its value is highest BEFORE items 01-07 run, since pre-tool.mjs (89 citations), set-phase.mjs (62) and post-tool.mjs (23) are exactly what they edit. Recommend pulling it forward in execution. | A cited line that changes fails `npm test`; the drifted citation is named. |
 
+## Amendment — 2026-08-16, after item 15 landed
+
+Item 15 shipped (`a9b4cf0`), so `scripts/check-anchors.test.mjs` now runs inside
+`node scripts/run-tests.mjs` and content-pins every `file:line` citation in the docs. Two
+consequences were written back into every prompt rather than left for each run to discover:
+
+- **The suite baseline is 33/33, not 32/32.** All fourteen prompts stated 32; all fourteen were
+  corrected. Prompt 12's "suite count grows 32 → 33" became 33 → 34, since it adds a test of its own.
+- **Editing a cited file now reddens the suite until citations are reconciled.** Each affected
+  prompt carries an `### Anchor-drift reconciliation` block stating its own exposure and the fixed
+  order: change code → `check-anchors.mjs` → fix each citation at the source → *only then*
+  `--update`. Running `--update` first re-pins whatever is there, including already-wrong
+  citations — which is how item 15's own lock was seeded over an 11-line-stale README anchor.
+
+Exposure, measured from each prompt's declared `Files` set against the lock (2026-08-16):
+
+| prompt | pinned citations into files it edits | prompt | pinned |
+|---|---|---|---|
+| 04 ungate-bash | **97** | 12 prime-acceptance | 46 |
+| 14 otel-spans | **95** | 05 corpus-decontamination | 38 |
+| 11 compaction | **83** | 02 wire-zero-callers | 29 |
+| 06 token-telemetry | 69 | 13 cache-prune | 29 |
+| 07 b10-lint-baseline | 67 | 10 prompt-surface | 28 |
+| 03 nonce-lane | 63 | 09 two-arm-eval | 20 |
+| 01 containment-escape | 52 | 08 claims-ledger | **0** |
+
+Fourteen of fifteen are affected; only 08 is clean, because it creates new files rather than
+editing cited ones. This is the cost of landing 15 first, and it is the cost worth paying: named
+failures instead of silent rot. The heaviest three all edit `pre-tool.mjs` (51 pinned citations)
+or `set-phase.mjs` (29).
+
 ## Dropped
 
 | candidate | reason (file:line) |

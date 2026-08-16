@@ -131,7 +131,7 @@ The declared editable set — this becomes the fix-run plan's `Files:` list, ver
 - `skills/odyssey/scripts/scaffold.criteria-confirm.test.mjs` — **new**. No scaffold-specific
   suite exists today (`ls skills/odyssey/scripts/ | grep scaffold` → `scaffold.mjs` only; the
   pipeline-integration suite covers other wiring). `scripts/run-tests.mjs` discovers every
-  `*.test.mjs` recursively, so the suite count grows 32 → 33 with no runner change.
+  `*.test.mjs` recursively, so the suite count grows 33 → 34 with no runner change.
 
 Nothing else. `agents/prometheus.md` stays untouched (the user's role is upstream by design —
 see Must NOT do). `skills/odyssey/scripts/consult.mjs` is untouched: it reads `<slug>.task.md` as
@@ -184,6 +184,29 @@ otherwise prose context. Hooks are untouched — this is not a gate and must nev
 - A repo-capability check degrades to a recorded `inert`, never to a block. Over-blocking is a new
   failure of the class the change exists to remove.
 
+### Anchor-drift reconciliation (amendment, 2026-08-16)
+
+`scripts/check-anchors.test.mjs` landed after this prompt was written and runs inside
+`node scripts/run-tests.mjs`. It content-pins every `file:line` citation in the repo's docs, so
+**editing a cited file makes the suite go red until the citations are reconciled.** That is the
+check working, not a defect in your change.
+
+**This change's exposure: 46 pinned citations point into the files it edits.** Heaviest: `skills/odyssey/SKILL.md` (24), `skills/odyssey/scripts/scaffold.mjs` (12), `scripts/run-tests.mjs` (6).
+
+Procedure, in this order:
+
+1. Make the code change and get your own criteria passing.
+2. Run `node scripts/check-anchors.mjs`. Every reported `[drift]` names the citing document, the
+   cited file and line, and what that line now holds.
+3. **Reconcile each one at the source** — fix the citation to point where the content actually
+   moved. Do not skip to step 4.
+4. Only then run `node scripts/check-anchors.mjs --update` to re-pin, and re-run the suite.
+
+**The footgun is running `--update` first.** It re-pins whatever is there, including citations that
+were already wrong, and the drift becomes invisible. That happened during item 15's own build: the
+lock was seeded over a README citation that had already drifted 11 lines, and the check
+could only flag the *next* shift. The lock records "unchanged since seeding", never "correct".
+
 ## Acceptance criteria
 
 Every criterion is an exact command from the repo root plus its expected exit code. `record-verify`
@@ -221,7 +244,7 @@ not a criterion.
    — expected exit **0** overall: with only the scaffold change reverted, the flag is an unknown
    argument (today's scaffold ignores it — `rest` at `scaffold.mjs:196` only looks for `--task`),
    no stamp is ever written, cases (a)-(c) and (e) fail, and the suite exits 1.
-6. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 32/32 suites,
+6. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 33/33 suites,
    2026-08-16; after this change it must read 33/33 (the new suite is discovered — a count that
    stays 32 means the file is misnamed or misplaced, and a runner that reports success over an
    empty set is this repo's documented false-green).
@@ -299,7 +322,7 @@ The costs, stated exactly:
   what is otherwise prose context — but re-verify consult's tolerance at build time before
   landing, and if any consumer ever byte-compares the file, the stamp is the thing to reconcile,
   never the brief body.
-- **Suite count moves 32 → 33.** Any live doc asserting the suite count updates in the same
+- **Suite count moves 33 → 34.** Any live doc asserting the suite count updates in the same
   release; historical CHANGELOG rows stay historical.
 - **The honest epistemic cost:** the round's value depends on the quality of the conductor's draft
   criteria — a bad draft can be confirmed as readily as a good one, and the TiCoder deltas were
@@ -356,7 +379,7 @@ ambiguities; criteria are planner-authored"), each re-anchored at build time:
   criteria-confirmation stamp as a recorded, additive artifact (verify the exact section at build
   time; if §6's scope rows are unaffected, record that rather than hunting for an edit).
 - `README.md` — the pipeline description of phase −1 (verify the exact section at build time).
-- `CHANGELOG.md` — shape below. Any live claim of the suite count moves with it (32 → 33).
+- `CHANGELOG.md` — shape below. Any live claim of the suite count moves with it (33 → 34).
 
 ## CHANGELOG entry shape
 

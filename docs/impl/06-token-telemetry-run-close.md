@@ -169,6 +169,29 @@ docs listed under "Docs to update" belong to the release pass, not the gated run
 - A repo-capability check degrades to a recorded `inert`, never to a block. Over-blocking is a new
   failure of the class the change exists to remove.
 
+### Anchor-drift reconciliation (amendment, 2026-08-16)
+
+`scripts/check-anchors.test.mjs` landed after this prompt was written and runs inside
+`node scripts/run-tests.mjs`. It content-pins every `file:line` citation in the repo's docs, so
+**editing a cited file makes the suite go red until the citations are reconciled.** That is the
+check working, not a defect in your change.
+
+**This change's exposure: 69 pinned citations point into the files it edits.** Heaviest: `skills/odyssey/scripts/set-phase.mjs` (29), `skills/odyssey/hooks/post-tool.mjs` (14), `skills/odyssey/scripts/lib/tokens.mjs` (14).
+
+Procedure, in this order:
+
+1. Make the code change and get your own criteria passing.
+2. Run `node scripts/check-anchors.mjs`. Every reported `[drift]` names the citing document, the
+   cited file and line, and what that line now holds.
+3. **Reconcile each one at the source** — fix the citation to point where the content actually
+   moved. Do not skip to step 4.
+4. Only then run `node scripts/check-anchors.mjs --update` to re-pin, and re-run the suite.
+
+**The footgun is running `--update` first.** It re-pins whatever is there, including citations that
+were already wrong, and the drift becomes invisible. That happened during item 15's own build: the
+lock was seeded over a README citation that had already drifted 11 lines, and the check
+could only flag the *next* shift. The lock records "unchanged since seeding", never "correct".
+
 ## Acceptance criteria
 
 Every criterion is an exact command from the repo root plus its expected exit code. `record-verify`
@@ -184,7 +207,7 @@ not a criterion.
 4. `node skills/odyssey/hooks/post-tool.session-stamp.test.mjs` — expected exit **0** (stamp
    fires once when the payload carries `session_id`; no stamp when absent; no active run → no-op;
    hook exits 0 in every case).
-5. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 32/32 suites,
+5. `node scripts/run-tests.mjs` — expected exit **0**. Baseline on arrival: 33/33 suites,
    2026-08-16. The count may legitimately grow; the exit code must not change.
 6. The paired direction — proof the new assertions actually run against the broken code. In TDD
    order you demonstrate this BEFORE writing the fix (add the failing cases, watch the suite go
