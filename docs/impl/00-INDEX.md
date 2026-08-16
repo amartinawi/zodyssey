@@ -1,0 +1,59 @@
+# 00-INDEX — v0.6 build queue
+
+Sixteen Step-2 candidates, all accounted for: fourteen become implementation prompts
+(`docs/impl/NN-<slug>.md`, written by todos 6-19), two are dropped with file:line reasons below.
+The order is a dependency DAG, not the ideation rank; the sequencing rules applied are the spec's
+(docs/implementation-prompt.md:81): blocking edges over rank, the registry wants fixes ahead of
+it, one security change per release, group by file only when that violates nothing above,
+cheap-and-severe first.
+
+Acyclicity rule: every depends-on edge points at a strictly lower id — a row may depend only on
+ids smaller than its own. The graph is acyclic by construction and the numeric order is a valid
+topological order.
+
+Every quantitative claim below is this run's own measurement, never an ideation-doc number
+(measured-at: 2026-08-16T03:05:00Z, notepad 2 of run impl-prompts-v0-6). `results.jsonl` is live
+and drifted repeatedly during this run (see Observations); each NN prompt that quotes it stamps
+its own measurement date.
+
+## DAG
+
+| id | slug | depends-on | why-here | outcome |
+|---|---|---|---|---|
+| 01 | edit-path-containment-escape | — | Cheapest and most severe open defect; the escape is post-OKAY-only (pre-OKAY targets outside PROJECT_DIR are already blocked at skills/odyssey/hooks/pre-tool.mjs:788). Own release, shipped alone. | No edit path skips the scope gate; the `if (rel)` branch is gone. |
+| 02 | wire-zero-caller-checks | — | check-imports, coverage-delta and resolve-capabilities have zero code callers (re-confirmed this run); wiring follows the B8 precedent at skills/odyssey/scripts/set-phase.mjs:206. Ahead of 08 so the wired checks land as registry rows. | The three checks fire from phase transitions instead of by hand. |
+| 03 | nonce-lane-minter-allowlist | — | Security-class, grouped adjacently with 01/04 (same file cluster) but explicitly not merged — own release. The false header assertion at skills/odyssey/scripts/lib/capability-name.mjs:17 is corrected in the same change. | Only the declared minter can grant the nonce lane. |
+| 04 | ungate-bash-record-or-retire | — | Decision: record every ungated call, not retirement — the affordance is documented (docs/INSTALL.md:152) and the v0.1.1/v0.2.0 gate-deletion history (CHANGELOG.md:389, CHANGELOG.md:554) is the causal evidence against removal. Security-class, own release. | Every `ZODYSSEY_UNGATE_BASH=1` call is recorded in run state. |
+| 05 | metrics-corpus-decontamination | — | skills/odyssey/scripts/set-phase.mjs:226 appends every run to the trend log unconditionally: 153/184 records synthetic (83.2%, measured 2026-08-16). All measurement items are gated behind this. | The trend log holds real runs only; the synthetic share is measured, not guessed. |
+| 06 | token-telemetry-run-close | 05 | Wiring already exists (skills/odyssey/scripts/set-phase.mjs:217, skills/odyssey/scripts/run-report.mjs:86); the defects are the null population (2/184, measured 2026-08-16) and attribution (skills/odyssey/scripts/lib/tokens.mjs:150). Telemetry numbers are corpus metrics — after 05. | Token counts are populated and attributed per run. |
+| 07 | b10-pre-edit-lint-baseline | — | skills/odyssey/hooks/post-tool.mjs:72 lints post-edit only and blocks (skills/odyssey/hooks/post-tool.mjs:81) with no baseline to compare against. Independent of the other tracks. | Lint regressions are caught against a committed baseline. |
+| 08 | claim-assertion-coverage-ledger | 01, 02, 03, 04 | The registry wants the four fixes ahead of it so their claims land as rows rather than retrofits. Five scattered equivalents already exist (the four found at verification — skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3, skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:2, scripts/version-consistency.test.mjs:15, scripts/smoke-gate.mjs:1 — plus a fifth found while writing prompt 08 itself: scripts/deploy-surface.test.mjs:2, commit 26af48b; corrected here 2026-08-16). | One ledger answers "is this claim asserted anywhere". |
+| 09 | two-arm-eval-baseline | 05 | skills/odyssey/scripts/judge.mjs:171 hardcodes the arm; skills/odyssey/scripts/harness.mjs:19 still has baseline = TODO. The settling experiment must draw from a decontaminated corpus or its first number is poisoned. | Both arms run through `judge.mjs --arm`; the baseline arm is automated. |
+| 10 | prompt-surface-measurement | 09 | The one hard blocking edge in the queue: prompt-surface cannot start before the eval runs (docs/implementation-prompt.md:83). | The prompt surface has a measured effect on eval outcomes, not an intuition. |
+| 11 | compaction-phase-wiring | — | Opt-in and unwired (skills/odyssey/SKILL.md:157); the additive invariant (skills/odyssey/scripts/compact.mjs:16) must hold or final-wave evidence is destroyed. After the measurement block by grouping, no hard edge. | Compaction fires at a phase transition, additive only. |
+| 12 | prime-user-confirmed-acceptance | — | The only strong-evidence accuracy item, caveats carried (docs/ideation-report.md:450); the ask-user ritual exists (skills/odyssey/SKILL.md:74) but criteria are never user-confirmed. Proposes USER queries at PRIME — not a reviewer agent. | Acceptance criteria are confirmed by the user at PRIME. |
+| 13 | plugin-cache-prune | — | Ops hygiene: 6 cache dirs on disk, one live (0.5.2), five stale (0.3.2-0.5.1), measured 2026-08-16. Unranked-critical, so late. | The installer prunes stale plugin-cache versions. |
+| 14 | otel-genai-span-emission | — | Externally blocked: semconv `gen_ai.*` attributes are still "Development" stability (caveat carried from docs/OPPORTUNITY-MAP.md:265, not re-fetched). Last in the queue. | One run-level span at close (built-ins-only OTLP/JSON, inert when unconfigured); per-dispatch granularity named Known-not-fixed — dispatch timestamps do not exist yet. (Outcome narrowed from "per-dispatch spans" while writing prompt 14, 2026-08-16.) |
+
+## Dropped
+
+| candidate | reason (file:line) |
+|---|---|
+| Per-test regression granularity | Concession confirmed: per-test granularity needs runner-specific parsing that would rot (docs/MEASUREMENT.md:55). Both ideation passes say do not build. Left out. |
+| OS-level process confinement (full) | Hooks observe tool calls, not process trees — the boundary is codified at agents/sisyphus-junior.md:89. The in-constraint remainder (write-capable Bash targeting) already exists and is folded into 01. |
+
+## Out-of-rank positions
+
+- nonce-lane (map #12) → 03: security-class items group adjacently (same file cluster: pre-tool.mjs and its libs) for the one-security-change-per-release cadence — sequenced contiguously, explicitly not merged into one change; also cheap.
+- UNGATE (map #6) → 04: same security grouping; it lands as record-every-call, not retirement.
+- token telemetry (report §1.3; the map missed it) → 06: telemetry numbers are metrics drawn from the corpus, so it follows 05.
+- compaction (report §1.4) → 11: rank-free; after the measurement block by grouping, no hard edge.
+- TiCoder (map #10) → 12, cache prune (map #13) → 13, OTel (map #8) → 14: demotions — OTel is externally blocked (semconv "Development") so last; prune is cheap ops hygiene; TiCoder is independent and carries external-evidence caveats.
+- prompt-surface (map #9) → 10: the hard edge on 09 is preserved verbatim.
+
+## Observations
+
+- Stale anchors: agents/sisyphus-junior.md:93 and docs/ROADMAP.md:188 — both cited regions have drifted; prompt authors must re-anchor before quoting them.
+- build-capsules.mjs is a fourth zero-caller script (zero references of any kind, measured 2026-08-16). Outside the Step-2 candidate set — recorded here, not added as a 15th prompt.
+- results.jsonl drift across this task's lifetime: 172 (map, 08-15) → 177 (report, 08-15) → 181 (metis consult, 08-16 early) → 184 (notepad 2, 2026-08-16T03:05:00Z) → 185 (during todo 3, 08-16). Every prompt quoting the file stamps its own count and date.
+- CORRECTED during the run (wave 6): an earlier bullet here claimed `docs/ADAPT.md` does not exist — that was wrong. The file exists (committed in 6039199, v0.1.0) and `docs/ADAPT.md:48` is the live, canonical anchor for the ZODYSSEY_UNGATE_BASH affordance ("set ZODYSSEY_UNGATE_BASH=1 if you want the lower-friction ungated behavior"). docs/INSTALL.md:152 and CHANGELOG.md:389/:554 are additional live anchors also used in row 04. Prompt 04 may cite any of these. The false-absence claim was caught by the prompt-04 executor and re-verified by the conductor against the working tree — the exact drift class this INDEX exists to prevent, caught inside the same run that wrote it.
