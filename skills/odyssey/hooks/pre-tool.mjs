@@ -675,13 +675,15 @@ function classifyTarget(p) {
   let bookkeeping = false;
   let isState = false;
   let rel = "";
+  let inRunRepo = false; // set by branch (1), read by the (3) fall-through below
   // (1) Run-repo-relative classification (handles nested-repo runs). RUN_STATE_DIR is .../.zcode/state;
   // the repo root is two levels up. Match bookkeeping/state prefixes against that.
   if (RUN_STATE_DIR) {
     const runZcode = pathResolve(RUN_STATE_DIR, "..");          // .../.zcode
     const runRepo = pathResolve(runZcode, "..");                 // the repo root containing .zcode
     const runPrefix = runRepo + sep;
-    if (abs === runRepo || abs.startsWith(runPrefix)) {
+    inRunRepo = abs === runRepo || abs.startsWith(runPrefix);
+    if (inRunRepo) {
       const runRel = abs === runRepo ? "" : abs.slice(runPrefix.length);
       rel = runRel;
       if (runRel.startsWith(".zcode/plans/") || runRel.startsWith(".zcode/notepads/") || runRel.startsWith(".zcode/staging/")) bookkeeping = true;
@@ -713,6 +715,14 @@ function classifyTarget(p) {
     if (projRel.startsWith(".zcode/plans/") || projRel.startsWith(".zcode/notepads/") || projRel.startsWith(".zcode/staging/")) bookkeeping = true;
     if (projRel.startsWith(".zcode/state/")) isState = true;
   }
+  // (3) Outside BOTH the run repo and PROJECT_DIR → treat as product code (will fail the inScope
+  // check, blocking it) — the same fall-through quickClassify uses for the Bash twin. Until
+  // 2026-08-16 (docs/impl/01) an outside target kept rel: "" here, so every guard below hanging
+  // off `if (rel)` — plan-sha tamper check, Files: containment, the fail-closed catch, the file
+  // lock — silently skipped and the edit fell through to the unconditional allow: the post-OKAY
+  // Edit-path scope escape. Root equality (a target exactly equal to a repo root) still yields
+  // rel: "" on both twins; the tools themselves reject directory targets.
+  if (!inRunRepo && !inside) rel = abs;
   return { rel, bookkeeping, isState };
 }
 

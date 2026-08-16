@@ -37,7 +37,7 @@ const check = (n, c, d = "") => c ? (console.log(`  ✓ ${n}`), pass++) : (conso
 
 const cleanup = [];
 // Builds a run whose ONLY declared file is src/text.js, with `scopeBody` as the ## Scope content.
-function repoWithScope(scopeBody, { phase = "execute", verdict = "OKAY" } = {}) {
+function repoWithScope(scopeBody, { phase = "execute", verdict = "OKAY", files = ["src/text.js"] } = {}) {
   const repo = realpathSync(mkdtempSync(join(tmpdir(), "zod-scope-")));
   cleanup.push(repo);
   mkdirSync(join(repo, ".zcode", "state"), { recursive: true });
@@ -46,7 +46,7 @@ function repoWithScope(scopeBody, { phase = "execute", verdict = "OKAY" } = {}) 
   writeFileSync(join(repo, "src", "text.js"), "// declared\n");
   writeFileSync(join(repo, "src", "unrelated.js"), "// NOT declared\n");
   const planPath = join(repo, ".zcode", "plans", "t.md");
-  const planText = `# t\n\n## Scope\n\n${scopeBody}\n\n## Todos\n\n- [ ] 1. go\n  - Files: [\`src/text.js\`]\n`;
+  const planText = `# t\n\n## Scope\n\n${scopeBody}\n\n## Todos\n\n- [ ] 1. go\n  - Files: [${files.map((f) => `\`${f}\``).join(", ")}]\n`;
   writeFileSync(planPath, planText);
   // v0.5.0: authenticated run discovery — an unmarked fixture state file is ignored by the hook.
   writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify(stampMarker({
@@ -145,6 +145,34 @@ console.log("pre-tool.mjs — scope prohibitions and the phase-3 staging path\n"
     hook(repo, "mcp__fs__write_file", { path: join(repo, "src", "text.js") }) === 0);
   check("mcp__* read-shaped call with no path is ALLOWED",
     hook(repo, "mcp__codegraph__explore", { query: "how does auth work" }) === 0);
+}
+
+// --- impl/01: the Edit-path containment escape — targets outside BOTH roots ------------
+//
+// classifyTarget returned rel: "" for any target outside the run repo AND PROJECT_DIR, so the
+// post-OKAY `if (rel)` boundary — plan-sha tamper guard, Files: containment, fail-closed catch,
+// file lock — never ran and the edit fell through to the unconditional allow. quickClassify (the
+// Bash twin's classifier) already returns the absolute path for exactly this class, so the Bash
+// gate bites. The fix converges the twins: an outside target now carries rel: <abs> and fails
+// containment like any undeclared file. Both twins are asserted against the SAME outside target
+// so future divergence fails this suite — the one-path-not-its-twin class this repo keeps shipping.
+{
+  const outsideDir = realpathSync(mkdtempSync(join(tmpdir(), "zod-outside-")));
+  cleanup.push(outsideDir);
+  const outside = join(outsideDir, "escape-probe.txt");
+  const repo = repoWithScope("Edit `src/text.js`.");
+  check("post-OKAY Edit to a target outside both roots is BLOCKED (the escape closed)",
+    hook(repo, "Edit", { file_path: outside }) === 2);
+  check("Bash twin: write-capable command on the SAME outside target is BLOCKED (twin parity)",
+    hook(repo, "Bash", { command: `echo x >> ${outside}` }) === 2);
+  check("pre-OKAY: the outside target is blocked by the verdict gate (unchanged)",
+    hook(repoWithScope("Edit `src/text.js`.", { phase: "plan", verdict: "REJECT" }),
+      "Edit", { file_path: outside }) === 2);
+  check("the plan's declared in-repo file is still editable (control)",
+    hook(repo, "Edit", { file_path: join(repo, "src", "text.js") }) === 0);
+  check("an undeclared in-repo file is still blocked (control)", editUnrelated(repo) === 2);
+  check("a plan that DECLARES the outside absolute path keeps it editable (exact-match semantics)",
+    hook(repoWithScope("Edit the probe.", { files: [outside] }), "Edit", { file_path: outside }) === 0);
 }
 
 for (const d of cleanup) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
