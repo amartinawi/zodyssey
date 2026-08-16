@@ -80,7 +80,7 @@ already exists). The residual defects are three, all verified:
    harness actually sends; `:875` consumes `payload.session_id` today), while
    `skills/odyssey/scripts/scaffold.mjs:288` initializes `active_executor_session: null` and
    **nothing in the tree ever writes it** — grep shows exactly two hits: that init and the read at
-   `pre-tool.mjs:875`. A field scaffolded for exactly this purpose, never populated.
+   `pre-tool.mjs:885`. A field scaffolded for exactly this purpose, never populated.
 
 ## What fixed means
 
@@ -113,7 +113,7 @@ Stated as observable behaviour, not as a diff:
    observation write at `skills/odyssey/hooks/post-tool.mjs:157-166`); the same channel stamps
    `state.session_id = payload.session_id` on first witness (only if absent), best-effort,
    exit-0-always. Hook-payload `session_id` is shared across parallel sub-agents
-   (`skills/odyssey/hooks/pre-tool.mjs:870-875`), so any event during the run yields the
+   (`skills/odyssey/hooks/pre-tool.mjs:880-885`), so any event during the run yields the
    orchestrator's id — first-witness is safe regardless of which thread fired.
 
 ## Files

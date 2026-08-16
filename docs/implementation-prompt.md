@@ -195,8 +195,8 @@ Abbreviated. Yours are fuller; this fixes the register and the level of specific
 >
 > **What is broken.** The Edit-path scope check — plan-sha tamper guard, declared-`Files:`
 > containment, fail-closed catch — is wrapped in `if (rel) {` at
-> `skills/odyssey/hooks/pre-tool.mjs:807`. `classifyTarget`
-> (`skills/odyssey/hooks/pre-tool.mjs:664-716`) returns `rel: ""` for any target outside both the
+> `skills/odyssey/hooks/pre-tool.mjs:817`. `classifyTarget`
+> (`skills/odyssey/hooks/pre-tool.mjs:664-726`) returns `rel: ""` for any target outside both the
 > run repo and `PROJECT_DIR`, so the check is skipped, the file-lock branch at `:894` is skipped
 > too, and control reaches `exit(0)` at `:937`. Post-OKAY, `Write` to
 > `skills/odyssey/hooks/pre-tool.mjs` and to `~/.zcode/cli/config.json` both return exit 0 against

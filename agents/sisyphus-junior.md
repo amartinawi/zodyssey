@@ -90,7 +90,7 @@ State this verbatim, three times (mirroring prime-agent primitive #9):
 2. The sub-agent process boundary is **lifecycle/failure containment, not a security sandbox**. It contains crashes, OOM, and runaway loops; it does not contain a hostile prompt.
 3. The sub-agent process boundary is process coordination, **not a sandbox boundary**. A compromised executor reads everything the user can read and writes everything the user can write.
 
-This baseline is a trust-model point, not a claim that Bash is ungated: the Bash write-gate is **live** — write-capable Bash is blocked pre-OKAY and scope-checked post-OKAY (`pre-tool.mjs:1072-1226` — the verdict gate at `:1086`, the per-target scope check at `:1210`), ungated only when `ZODYSSEY_UNGATE_BASH=1` (`pre-tool.mjs:978`). But a compromised executor already holds the user's shell privileges regardless of the gate, so the process boundary is lifecycle/failure containment, not a security sandbox. Design dispatch as process coordination, not a sandbox boundary.
+This baseline is a trust-model point, not a claim that Bash is ungated: the Bash write-gate is **live** — write-capable Bash is blocked pre-OKAY and scope-checked post-OKAY (`pre-tool.mjs:1082-1236` — the verdict gate at `:1086`, the per-target scope check at `:1210`), ungated only when `ZODYSSEY_UNGATE_BASH=1` (`pre-tool.mjs:988`). But a compromised executor already holds the user's shell privileges regardless of the gate, so the process boundary is lifecycle/failure containment, not a security sandbox. Design dispatch as process coordination, not a sandbox boundary.
 
 ## Outcome-first summary (your final message shape)
 

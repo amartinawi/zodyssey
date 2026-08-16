@@ -23,8 +23,8 @@ cited file silently shifts every anchor below it. No test, hook, or CI step noti
 
 This is not hypothetical. It happened twice in the week this queue was written:
 
-- **`agents/sisyphus-junior.md:93`** cited `pre-tool.mjs:896-952` for the Bash write-gate and
-  `pre-tool.mjs:807` for the `ZODYSSEY_UNGATE_BASH` hatch. Both had drifted. The gate is at
+- **`agents/sisyphus-junior.md:93`** cited `pre-tool.mjs:906-962` for the Bash write-gate and
+  `pre-tool.mjs:817` for the `ZODYSSEY_UNGATE_BASH` hatch. Both had drifted. The gate is at
   `:1072-1226`; the hatch is at `:978`; and `:807` had become `if (rel) {` — the Edit-path
   containment escape, an unrelated line. The executor's own trust-model briefing pointed at the
   wrong code, and `docs/impl/00-INDEX.md` had to flag the file as unciteable.
@@ -82,7 +82,7 @@ dialects in live use:
 | `SKILL.md:354` | `skills/odyssey/SKILL.md` |
 | `trusted-invoke.test.mjs:105` | `skills/odyssey/hooks/pre-tool.trusted-invoke.test.mjs` (basename suffix match) |
 | `.zcode-plugin/plugin.json:44` | itself — **leading dot; a naive `[A-Za-z]`-anchored regex drops it** |
-| `pre-tool.mjs:807`, `set-phase.mjs:208` | `skills/odyssey/hooks/`, `skills/odyssey/scripts/` |
+| `pre-tool.mjs:817`, `set-phase.mjs:208` | `skills/odyssey/hooks/`, `skills/odyssey/scripts/` |
 
 Resolution order must be deterministic and **ambiguity must fail, not guess** — if a bare basename
 matches two files, that is a citation defect to report, not a coin flip. A false positive here is

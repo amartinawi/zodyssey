@@ -13,7 +13,7 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 ## What is broken
 
 One environment variable disables the entire Bash write-gate with no audit trail. At
-`skills/odyssey/hooks/pre-tool.mjs:978` the check
+`skills/odyssey/hooks/pre-tool.mjs:988` the check
 
 `if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1") exit(0);`
 
@@ -21,7 +21,7 @@ is the first executable statement of the Bash branch (the decision-tree comment 
 `:940-977`), so with the variable set, **every** Bash call — read-only or write-capable, pre- or
 post-review, in-scope or not — exits 0 past the verdict gate, the SEC-4 plan-sha tamper guard, and
 the per-target scope check, and nothing anywhere records that it happened. The affordance is
-deliberate and documented: the hook's own comment (`skills/odyssey/hooks/pre-tool.mjs:974-977`,
+deliberate and documented: the hook's own comment (`skills/odyssey/hooks/pre-tool.mjs:984-987`,
 "POWER-USER ESCAPE HATCH"), the installer's AGENTS.md template written into every user's repo at
 `scripts/install.mjs:881` ("set \`ZODYSSEY_UNGATE_BASH=1\` to disable if you trust your agents"),
 the env table at `docs/INSTALL.md:152`, and the README comparison row at `README.md:121`. It
@@ -63,7 +63,7 @@ ungated call**.
   its existence; an operator who sets it accidentally loses everything.
 - *For recording (and against retiring):* retirement breaks a legitimate, documented, four-anchor
   affordance (`scripts/install.mjs:881`, `docs/INSTALL.md:152`, `README.md:121`,
-  `skills/odyssey/hooks/pre-tool.mjs:974-977`) whose explicit contract is low-friction operation
+  `skills/odyssey/hooks/pre-tool.mjs:984-987`) whose explicit contract is low-friction operation
   for operators who "trust your agents" — a real use case this repo's own author is. And the
   deletion history is causal evidence **against** removal, not for it: the gate was deleted twice
   while the escape hatch existed, and each time the cause was the hatch's *silence*, never its

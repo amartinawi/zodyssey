@@ -11,16 +11,16 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 
 The Edit-path scope boundary — plan-sha tamper guard, declared-`Files:` containment, and the
 fail-closed catch for unreadable plans — is entirely wrapped in `if (rel) {` at
-`skills/odyssey/hooks/pre-tool.mjs:807`, and the file-lock branch below it re-uses the same guard
-at `skills/odyssey/hooks/pre-tool.mjs:894`. `classifyTarget`
-(`skills/odyssey/hooks/pre-tool.mjs:664-716`) initializes `let rel = ""` at `:677` and assigns
-`rel` only inside the run-repo branch (`:680-690`) or the `PROJECT_DIR` branch (`:692-715`). A
-target that resolves outside **both** roots therefore returns `rel: ""`: the scope gate at `:807`
-is skipped, the lock at `:894` is skipped, and control falls through to the allow at
-`skills/odyssey/hooks/pre-tool.mjs:937`.
+`skills/odyssey/hooks/pre-tool.mjs:817`, and the file-lock branch below it re-uses the same guard
+at `skills/odyssey/hooks/pre-tool.mjs:904`. `classifyTarget`
+(`skills/odyssey/hooks/pre-tool.mjs:664-726`) initializes `let rel = ""` at `:677` and assigns
+`rel` only inside the run-repo branch (`:681-692`) or the `PROJECT_DIR` branch (`:694-717`). A
+target that resolves outside **both** roots therefore returns `rel: ""`: the scope gate at `:817`
+is skipped, the lock at `:904` is skipped, and control falls through to the allow at
+`skills/odyssey/hooks/pre-tool.mjs:947`.
 
 The escape is **post-OKAY only**. Pre-OKAY, outside targets are blocked by the unconditional
-verdict gate at `skills/odyssey/hooks/pre-tool.mjs:788`; the comment at `:786` ("Outside
+verdict gate at `skills/odyssey/hooks/pre-tool.mjs:798`; the comment at `:796` ("Outside
 PROJECT_DIR entirely and not bookkeeping → treat as product code (gated)") is true only for that
 window. Once `review.verdict == "OKAY"`, an executor may edit any absolute path outside the run
 repo and `PROJECT_DIR` — `~/.zcode/cli/config.json`, `/etc/...`, a sibling project — with no scope
@@ -59,12 +59,12 @@ Stated as observable behaviour, not as a diff:
    with a `SCOPE VIOLATION` message naming the target — the same outcome the Bash twin produces
    today.
 2. Everything else is unchanged, byte for byte: declared in-repo targets exit 0; undeclared
-   in-repo targets exit 2 (`:840-848`); bookkeeping (`.zcode/plans/`, `.zcode/notepads/`,
-   `.zcode/staging/`) exits 0 (`:748-762`); an existing notepad under `Write` still trips the
-   append-only guard; `.zcode/state/` targets exit 2 (`:729`); pre-OKAY outside targets already
-   exit 2 (`:788`); with no active run the hook is a no-op exit 0.
+   in-repo targets exit 2 (`:850-858`); bookkeeping (`.zcode/plans/`, `.zcode/notepads/`,
+   `.zcode/staging/`) exits 0 (`:758-772`); an existing notepad under `Write` still trips the
+   append-only guard; `.zcode/state/` targets exit 2 (`:739`); pre-OKAY outside targets already
+   exit 2 (`:798`); with no active run the hook is a no-op exit 0.
 3. A plan that literally declares an outside absolute path in `Files:` keeps working: containment
-   at `skills/odyssey/hooks/pre-tool.mjs:840-841` is an exact-or-prefix string match on `rel`, so
+   at `skills/odyssey/hooks/pre-tool.mjs:850-851` is an exact-or-prefix string match on `rel`, so
    once `rel` carries the absolute path, a declared exact match passes. The fix blocks only
    UNdeclared outside targets.
 
@@ -79,7 +79,7 @@ criteria are the contract, not the mechanism.)
 Two edges to handle knowingly, not accidentally:
 
 - **No-target events.** `if (!p)` at `skills/odyssey/hooks/pre-tool.mjs:665` returns `rel: ""` for
-  an Edit payload with no resolvable path, which still falls to the allow at `:937`. The standing
+  an Edit payload with no resolvable path, which still falls to the allow at `:947`. The standing
   rule says an unverifiable target should Fail closed — but widening this change past the
   demonstrated class is out of scope. If you leave it, name it in *Known, not fixed*.
 - **Root equality.** A target exactly equal to the run repo or `PROJECT_DIR` yields `rel: ""` on
@@ -102,12 +102,12 @@ deliberately widened to list each doc literally. Do not widen it by default.
 ## Must NOT do
 
 - Do not touch the Bash path — `quickClassify` at `skills/odyssey/hooks/pre-tool.mjs:290-300` or
-  the Bash branch from `:1134` on. The twin is already correct; converging means changing the
+  the Bash branch from `:1082` on. The twin is already correct; converging means changing the
   EDIT classifier, not both.
 - Do not add or edit any `WRITE_PATTERNS` entry, and do not introduce a new deny-list or
   allow-list pattern anywhere. The fix is structural classification, not enumeration — see
   failure-mode check 1 below.
-- Do not change pre-OKAY behaviour. `:788` already blocks outside targets; touching it is
+- Do not change pre-OKAY behaviour. `:798` already blocks outside targets; touching it is
   regression risk with no defect to fix.
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; new
   checks are additive siblings.
@@ -214,7 +214,7 @@ Unchanged controls, required on BOTH builds — a probe that moves any of them h
 |---|---|---|
 | Edit, in-repo path declared in `Files:` | 0 | 0 |
 | Edit, in-repo path NOT declared | 2 | 2 |
-| Edit, outside target, verdict ≠ OKAY (pre-OKAY) | 2 (`:788`) | 2 |
+| Edit, outside target, verdict ≠ OKAY (pre-OKAY) | 2 (`:798`) | 2 |
 | Write/Edit, `.zcode/plans/` · `.zcode/notepads/` · `.zcode/staging/` | 0 | 0 |
 | Write, an existing notepad (append-only guard) | 2 | 2 |
 | Edit, `.zcode/state/` target (`isState` guard) | 2 | 2 |
@@ -228,8 +228,8 @@ radius is near zero, because the Bash twin already refuses the identical targets
 above): any workflow that "needed" this path was already broken for every write-capable Bash
 command — this converges the two tools rather than adding a restriction. A plan that deliberately
 declares an outside absolute path keeps working (exact-match semantics at
-`skills/odyssey/hooks/pre-tool.mjs:840-841`). Nested-repo runs are unaffected — their targets
-classify through the run-repo branch (`:680-690`). No existing Edit-path assertion flips: the
+`skills/odyssey/hooks/pre-tool.mjs:850-851`). Nested-repo runs are unaffected — their targets
+classify through the run-repo branch (`:681-692`). No existing Edit-path assertion flips: the
 scope suite builds all 18 of its target paths inside the run repo (`join(repo, …)` throughout
 `skills/odyssey/hooks/pre-tool.scope.test.mjs`), and the `/tmp` mentions in the other `pre-tool`
 suites are Bash-path commands, not Edit targets.
@@ -269,7 +269,7 @@ Every doc that states the claim this change alters ("an executor may only edit d
 - `docs/DESIGN.md:259` (§6 hook table, scope-boundary row): same extension — "outside it"
   includes outside-`PROJECT_DIR`/run-repo targets. Adjacent drift in the SAME row: it still reads
   "Runs in all phases except `final`", stale since SEC-5 removed the carve-out (in-code history at
-  `skills/odyssey/hooks/pre-tool.mjs:800-803`) — correct it only if `DESIGN.md` is in the release's
+  `skills/odyssey/hooks/pre-tool.mjs:810-813`) — correct it only if `DESIGN.md` is in the release's
   editable set; otherwise record the drift, do not silently widen scope.
 - `skills/odyssey/references/scripts.md` — checked: it states nothing about Edit-path containment
   (its scope mentions are `parse-plan --files` and F1). **No edit required.** Recorded here so the

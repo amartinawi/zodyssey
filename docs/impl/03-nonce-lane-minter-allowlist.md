@@ -17,11 +17,11 @@ The review nonce — the one-time credential that makes an OKAY verdict non-forg
 hook witnessed") — is minted for **any dispatch whose agent name merely ends in `momus`**, not just
 for `zodyssey:momus`. The lane decides identity with a routing-grade matcher:
 
-- `skills/odyssey/hooks/pre-tool.mjs:1249` — `const isAgent = (want) => sameName(want, subagent);`
+- `skills/odyssey/hooks/pre-tool.mjs:1259` — `const isAgent = (want) => sameName(want, subagent);`
 - `sameName` lives at `skills/odyssey/scripts/lib/capability-name.mjs:72-78`, and its deciding line
   `:77` reads `return lastSegment(na) === lastSegment(nb);       // bare <-> namespaced`. Final
   segment only: `evil:momus`, `someplugin:momus`, `feature-dev:momus` all compare equal to `momus`.
-- The mint site consumes that matcher: `skills/odyssey/hooks/pre-tool.mjs:1458` —
+- The mint site consumes that matcher: `skills/odyssey/hooks/pre-tool.mjs:1468` —
   `if (isAgent("momus")) {` → `mintNonceFor("review")` at `:1464`, which writes
   `state.review.pending_nonce` (`:1355-1383`, the write at `:1377`, the operator-visible stderr
   line at `:1382`). The namespacing extractor does not save it: `:1242-1243` strips only a leading
@@ -29,7 +29,7 @@ for `zodyssey:momus`. The lane decides identity with a routing-grade matcher:
   the exact string `momus` — but `evil:momus` survives intact and then passes `sameName` anyway.
 
 The same tolerant `isAgent` guards the two sibling minters in the same block:
-`skills/odyssey/hooks/pre-tool.mjs:1466` (`isAgent("code-reviewer")` → `mintNonceFor("final_f2")`
+`skills/odyssey/hooks/pre-tool.mjs:1476` (`isAgent("code-reviewer")` → `mintNonceFor("final_f2")`
 at `:1472`) and `:1474` (`isAgent("oracle")` → `mintNonceFor("final_f4")` at `:1480`). An
 `evil:code-reviewer` or `evil:oracle` dispatch mints a real F2/F4 nonce today, exactly as
 `evil:momus` mints a review nonce.
@@ -40,7 +40,7 @@ loops `["momus", "zodyssey:momus", "feature-dev:momus", "someplugin:momus"]` and
 `\`${agent}\` is dispatchable AND mints a review nonce` (`r.code === 0 && r.pending`). The suite is
 green (33/33, 2026-08-16) with the tolerance enforced as a feature. There is also an in-repo prior
 that already named this exact shape as a bug: v0.5.1, audit-3 finding 7
-(`CHANGELOG.md:64-66` and the comment at `skills/odyssey/hooks/pre-tool.mjs:1397-1402`) —
+(`CHANGELOG.md:64-66` and the comment at `skills/odyssey/hooks/pre-tool.mjs:1407-1412`) —
 "`evil:momus` skipped the cap and the pre-dispatch lint, then minted a review nonce" — fixed the
 round-cap twin at `:1403` by making **both** sites tolerant, so the lookalike is now capped but
 still mints.
@@ -48,7 +48,7 @@ still mints.
 **And the license for the hole is a false comment.** `skills/odyssey/scripts/lib/capability-name.mjs:17-18`
 asserts: "F5 is a routing check, not a security boundary — the security gates are the nonce chain
 and the scope gate." That is false in code for this lane: the nonce chain *itself* consumes
-`sameName` via `isAgent` at `skills/odyssey/hooks/pre-tool.mjs:1249` (imported at `:32`). The
+`sameName` via `isAgent` at `skills/odyssey/hooks/pre-tool.mjs:1259` (imported at `:32`). The
 tolerance is fine for F5 routing; it is authority-bearing here. Correcting the header is part of
 this change, not documentation polish — it is the sentence the next contributor will read before
 reaching for `sameName` in an authority check.
@@ -69,7 +69,7 @@ Stated as observable behaviour, not as a diff:
 2. A Task dispatch whose type's final segment is `momus` but which is not the declared minter
    (`evil:momus`, `someplugin:momus`, `feature-dev:momus`, …) exits **0** — the dispatch itself
    stays allowed, because read-only routing tolerance at the phase gate
-   (`skills/odyssey/hooks/pre-tool.mjs:1270`, `inSet`) deliberately grants no authority — but
+   (`skills/odyssey/hooks/pre-tool.mjs:1280`, `inSet`) deliberately grants no authority — but
    mints **nothing**: no `pending_nonce` write, no nonce stderr line, and instead a one-line
    stderr warning naming the dispatch type and stating that only the declared minter type mints
    this lane. The artifact path from such a dispatch is unrecordable: `record-momus-artifact.mjs`
@@ -80,7 +80,7 @@ Stated as observable behaviour, not as a diff:
    code-reviewer packagings (`code-reviewer`, `feature-dev:code-reviewer`); `final_f4` mints only
    for `oracle` / `zodyssey:oracle`. Any other `*:code-reviewer` / `*:oracle` warns and mints
    nothing.
-4. The round-cap + pre-dispatch-lint site at `skills/odyssey/hooks/pre-tool.mjs:1403` agrees with
+4. The round-cap + pre-dispatch-lint site at `skills/odyssey/hooks/pre-tool.mjs:1413` agrees with
    the minter on what counts as `momus` (the rule v0.5.1's audit-3 finding 7 stated at
    `:1401-1402`: "the two sites must agree … or the guard is decorative"). A lookalike is neither
    capped, nor linted, nor minted — it is simply not the reviewer, and every write it attempts
@@ -125,7 +125,7 @@ exactly that). Do not widen the set by default.
   `record-final-wave.mjs`, `record-final-artifact.mjs` stay byte-identical. Nonce consumption is
   already correct; only minting identity is wrong.
 - Do not tighten the read-only phase gate (`READONLY_AGENTS` / `inSet` at
-  `skills/odyssey/hooks/pre-tool.mjs:1250-1270`). Its own comment (`:1266-1269`) is right: widening
+  `skills/odyssey/hooks/pre-tool.mjs:1260-1280`). Its own comment (`:1266-1269`) is right: widening
   who counts as read-only "grants no write capability". Tightening it would block third-party
   read-only dispatches — over-blocking, a new failure of this change's own class.
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; new
@@ -266,7 +266,7 @@ stderr at dispatch time.
 The one real availability case is F2's, and it improves: a differently-packaged `code-reviewer`
 previously minted silently and correctly; after this change it warns loudly at dispatch and mints
 nothing, so a final-wave F2 rejection that used to surface as a silent deadlock
-(the v0.5.1 Class C failure mode, `skills/odyssey/hooks/pre-tool.mjs:1244-1248`) now surfaces
+(the v0.5.1 Class C failure mode, `skills/odyssey/hooks/pre-tool.mjs:1254-1258`) now surfaces
 immediately with the dispatch type named. An adapter who intends their packaging to be the F2
 reviewer adds its exact type to the lane allowlist — a one-line, recorded decision, which is the
 point: reviewer identity becomes an explicit declaration, not a substring accident.
@@ -284,7 +284,7 @@ bypass while leaving the mint open. This change completes that agreement in the 
 
 How this change could reintroduce the class: the next availability-motivated fix reaches for
 `isAgent`/`sameName` at a new authority-bearing lane — the exact pull the Class C comment at
-`skills/odyssey/hooks/pre-tool.mjs:1244-1248` documents (tolerance was chosen there to stop silent
+`skills/odyssey/hooks/pre-tool.mjs:1254-1258` documents (tolerance was chosen there to stop silent
 no-mint deadlocks). What prevents it: (a) a **shared exact-minter assertion covering every
 authority-bearing lane** — review, `final_f2`, `final_f4` — in one suite block, so a fourth lane
 added with `sameName` has no passing assertion home unless the block is extended deliberately;
@@ -337,7 +337,7 @@ NOT batch queue items 01 or 04 into this release even though all three touch
   - A new legitimate reviewer packaging now requires a one-line allowlist edit, surfaced loudly by
     the near-miss warning rather than silently at the final wave.
   - The `agent_type` / `type` fallback fields in the extractor at
-    `skills/odyssey/hooks/pre-tool.mjs:1242` are unchanged and out of scope.
+    `skills/odyssey/hooks/pre-tool.mjs:1252` are unchanged and out of scope.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   re-Get/Update the plugin so the marketplace cache picks up the hook — a fix that stays only in
   the repo protects no run.
