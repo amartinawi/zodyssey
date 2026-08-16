@@ -175,6 +175,40 @@ console.log("check-anchors.mjs — a cited line must still say what the citation
     keys.includes("skills/odyssey/hooks/pre-tool.trusted-invoke.test.mjs:2"), `(keys: ${keys.join(" ")})`);
 }
 
+// ─── PROBE 8: a citation to a line that carries no content ─────────────────
+// The fourth specimen of "the lock says unchanged, not correct", and the nastiest: it resolves,
+// stays in range, and its hash never changes, so a pin on it is certified forever while it points
+// at nothing. Found in the wild — scripts/run-tests.mjs:22 was cited three times for the exit-4
+// contract, but :22 is a bare `//` and the contract is at :25. An audit turned up seven such
+// citations (four blank lines, three bare comment markers).
+{
+  const root = fixture("alpha\n\nbravo\n", "src/thing.mjs:2");
+  const c = run(root, "--update");
+  check("a citation to a BLANK line is refused", c.code === 9, `(exit ${c.code})`);
+  check("  …reported as contentless", c.err.includes("[contentless]"), c.err.slice(0, 200));
+}
+{
+  const root = fixture("// header\n//\n// real claim here\n", "src/thing.mjs:2");
+  const c = run(root, "--update");
+  check("a citation to a bare `//` marker is refused", c.code === 9, `(exit ${c.code})`);
+}
+{
+  const root = fixture("# title\n\n---\n\ntext\n", "src/thing.mjs:3");
+  const c = run(root, "--update");
+  check("a citation to a bare `---` rule is refused", c.code === 9, `(exit ${c.code})`);
+}
+// The other direction: real content on the cited line must still pass, and a RANGE that merely
+// CONTAINS blank lines is fine — only an entirely contentless span is refused. Over-blocking here
+// would make the rule unusable, since most cited ranges include blank lines.
+{
+  const root = fixture("// header\n//\n// real claim here\n", "src/thing.mjs:3");
+  check("a citation to a comment line WITH content passes", run(root, "--update").code === 0);
+}
+{
+  const root = fixture("alpha\n\nbravo\n", "src/thing.mjs:1-3");
+  check("a range spanning blank AND content passes", run(root, "--update").code === 0);
+}
+
 // ─── exempt list: deliberate template examples do not fail ─────────────────
 {
   const root = fixture("a\nb\nc\n", "src/example.ts:42");

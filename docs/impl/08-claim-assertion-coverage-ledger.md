@@ -44,7 +44,7 @@ forced home and a deleted assertion orphans a documented claim silently**. Concr
 demonstration, today, provable: `scripts/version-consistency.test.mjs` defends the claim stated at
 `docs/DEVELOPMENT.md:43` ("`version-consistency.test.mjs` fails if any of the three disagree").
 Delete that test file tomorrow and `node scripts/run-tests.mjs` stays green — the runner fails only
-on a failed suite or on **zero** suites discovered (`scripts/run-tests.mjs:22`, exit 4), never on
+on a failed suite or on **zero** suites discovered (`scripts/run-tests.mjs:25`, exit 4), never on
 one that silently vanished from 33 to 32. The claim at `docs/DEVELOPMENT.md:43` becomes doc-code
 drift with no detector, which is exactly how every incident above started. The same holds for a
 doc that states a new claim with no test behind it: nothing reports it until an external audit
@@ -271,7 +271,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
 - **Before the fix (current HEAD): nothing reports it.** There is no ledger and no checker; the
   five equivalent suites each catch only their own gate's deletion. Delete
   `scripts/version-consistency.test.mjs` outright: `node scripts/run-tests.mjs` stays green (it
-  fails only on zero suites discovered, `scripts/run-tests.mjs:22`), while the claim at
+  fails only on zero suites discovered, `scripts/run-tests.mjs:25`), while the claim at
   `docs/DEVELOPMENT.md:43` keeps asserting a check that no longer exists. A doc stating a claim
   with no test is discoverable today only by an external audit — months late, the pattern of
   every incident in "What is broken".
@@ -331,7 +331,7 @@ How this change could reintroduce the class, and what prevents each move:
 - **The registry rots exhaustive** — capped at 12 initial rows, and `docs/ROADMAP.md:160`'s
   rot warning is carried into the ledger data file's own header comment.
 - **Green over an emptied ledger** — the zero-discovered failure one level up; prevented by the
-  ≥ 8-row floor in criterion 3(a), mirroring `scripts/run-tests.mjs:22`'s own rule.
+  ≥ 8-row floor in criterion 3(a), mirroring `scripts/run-tests.mjs:25`'s own rule.
 - **The checker itself becomes a zero-caller** — prevented by criterion 5 (discovery proof) —
   the fate that befell `check-imports.mjs` for three releases cannot recur by construction.
 

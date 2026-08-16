@@ -3,7 +3,7 @@
 Build order **14** · depends-on **—** · queue row: [`docs/impl/00-INDEX.md`](00-INDEX.md)
 `14 otel-genai-span-emission` · observability/measurement-class · **minor** release. Last in the
 queue on purpose: the item is externally blocked — every `gen_ai.*` semconv attribute is still
-"Development" stability (`docs/OPPORTUNITY-MAP.md:265`, label carried from the discovery pass,
+"Development" stability (`docs/OPPORTUNITY-MAP.md:275`, label carried from the discovery pass,
 **not re-fetched** for this prompt) — so it was demoted behind everything the repo can finish on
 its own. That block is a design constraint here, not a footnote: see "What fixed means" item 5.
 
@@ -34,7 +34,7 @@ onto is already written down at `docs/OPPORTUNITY-MAP.md:411-412` (`invoke_agent
 `execute_tool` span tree).
 
 **And the reason nothing was built is still true: the attribute vocabulary churns.** Every
-`gen_ai.*` attribute is "Development" stability, none Stable (`docs/OPPORTUNITY-MAP.md:265` — a
+`gen_ai.*` attribute is "Development" stability, none Stable (`docs/OPPORTUNITY-MAP.md:275` — a
 label carried from the discovery pass, dated; this prompt deliberately does not re-fetch it). What
 that means concretely: attribute names and shapes may rename or disappear in any semconv revision,
 so any consumer query pinned to today's names can break underneath them. An emitter that scatters
@@ -132,7 +132,7 @@ update" belong to the release pass, not the gated run.
   state or the run-report record. Absent value → attribute omitted, never zero-filled.
 - **Do not hard-code `gen_ai.*` names outside the snapshot map**, and do not pin the snapshot to
   this prompt's date blindly: at build time you MUST check the current GenAI semconv attribute
-  names for the vocabulary you emit (the carried label at `docs/OPPORTUNITY-MAP.md:265` is
+  names for the vocabulary you emit (the carried label at `docs/OPPORTUNITY-MAP.md:275` is
   discovery-pass vintage, and this prompt did not re-fetch it) and pin what you verify. One
   constant, one map, dated.
 - **Do not use the standard `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` var as the trigger.** An operator
@@ -331,7 +331,7 @@ does not opt in, no security surface touched.
   failure → recorded inert, never blocks the run). Cite the probe evidence: receiver-asserted
   export, canary-proved no-op, dead-endpoint inertness.
 - **Known, not fixed** — name them; the next audit should not have to find them:
-  - The `gen_ai.*` attributes are Development-stability (`docs/OPPORTUNITY-MAP.md:265` label,
+  - The `gen_ai.*` attributes are Development-stability (`docs/OPPORTUNITY-MAP.md:275` label,
     re-verified at build time) and **may churn**; consumers pinned to current names are exposed,
     mitigated only by the `SEMCONV_SNAPSHOT` one-line bump.
   - Emission granularity is run-level only; the `invoke_agent` → `chat`/`execute_tool`

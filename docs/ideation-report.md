@@ -65,7 +65,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
   `invariants.test.mjs` anywhere in the tree (notepad 1, row b-A4 — `find` returned zero hits);
   the scattered equivalents: `skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17` ("every
   assertion … is an invariant the README/DESIGN.md already CLAIM"), gate-surface header,
-  `scripts/version-consistency.test.mjs:14`, `scripts/smoke-gate.mjs:1`. **no published outcome
+  `scripts/version-consistency.test.mjs:15`, `scripts/smoke-gate.mjs:1`. **no published outcome
   evidence** for doc-code invariant registries (notepad 3 states this absence explicitly as a
   finding, not a gap in search).
 - **Cost:** medium (~150 lines plus a machine-readable claims file, then maintenance of the claim
@@ -408,7 +408,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (a11) "32 test suites" | CONFIRMED (re-measured) | package.json test script; npm test 2026-08-15 | `npm test` → "32/32 suite(s) passed in 59318ms" |
 | (a12) "~98 gate-surface cases" | CONFIRMED (re-measured; exactly 98 — not approximate) | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:1; CHANGELOG.md:31 | standalone run: "98 passed, 0 failed"; CHANGELOG v0.5.2: "Gate-surface is 98 cases (was 80)" |
 | (a13) Paired old/new probes | CONFIRMED | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:6; CHANGELOG.md:7,31; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17 | "Every case below fails on the pre-v0.5.0 code"; v0.5.2 paired run against v0.5.1 |
-| (b-A4) Doc-code invariant registry "never built" (ROADMAP.md:158) | PARTIAL — named artifact absent, four equivalents exist | docs/ROADMAP.md:158; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17; scripts/version-consistency.test.mjs:14; scripts/smoke-gate.mjs:1 | no `invariants.test.mjs` anywhere (zero find hits), but bash-gate/gate-surface/version-consistency/smoke-gate deliver the function domain-by-domain without a unified registry |
+| (b-A4) Doc-code invariant registry "never built" (ROADMAP.md:158) | PARTIAL — named artifact absent, four equivalents exist | docs/ROADMAP.md:158; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17; scripts/version-consistency.test.mjs:15; scripts/smoke-gate.mjs:1 | no `invariants.test.mjs` anywhere (zero find hits), but bash-gate/gate-surface/version-consistency/smoke-gate deliver the function domain-by-domain without a unified registry |
 | (b-B9-1) Package-existence checking "absent" | REFUTED — code wins | skills/odyssey/scripts/check-imports.mjs:1-23; CHANGELOG.md:414 | check-imports.mjs exists (shipped v0.3.2): offline import resolution JS/TS + Python; exit 9 on unresolved import |
 | (b-B9-2) check-imports has a test and is wired into a phase | PARTIAL | skills/odyssey/scripts/check-imports.test.mjs:1; skills/odyssey/references/scripts.md:45 | test passes (part of 32/32), but the ONLY caller is documentation — prose instructs the conductor; zero code callers repo-wide |
 | (b-B10) Pre-edit lint baseline "absent" | CONFIRMED | skills/odyssey/hooks/post-tool.mjs:38-94; skills/odyssey/scripts/lint-untrusted.mjs:1 | post-tool lints AFTER the edit, no baseline capture; lint-untrusted is injection scanning (different mechanism) |

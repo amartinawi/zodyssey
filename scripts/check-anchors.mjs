@@ -126,6 +126,20 @@ function resolveCitation(cited) {
 // change to the actual tokens does. A range hashes its whole span, so an insertion INSIDE the range
 // is caught too.
 const norm = (s) => s.replace(/\s+/g, " ").trim();
+
+// A citation whose target carries NO CONTENT is worse than a broken one: it resolves, it stays in
+// range, its hash never changes, so the check certifies it forever while it points at nothing.
+//
+// Found by an external verification pass: `scripts/run-tests.mjs:22` was cited three times in
+// docs/impl/08 for the exit-4 contract — but :22 is a bare `//` and the contract is at :25. It was
+// pinned, and the pin was stable, so nothing would ever have flagged it. Auditing for the shape
+// turned up seven such citations across the repo (four blank lines, three bare comment markers).
+//
+// This is the mechanical third of the "the lock says unchanged, not correct" boundary. It cannot
+// tell a WRONG comment line from a RIGHT one — :25 is also a comment — but it can refuse to pin a
+// line that says nothing at all, and every one of the seven was of that kind.
+const CONTENTLESS = /^\s*(?:\/\/+|#+|\*+|\/\*|\*\/|<!--|-->|-{3,}|={3,})?\s*$/;
+const isContentless = (span) => span.every((s) => CONTENTLESS.test(s));
 const linesOf = (() => {
   const cache = new Map();
   return (p) => {
@@ -140,8 +154,9 @@ function fingerprint(path, a, b) {
   if (!lines) return null;
   const hi = b || a;
   if (a < 1 || hi > lines.length) return { outOfRange: lines.length };
-  const span = lines.slice(a - 1, hi).map(norm).join("\n");
-  return { hash: createHash("sha256").update(span).digest("hex").slice(0, 12), text: lines[a - 1] };
+  const raw = lines.slice(a - 1, hi);
+  const span = raw.map(norm).join("\n");
+  return { hash: createHash("sha256").update(span).digest("hex").slice(0, 12), text: lines[a - 1], raw };
 }
 
 // ── scan ──────────────────────────────────────────────────────────────────────
@@ -219,6 +234,13 @@ for (const [key, c] of [...found.entries()].sort((x, y) => x[0].localeCompare(y[
       detail: `${c.path} has ${fp.outOfRange} lines; citation points past the end` });
     continue;
   }
+  if (isContentless(fp.raw)) {
+    problems.push({ kind: "contentless", key, citedAs: c.citedAs, where,
+      detail: `the cited line carries no content (blank, or a bare comment marker). A pin on it ` +
+        `would never change, so the check would certify it forever while it points at nothing. ` +
+        `Re-anchor to the line that actually carries the claim.` });
+    continue;
+  }
   // Resolved and in range. Unstable-by-format targets stop here — see NO_PIN_TARGETS.
   if (NO_PIN_TARGETS.has(c.path)) continue;
   nextLock[key] = fp.hash;
@@ -267,7 +289,7 @@ if (UPDATE) {
   // holds. A bare "anchor drift" would be worse than nothing — the reader has to be able to decide
   // whether the citation or the code is wrong, and that decision needs the current text.
   console.error(`check-anchors: ${problems.length} problem(s) across ${found.size} citations in ${scannedDocs} documents\n`);
-  const order = { drift: 0, "out-of-range": 1, unresolved: 2, ambiguous: 3, unlocked: 4, unreadable: 5 };
+  const order = { drift: 0, contentless: 1, "out-of-range": 2, unresolved: 3, ambiguous: 4, unlocked: 5, unreadable: 6 };
   for (const p of problems.sort((x, y) => (order[x.kind] ?? 9) - (order[y.kind] ?? 9))) {
     console.error(`  [${p.kind}] ${p.key}`);
     console.error(`      cited as \`${p.citedAs}\` at ${p.where}`);
