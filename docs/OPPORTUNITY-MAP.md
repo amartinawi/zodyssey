@@ -103,7 +103,7 @@ filenames — a list would be the same bug in test form." A4 needs that move app
 | B5 tests read-only | shipped, scoped to `verify`/`final`, both paths |
 | B6 criteria must invoke `toolchain.test_cmd` | partial (`parse-plan --lint` gates executability) |
 | B7 call `probe-toolchain.mjs` | shipped (five code callers) |
-| B8 pass-to-pass regression gate | shipped, wired at `set-phase execute`, checked at `done`, `toolchain-drift` treated as failure |
+| B8 pass-to-pass regression gate | **HALF-SHIPPED — corrected 2026-08-16.** The `--snapshot` half is wired (`set-phase.mjs:208`, `record-review.mjs:265`). The `--check` half has **zero code callers**, and `--check` is the only writer of `status: "regressed"` (`regression-gate.mjs:181`) — the field `set-phase.mjs:131` blocks `done` on. The baseline is taken automatically; the comparison never runs, so the gate has never fired in an automated path |
 | B9 package-existence check | **built but never invoked from code** (§0.1) |
 | B10 pre-edit lint baseline | **absent** — `post-tool.mjs` lints the edited file with no before-reading |
 
@@ -173,9 +173,12 @@ roadmap because the roadmap counts a check as shipped when the file exists.
 
 Verification loops. F1 machine-checks scope in both directions; test-integrity is real; verdict
 parsing fails closed on ambiguity; `record-verify` executes declared criteria rather than trusting
-a claim; the pass-to-pass regression gate is enforced at `done`. The ecosystem null result — that
-no surveyed orchestrator implements a pass-to-pass gate or a test-deletion detector — was not
-disconfirmed by this pass.
+a claim. **Corrected 2026-08-16:** this section originally also claimed the pass-to-pass regression
+gate is enforced at `done`. It is not — only its baseline half is wired (§0.5). The gate is built,
+tested and never invoked, which moves it out of this section and into the §1.3 zero-caller finding
+as that finding's most consequential member. The ecosystem null result — that no surveyed
+orchestrator implements a pass-to-pass gate or a test-deletion detector — was not disconfirmed by
+this pass, but ZOdyssey does not currently implement one either: it ships one that never runs.
 
 Guardrails is the second-strongest layer and carries the §0.2 hole.
 
@@ -233,9 +236,16 @@ framing.
 
 ### 2.3 S3 — make invoking a check a phase transition, not an instruction
 
-Every zero-caller mechanism becomes a precondition inside `set-phase.mjs`, the way B8 already is
-(`:206-211` snapshots at `execute`; `:124` blocks `done` on regression; `:129-140` correctly treats
-`toolchain-drift` as failure rather than a pass).
+Every zero-caller mechanism becomes a precondition inside `set-phase.mjs`. B8 is the model for the
+shape (`:206-211` snapshots at `execute`; `:124-140` refuses `done` on `regressed` and correctly
+treats `toolchain-drift` as failure rather than a pass) — **and, corrected 2026-08-16, also the
+cautionary case.** Only the producer half is wired: `--check`, the sole writer of the status the
+refusal reads, has no code caller, so the refusal reads a field nothing populates.
+
+That makes the class one notch wider than first stated. It is not only "the mechanism shipped and
+its invocation stayed conventional" but **"a mechanism wired on one side only"** — a consumer with
+no producer reads as enforcement and is inert. Any wiring done under S3 must assert both ends in
+the same test, or it reproduces exactly this.
 
 | check | transition | on unsupported repo |
 |---|---|---|
