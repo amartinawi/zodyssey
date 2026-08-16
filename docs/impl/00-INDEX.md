@@ -3,7 +3,7 @@
 Sixteen Step-2 candidates, all accounted for: fourteen become implementation prompts
 (`docs/impl/NN-<slug>.md`, written by todos 6-19), two are dropped with file:line reasons below.
 **Row 15 was added 2026-08-16**, after the queue was written — it is not a Step-2 candidate but a
-defect found while verifying this queue, so the table holds fifteen prompts and the two drops.
+defect found while verifying this queue, so the table holds fifteen prompts and the two drops. **Row 16 was added the same day**, after item 01 shipped and its paired probe exposed the remaining tool class — sixteen prompts, two drops.
 The order is a dependency DAG, not the ideation rank; the sequencing rules applied are the spec's
 (docs/implementation-prompt.md:81): blocking edges over rank, the registry wants fixes ahead of
 it, one security change per release, group by file only when that violates nothing above,
@@ -37,6 +37,7 @@ its own measurement date.
 | 13 | plugin-cache-prune | — | Ops hygiene: 6 cache dirs on disk, one live (0.5.2), five stale (0.3.2-0.5.1), measured 2026-08-16. Unranked-critical, so late. | The installer prunes stale plugin-cache versions. |
 | 14 | otel-genai-span-emission | — | Externally blocked: semconv `gen_ai.*` attributes are still "Development" stability (caveat carried from docs/OPPORTUNITY-MAP.md:275, not re-fetched). Last in the queue. | One run-level span at close (built-ins-only OTLP/JSON, inert when unconfigured); per-dispatch granularity named Known-not-fixed — dispatch timestamps do not exist yet. (Outcome narrowed from "per-dispatch spans" while writing prompt 14, 2026-08-16.) |
 | 15 | anchor-drift-check | — | Added 2026-08-16, after the queue was written. This repo documents itself by `file:line` — 761 citations across 28 documents into 68 files (measured 2026-08-16) — and nothing verifies a cited line still says what the citation claims. Two anchors broke in one week: agents/sisyphus-junior.md:93 had drifted onto an unrelated line, and a one-line insertion into skills/odyssey/references/scripts.md invalidated nine citations at once, seven of them in docs/ideation-report.md. No blocking edge, so it takes the next free id rather than renumbering a committed queue — but its value is highest BEFORE items 01-07 run, since pre-tool.mjs (89 citations), set-phase.mjs (62) and post-tool.mjs (23) are exactly what they edit. Recommend pulling it forward in execution. | A cited line that changes fails `npm test`; the drifted citation is named. |
+| 16 | mcp-path-containment | 01 | Added 2026-08-16, after item 01 shipped. Item 01 closed the Edit twin and Bash was already closed, leaving one tool class that can still write the enforcement surface from inside an approved run: a non-native/MCP tool. Measured on one armed post-OKAY run — Edit and Bash to `~/.zcode/cli/config.json` both exit 2, `mcp__fs__write_file` to the same path exits 0; same split on the running hook itself. The H3 guard (skills/odyssey/hooks/pre-tool.mjs:1503) protects only the run's .zcode/state and .zcode/reviews (skills/odyssey/hooks/pre-tool.mjs:1511) — correct when written, the weak link once its neighbours were fixed. Security-class, own release. | A non-native tool cannot write the plugin install root or the hook registry; read-only MCPs are unaffected. |
 
 ## Amendment — 2026-08-16, after item 15 landed
 
