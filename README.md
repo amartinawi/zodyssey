@@ -125,9 +125,19 @@ flowchart TD
 | **The declared work actually happened** | not enforced | F1 checks the converse: a plan declaring files against an empty diff fails instead of passing vacuously |
 | **Evidence can't be destroyed** | not enforced | notepads are append-only — `Write` over an existing one is blocked, `Edit` is not |
 | **`done` requires executed evidence** | not enforced | `record-todo` refuses `done` without passing `verify.history` records; `--force-done` is allowed but stamps `forced: true` |
-| **No pass-to-pass regressions** | not enforced | the suite is snapshotted entering `execute` and re-run later; green→red blocks `done`. An already-red suite is never blamed on the run |
-| **Imports resolve** | not enforced | `check-imports.mjs` flags packages that are in neither the manifest nor `node_modules`. Offline |
+| **No pass-to-pass regressions** | not enforced | ⚠️ **half-wired — see note below.** The suite is snapshotted entering `execute` (`set-phase.mjs:208`), and `regression-gate.mjs --check` exits 8 on green→red with `set-phase … done` refusing while `status === "regressed"` — but **nothing invokes `--check`**, so the comparison never runs and the refusal reads a field nothing writes. An already-red suite is never blamed on the run |
+| **Imports resolve** | not enforced | ⚠️ **built, not wired — see note below.** `check-imports.mjs` flags packages that are in neither the manifest nor `node_modules`, offline and exiting 9 — but its only caller is prose (`references/scripts.md:45`), so it runs only when a conductor remembers |
 | **No retrying an unchanged workspace** | not enforced | `record-verify` refuses to re-run a criterion whose worktree is byte-identical to its last failure (exit `10`). Ported from prime-agent |
+
+> **⚠️ Two rows above are not yet enforced, corrected 2026-08-16.** Both mechanisms are built and
+> tested; neither is invoked from code. `regression-gate.mjs --check` and `check-imports.mjs` each
+> have **zero code callers** — they run only if a conductor follows a prompt instruction. Every
+> other row in this table is hook- or script-enforced on the path to `done`.
+>
+> This is the difference between *shipping a mechanism* and *wiring it*, and it is the exact class
+> the table exists to claim ZOdyssey has solved. It is being fixed as items 01–02 of the v0.6 build
+> queue ([`docs/impl/`](docs/impl/00-INDEX.md)). Until then, treat those two rows as capabilities
+> you must invoke, not guarantees you receive.
 
 All hooks are **NO-OP unless an orchestration run is active**. Normal ZCode editing is never affected. A run is "active" only between `/orchestrate` and reaching a terminal phase (`done`/`audited`/`abandoned`), and only inside the repo where you invoked it.
 

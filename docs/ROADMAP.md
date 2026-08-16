@@ -5,6 +5,35 @@
 Phases A–C are planned but not started. Nothing here is committed work in progress.
 **Scope:** make ZOdyssey produce more accurate output, ranked by evidence
 
+> ## Status addendum — 2026-08-16
+>
+> **The Status line above is stale in both directions and is kept verbatim as the record of what
+> was believed on 2026-08-11.** Read this block first.
+>
+> Most of Phase B shipped across v0.3.2–v0.5.2. B1–B7 and B9 landed; B10 did not. The §7 table
+> below is therefore a *proposal table*, not a status table — do not read a row in it as a claim
+> that the item is unbuilt, and do not read it as a claim that a shipped item works.
+>
+> **B8 is half-shipped, and the roadmap's own framing hid it.** The row reads "Snapshot passing
+> tests at `phase→execute`, re-run at verify, any pass→fail is a hard failure." The snapshot half is
+> wired (`set-phase.mjs:208`, `record-review.mjs:265`, both `--snapshot`). The re-run half is not:
+> `regression-gate.mjs --check` has **zero code callers**, and `--check` is the only writer of
+> `status: "regressed"` (`regression-gate.mjs:181`) — the exact field `set-phase.mjs:131` refuses
+> `done` on. So the baseline is taken automatically, the comparison never runs, and the refusal
+> reads a field nothing populates. **The gate has never fired.**
+>
+> This matters for §2's ecosystem null result (§81–82). "No orchestrator implements a pass-to-pass
+> regression gate" remains true of the surveyed field — and is now also true of ZOdyssey, which
+> ships one that never runs. The claim should not be used as a differentiator until `--check` is
+> invoked from a transition.
+>
+> §9 open question 1 ("should B8 hard-fail or record evidence in v1") is therefore not yet live:
+> the gate does neither. Answer it after wiring, not before.
+>
+> A4 is likewise half-true: no unified registry exists, but four standing doc-claim invariant
+> suites deliver its function domain-by-domain. The current successor documents are
+> `docs/OPPORTUNITY-MAP.md`, `docs/ideation-report.md`, and the build queue in `docs/impl/`.
+
 **How to use this document.** Phase A is specified in enough detail to turn into an
 implementation plan directly. Phases B and C are ranked and costed but deliberately not
 specified further — B's exact contents are defined by which Phase A assertions come back red,

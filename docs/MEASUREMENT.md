@@ -45,11 +45,24 @@ Because paths are non-deterministic, we judge the **end state**, not the sequenc
 | **Verification rigor** | were QA scenarios real, not vibes? | judge scores the acceptance criteria | high |
 | **Factual accuracy** | no hallucinated APIs/files | judge + explore re-check | high |
 
-> **Honest status of this table.** These are targets; the mechanisms behind them are now:
-> `regression-gate.mjs` (pass-to-pass — the suite that was green before the run must still be
-> green after it, enforced at `done`), `check-imports.mjs` (imports must resolve against the
-> repo's declared dependencies), and F1's test-integrity guard (tests may not be deleted,
-> shortened, or skip-marked). All three landed 2026-08-11.
+> **Honest status of this table (corrected 2026-08-16).** These are targets. Three mechanisms exist
+> to serve them, and only one of the three is actually invoked:
+>
+> - **F1's test-integrity guard** (tests may not be deleted, shortened, or skip-marked) — **enforced.**
+>   It runs inside `record-final-wave.mjs`, on the path to `done`.
+> - **`regression-gate.mjs`** (pass-to-pass) — **half-wired; the gate has never fired.** The earlier
+>   wording here said "enforced at `done`", which was wrong. `--snapshot` is invoked automatically
+>   (`set-phase.mjs:208`, `record-review.mjs:265`), but `--check` — the only writer of
+>   `status: "regressed"`, the field `set-phase.mjs:131` refuses `done` on — has **zero code
+>   callers**. The baseline is taken; the comparison never runs; the refusal reads a field nothing
+>   populates.
+> - **`check-imports.mjs`** (imports must resolve against the repo's declared dependencies) —
+>   **built, never invoked from code.** Its only caller is prose (`references/scripts.md:45`).
+>
+> All three landed 2026-08-11 as *scripts*. Two of the three were never wired to anything, which is
+> why this section previously read as though the targets were met. A mechanism that exists is not a
+> mechanism that runs — and this table is exactly where that distinction gets lost, so state which
+> is which whenever a row changes.
 >
 > What they still do **not** cover: the regression gate is suite-level, so it detects "green went
 > red", not "47 passing tests became 46 while the suite still exits 0" — per-test granularity
