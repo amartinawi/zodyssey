@@ -261,6 +261,36 @@ try {
 // having both entry points call it is safe — a later set-phase re-entry cannot redefine "before"
 // as "after". Best-effort: a repo whose suite will not run records `inert` rather than blocking.
 if (enteredExecute) {
+  // 02 (wire-zero-caller-checks): capture the import-check baseline (HEAD + untracked set)
+  // HERE, for the same reason the regression baseline below is taken here — this is the entry a
+  // real run actually takes into execute. The capture is idempotent (first entry wins; a later
+  // set-phase re-entry cannot redefine "before" as "after"), a non-git repo records null, and
+  // verify entry then records `inert` rather than blocking. Best-effort: a failed capture
+  // degrades to lane-absence, which never triggers a precondition.
+  try {
+    let sha = null;
+    try { sha = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8", timeout: 10 * 1000 }).trim() || null; } catch { sha = null; }
+    const untracked = (() => {
+      try {
+        return execFileSync("git", ["-C", repo, "ls-files", "--others", "--exclude-standard", "-z"],
+          { encoding: "utf8", timeout: 10 * 1000 }).split("\0").map((s) => s.trim()).filter(Boolean);
+      } catch { return []; }
+    })();
+    const st = JSON.parse(readFileSync(statePath, "utf8"));
+    if (!st.checks || typeof st.checks.baseline_sha === "undefined") {
+      st.checks = {
+        ...(st.checks || {}),
+        baseline_sha: sha,
+        untracked_at_start: untracked.slice(0, 2000),
+        untracked_truncated: untracked.length > 2000,
+        baseline_at: new Date().toISOString(),
+      };
+      st.updated_at = new Date().toISOString();
+      const tmp = statePath + ".tmp." + process.pid;
+      writeFileSync(tmp, JSON.stringify(st, null, 2) + "\n");
+      renameSync(tmp, statePath);
+    }
+  } catch { /* best-effort; verify entry records `inert` without a baseline */ }
   try {
     execFileSync("node", [new URL("./regression-gate.mjs", import.meta.url).pathname, repo, slug, "--snapshot"],
       { stdio: "inherit", timeout: 15 * 60 * 1000 });

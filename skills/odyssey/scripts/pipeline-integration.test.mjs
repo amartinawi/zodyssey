@@ -179,6 +179,12 @@ Add a \`truncate\` helper to the text module, with tests.
   check("regression gate takes a GREEN baseline",
     state().regression?.baseline?.green === true,
     `(regression: ${JSON.stringify(state().regression)})`);
+  // 02: the import-check baseline must be captured on the REAL execute entry too — this path,
+  // not set-phase, is how runs enter execute. A missing baseline here is the B8 half-wiring
+  // again: the verify-entry check would silently record `inert` in every real run.
+  check("import-check baseline sha captured at execute entry",
+    typeof state().checks?.baseline_sha === "string" && state().checks.baseline_sha.length > 0,
+    `(checks: ${JSON.stringify(state().checks)})`);
 
   run([script("record-todo.mjs"), repo, SLUG, "1", "in_flight", "--session", "exec-1"]);
 

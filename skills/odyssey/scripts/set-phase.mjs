@@ -140,8 +140,136 @@ function checkPrecondition(st, target, acceptWaivers = false) {
         "toolchain, or re-baseline deliberately with `regression-gate.mjs --snapshot --resnapshot` " +
         "and re-run `--check`. (A gate that refused is not a gate that passed.)";
     }
+    // 02 (wire-zero-caller-checks): the CONSUMER half of the import check. The invoke is at
+    // verify entry (below), the record is state.imports, and this clause is what makes the
+    // wiring two-sided — an invoke whose recorded state nothing consumes is the half-wiring the
+    // regression gate shipped with. Only `unresolved` refuses: `inert` (capability absent,
+    // timeout, crash) and a missing lane entirely (run predates the wiring) pass, so this can
+    // never wedge a repo the check cannot meaningfully evaluate.
+    if (st.imports && st.imports.status === "unresolved") {
+      const nf = (st.imports.findings || []).slice(0, 5).map(
+        (f) => f.file && f.spec ? `${f.file}: \`${f.spec}\`` : String(f.raw || f));
+      return "done blocked: check-imports recorded unresolved import(s) at verify entry" +
+        (nf.length ? ` (${nf.join(", ")})` : "") +
+        ". Either the package name is hallucinated, or the dependency is undeclared — fix the " +
+        "import or declare it, then re-enter verify (verify → execute → verify re-records). " +
+        "There is deliberately no flag that skips this record.";
+    }
   }
   return null; // no precondition
+}
+
+// --- 02 (wire-zero-caller-checks): the zero-caller checks, wired as mechanism ---------------
+//
+// check-imports / coverage-delta / resolve-capabilities each shipped with a passing suite and
+// no code caller — "run it during verify" prose addressed to a conductor, which is the
+// prompt-convention "enforcement" this project exists to replace (see the B8 comment below).
+// Gate-vs-inert, per check:
+//   · check-imports GATES on findings (exit 9 → the done clause above refuses). Exit 9 is only
+//     reachable in a repo that HAS a manifest, so the failure is real and this-run-scoped.
+//   · coverage-delta NEVER gates ("evidence, NOT a gate" per its own header) — its single
+//     stdout line is recorded verbatim as state.coverage.
+//   · resolve-capabilities NEVER gates — its violation classes describe the operator's ENTIRE
+//     installation (any agent on disk, any unrouted skill), not this run; blocking every run
+//     in every repo on cross-repo environment drift is a new failure of the over-blocking
+//     class. Violations are recorded and surfaced on stderr only.
+// All lanes are OPTIONAL (read via `?.`/`|| {}` everywhere) so in-flight runs on the old
+// schema keep loading. Invokes run AFTER the phase write and OUTSIDE the state lock (the B8
+// shape; LOCK_STALE_MS is 60s — never hold the lock across a scan), with a hard timeout that
+// degrades to `inert` rather than wedging the transition.
+const CHECK_IMPORTS = fileURLToPath(new URL("./check-imports.mjs", import.meta.url));
+const COVERAGE_DELTA = fileURLToPath(new URL("./coverage-delta.mjs", import.meta.url));
+const RESOLVE_CAPS = fileURLToPath(new URL("./resolve-capabilities.mjs", import.meta.url));
+const CHECK_TIMEOUT_MS = 60 * 1000;
+
+// Record a lane into state with the same atomic tmp+rename write the phase write uses. Runs
+// after the lock is released; best-effort by design — a check that cannot record degrades to
+// lane-absence, which never triggers a precondition.
+function recordLane(mut) {
+  try {
+    const st = JSON.parse(readFileSync(statePath, "utf8"));
+    mut(st);
+    st.updated_at = new Date().toISOString();
+    const tmp = statePath + ".tmp." + process.pid;
+    writeFileSync(tmp, JSON.stringify(st, null, 2) + "\n");
+    renameSync(tmp, statePath);
+  } catch (e) {
+    process.stderr.write(`ZOdyssey: WARNING — could not record check lane (${(e.message || "").slice(0, 120)}). The check degrades to unrecorded; it will not block.\n`);
+  }
+}
+
+// The finding lines check-imports prints on exit 9: "  <file>: `<spec>` — <reason>".
+function parseImportFindings(stderr) {
+  const out = [];
+  for (const line of String(stderr || "").split("\n")) {
+    const m = line.match(/^  (.+?): `([^`]+)`/);
+    if (m) out.push({ file: m[1], spec: m[2] });
+  }
+  if (!out.length) {
+    const raw = String(stderr || "").trim();
+    if (raw) out.push({ raw: raw.slice(0, 400) });
+  }
+  return out;
+}
+
+function checkErrReason(e) {
+  if (e && (e.code === "ETIMEDOUT" || e.signal === "SIGTERM")) return "check timed out";
+  if (e && e.code === "ENOENT") return "check could not be launched";
+  return ((e && e.message) || "unknown error").slice(0, 200);
+}
+
+// git output as a clean file list (-z: NUL-separated, no path quoting/escaping).
+function gitLines(repo, args) {
+  try {
+    return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", timeout: 10 * 1000 })
+      .split("\0").map((s) => s.trim()).filter(Boolean);
+  } catch { return []; }
+}
+
+// The run's changed set: tracked files modified since the baseline sha, plus files CREATED
+// since execute entry (untracked now, not in st.checks.untracked_at_start). Plain
+// `git diff --name-only <sha>` — what the check's own --since mode uses — is blind to
+// untracked files, and a hallucinated import usually lands in a file the run just created;
+// deriving the set here and passing --files closes that without touching check-imports.mjs
+// (whose exit-code contract is frozen). Inherited breakage stays invisible: files that
+// already existed untracked at execute entry are excluded, the untracked twin of the
+// regression gate's "an already-red suite is not this run's fault".
+function changedSince(repo, st) {
+  const files = new Set();
+  const baseline = st.checks && typeof st.checks.baseline_sha === "string" ? st.checks.baseline_sha : null;
+  if (!baseline) return [];
+  for (const f of gitLines(repo, ["diff", "--name-only", "-z", baseline])) files.add(f);
+  const atStart = st.checks && !st.checks.untracked_truncated && Array.isArray(st.checks.untracked_at_start)
+    ? new Set(st.checks.untracked_at_start) : null;
+  for (const f of gitLines(repo, ["ls-files", "--others", "--exclude-standard", "-z"])) {
+    if (!atStart || !atStart.has(f)) files.add(f);
+  }
+  return [...files];
+}
+
+// The baseline "before" markers for the run: HEAD at (first) execute entry, plus the untracked
+// set at that moment. IDEMPOTENT for the same reason regression-gate's snapshot is — a
+// verify→execute re-entry must not redefine "before" as "after". Non-git records null and the
+// verify-entry check records `inert`. NOTE: record-review.mjs ALSO captures this on its own
+// OKAY→execute advance, because that is the entry a real run actually takes (see its B8
+// comment); this block covers explicit and re-entry transitions. Captured BEFORE the (possibly
+// minutes-long) suite snapshot so a slow suite cannot delay it.
+function captureBaseline() {
+  let sha = null;
+  try {
+    sha = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8", timeout: 10 * 1000 }).trim() || null;
+  } catch { sha = null; } // not a git repo, or no commits yet — verify entry records `inert`
+  const untracked = gitLines(repo, ["ls-files", "--others", "--exclude-standard", "-z"]);
+  recordLane((st) => {
+    if (st.checks && typeof st.checks.baseline_sha !== "undefined") return; // first entry wins
+    st.checks = {
+      ...(st.checks || {}),
+      baseline_sha: sha,
+      untracked_at_start: untracked.slice(0, 2000),
+      untracked_truncated: untracked.length > 2000,
+      baseline_at: new Date().toISOString(),
+    };
+  });
 }
 {
   // read current phase under the lock-free path first for validation (re-read inside lock below)
@@ -204,10 +332,95 @@ try {
 // taken at exactly one moment to mean anything. Best-effort — a repo whose suite cannot be run
 // records `inert` and the gate stays quiet rather than blocking the run.
 if (phase === "execute") {
+  // 02: the import-check baseline (HEAD + untracked set) BEFORE the possibly-minutes-long suite
+  // snapshot below — both define "before" for their respective gates at the same moment.
+  try { captureBaseline(); } catch { /* best-effort; verify entry records `inert` */ }
   try {
     execFileSync("node", [new URL("./regression-gate.mjs", import.meta.url).pathname, repo, slug, "--snapshot"],
       { stdio: "inherit", timeout: 15 * 60 * 1000 });
   } catch { /* baseline is best-effort; --check degrades to "no-baseline" and stays inert */ }
+}
+
+// 02: the import check fires at EVERY execute→verify edge and records state.imports; the done
+// precondition above consumes it. Wired here rather than as a SKILL.md instruction for the same
+// reason as the B8 snapshot. Recovery is fix-then-re-enter (verify → execute → verify), so the
+// check re-fires and re-records on each edge — the record always describes the CURRENT tree.
+if (phase === "verify") {
+  let cur = null;
+  try { cur = JSON.parse(readFileSync(statePath, "utf8")); } catch { cur = {}; }
+  const now = () => new Date().toISOString();
+  const baselineKnown = cur.checks && typeof cur.checks.baseline_sha !== "undefined";
+  const manifest = ["package.json", "requirements.txt", "requirements-dev.txt", "pyproject.toml", "setup.py", "Pipfile"]
+    .some((f) => existsSync(join(repo, f)));
+  if (!baselineKnown) {
+    // A run that predates the wiring (no st.checks at all) or whose capture was never taken.
+    recordLane((st) => {
+      st.imports = { status: "inert", reason: "no baseline recorded (run predates the check wiring)", at: now() };
+    });
+  } else if (cur.checks.baseline_sha === null) {
+    // Capability absent: not a git repo (or no commits) at execute entry — exit 9 is not
+    // reachable here, so record `inert` WITHOUT invoking. Never a block.
+    recordLane((st) => {
+      st.imports = { status: "inert", reason: "no git work-tree at execute entry", at: now() };
+    });
+  } else if (!manifest) {
+    // Capability absent: nothing to resolve imports against. Never a block.
+    recordLane((st) => {
+      st.imports = { status: "inert", reason: "no package.json or Python manifest", at: now() };
+    });
+  } else {
+    try {
+      const files = changedSince(repo, cur);
+      execFileSync("node", [CHECK_IMPORTS, repo, "--files", files.join(",")],
+        { encoding: "utf8", timeout: CHECK_TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 });
+      recordLane((st) => { st.imports = { status: "clean", exit_code: 0, findings: [], at: now() }; });
+    } catch (e) {
+      if (e.status === 9) {
+        const findings = parseImportFindings(e.stderr);
+        process.stderr.write(`ZOdyssey: check-imports found ${findings.length} unresolved import(s); \`done\` will refuse until fixed.\n`);
+        recordLane((st) => { st.imports = { status: "unresolved", exit_code: 9, findings, at: now() }; });
+      } else {
+        // Timeout, crash, bad exit — B8's own posture: a check that cannot run degrades.
+        recordLane((st) => {
+          st.imports = { status: "inert", exit_code: typeof e.status === "number" ? e.status : -1, reason: checkErrReason(e), at: now() };
+        });
+      }
+    }
+  }
+}
+
+// 02: entering final records the two EVIDENCE lanes (see the gate-vs-inert notes above —
+// neither ever gates). The changed set is the same one the import check used, so the lanes
+// describe the same set of files.
+if (phase === "final") {
+  const now = () => new Date().toISOString();
+  let cur = null;
+  try { cur = JSON.parse(readFileSync(statePath, "utf8")); } catch { cur = {}; }
+  const changed = changedSince(repo, cur);
+  try {
+    const line = execFileSync("node", [COVERAGE_DELTA, repo, ...changed],
+      { encoding: "utf8", timeout: CHECK_TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 });
+    recordLane((st) => { st.coverage = { line: String(line || "").trim(), at: now() }; });
+  } catch (e) {
+    recordLane((st) => { st.coverage = { line: "", reason: checkErrReason(e), at: now() }; });
+  }
+  try {
+    // --check = reconcile only, no lock write. Scans the OPERATOR's installation
+    // (~sub-second typically; the timeout degrades to `inert` rather than wedging final).
+    // Lane name: NOT st.capabilities — that key is the hook-witnessed observed-capability
+    // array F5 cross-checks (post-tool.mjs writes it); clobbering it would fail every run's
+    // routing check. The brief named the lane st.capabilities; the existing consumer wins.
+    execFileSync("node", [RESOLVE_CAPS, "--check"],
+      { encoding: "utf8", timeout: CHECK_TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 });
+    recordLane((st) => { st.capabilities_check = { status: "clean", at: now() }; });
+  } catch (e) {
+    if (e.status === 6) {
+      process.stderr.write(`ZOdyssey: WARNING — resolve-capabilities reports violations in the operator installation (not this run; recorded, not blocking): ${(String(e.stderr || "").trim().slice(0, 300))}\n`);
+      recordLane((st) => { st.capabilities_check = { status: "violations", exit_code: 6, at: now() }; });
+    } else {
+      recordLane((st) => { st.capabilities_check = { status: "inert", reason: checkErrReason(e), at: now() }; });
+    }
+  }
 }
 
 // CRIT-4a (operational-consult): when a run reaches a terminal phase (done|audited), auto-append
