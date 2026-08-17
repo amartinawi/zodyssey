@@ -18,9 +18,9 @@ closed. That leaves **exactly one tool class that can still write the enforcemen
 inside an approved run: a non-native tool, in practice a filesystem MCP.**
 
 The H3 guard at `skills/odyssey/hooks/pre-tool.mjs:1503` catches every tool the gate does not
-natively classify, but protects only two directories —
-`skills/odyssey/hooks/pre-tool.mjs:1511` builds `protectedDirs` as the run's `.zcode/state` and
-`.zcode/reviews`. Its own header says so plainly
+natively classify, but — before this item — protected only two directories:
+`skills/odyssey/hooks/pre-tool.mjs:1529` built `protectedDirs` as the run's `.zcode/state` and
+`.zcode/reviews` alone. Its own header says so plainly
 (`skills/odyssey/hooks/pre-tool.mjs:1501-1502`): *"a targeted forge-surface guard, not a blanket
 MCP block."*
 
@@ -108,7 +108,7 @@ Nothing else. The docs under "Docs to update" belong to the release pass, not th
 - **Do not widen `protectedDirs` by hard-coding an absolute path you guessed.** Self-relative for
   the install root; a named constant with a stated reason for the host registry.
 - Do not change the `strings` collector's depth or cap
-  (`skills/odyssey/hooks/pre-tool.mjs:1513-1514`) — that is a separate tuning question and
+  (`skills/odyssey/hooks/pre-tool.mjs:1536-1537`) — that is a separate tuning question and
   widening it here would conflate two changes.
 
 ### Constraints carried forward (Step 5, verbatim)
