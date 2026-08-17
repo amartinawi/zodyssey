@@ -66,6 +66,10 @@ const minN = minNIdx !== -1 ? parseInt(rest[minNIdx + 1], 10) : 0;
 const storeIdx = rest.indexOf("--store");
 if (minNIdx !== -1 && !Number.isFinite(minN)) { console.error("registry-report.mjs: --min-n requires an integer"); exit(2); }
 if (storeIdx !== -1 && !rest[storeIdx + 1]) { console.error("registry-report.mjs: --store requires a directory"); exit(2); }
+// positional-only argv guard: a missing flag value would otherwise consume the NEXT flag as the
+// value (e.g. `--store --json` silently creating a directory named "--json")
+if (storeIdx !== -1 && /^--/.test(rest[storeIdx + 1] || "")) { console.error("registry-report.mjs: --store requires a directory (got a flag)"); exit(2); }
+if (minNIdx !== -1 && /^--/.test(rest[minNIdx + 1] || "")) { console.error("registry-report.mjs: --min-n requires an integer (got a flag)"); exit(2); }
 
 const repoAbs = (() => { try { return realpathSync(repoArg); } catch { return repoArg; } })();
 const repoBase = basename(repoAbs);

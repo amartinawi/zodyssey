@@ -501,7 +501,7 @@ settled by code, never by preference or seniority.
 **Winner: the map, by code.** `judged.jsonl` records 3 and 5 carry slugs `std-01-baseline`
 (overall 0.83) and `arch-01-baseline` (0.62), re-read during this synthesis — baseline runs were
 judged once per seed on 2026-08-01. Arm attribution is slug-derived because `judge.mjs:176`
-hardcodes the arm field on every record, and `dashboard.mjs:19-22` codifies the slug-suffix
+hardcodes the arm field on every record, and `dashboard.mjs:20-24` codifies the slug-suffix
 workaround. Synthesis: baseline numbers exist at n=1 per seed (map right); an automated baseline
 arm and a truthful arm field do not exist (notepad right on the mechanism). The Corrections row
 b-judge-3 above stands — with this annotation correcting notepad 1's over-broad parenthetical,
@@ -532,7 +532,7 @@ support the same conclusion; the file is append-only and live). The blind chain 
 (`CHANGELOG.md:53`); the map demotes it ("flips the sign but stays in the same game," §2.1).
 **Winner: the map's skepticism, by code.** The gate's posture was already inverted
 (`skills/odyssey/hooks/pre-tool.mjs:140`, "Invert instead") while the enumerated interpreter names
-remained the unbounded residual (`:126`, `CHANGELOG.md:50`) — a sign-flip alone demonstrably did
+remained the unbounded residual (`:152`, `CHANGELOG.md:50`) — a sign-flip alone demonstrably did
 not kill this class; head classification is structurally a Bash-command concept and cannot touch
 the Edit path; and notepad 3 finds no published outcome evidence for the mechanism. This report
 keeps it ranked (§1 entry 7, low) for the same reasons.

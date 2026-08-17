@@ -83,9 +83,13 @@ console.log("dashboard.mjs tests\n");
     // mean overall: zodyssey arm has one judged run at 0.83
     check("fixture: zodyssey mean overall rendered", stdout.includes("0.83"));
     // verify column (ISNAD R4): the audited record renders its origin, legacy records render "-"
+    // (anchored to the FINAL column — verify is the last cell, so a bare .*\| - \| could be
+    // satisfied by the overall column rendering "-" and would not witness the verify column)
     check("fixture: verify column header present", stdout.includes("| verify |"));
-    check("fixture: audited record shows external-audit", /std-01-zodyssey.*external-audit/.test(stdout));
-    check("fixture: legacy record (no verify_origin) shows '-'", /std-01-baseline.*\| - \|/.test(stdout));
+    check("fixture: audited record shows external-audit in the verify column",
+      /std-01-zodyssey[^\n]*\| external-audit \|$/m.test(stdout));
+    check("fixture: legacy record (no verify_origin) shows '-' in the verify column",
+      /std-01-baseline[^\n]*\| - \|$/m.test(stdout));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

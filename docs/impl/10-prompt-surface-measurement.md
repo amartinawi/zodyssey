@@ -74,7 +74,7 @@ closed.
 
 Stated as observable behaviour, not as a diff. One new operator-run script,
 `skills/odyssey/scripts/prompt-surface.mjs` (usage `prompt-surface.mjs [eval-dir] [repo-root]`,
-defaults matching `dashboard.mjs:29-30`: eval-dir `~/.zcode/orchestration/eval`, repo-root `cwd`):
+defaults matching `dashboard.mjs:31-32`: eval-dir `~/.zcode/orchestration/eval`, repo-root `cwd`):
 
 1. **It refuses to run without 09's data — fail closed.** It reads `judged.jsonl` from the eval dir
    and requires **≥ 1 paired seed**: a `seed_id` with at least one record whose **`arm` field** is
@@ -376,3 +376,17 @@ witnessed-activity join, status computation, report), ~180 in
 `skills/odyssey/scripts/prompt-surface.test.mjs` (fixture builders for eval dir + state files;
 refusal, min-n, threshold, and enumeration-regression blocks), ~20 lines of docs. Minor release,
 shipped alone behind 09's first data.
+
+## Amendment — 2026-08-17, after the arm-derivation rider shipped
+
+The ISNAD-adaptation work (queue row 19, build step A0) fixed the `arm` hardcode this brief's
+preconditions describe: `judge.mjs` now stamps `arm: armFromSlug(slug)` via
+`skills/odyssey/scripts/lib/arm.mjs`, so `arm:"baseline"` records ARE producible without item 09.
+The residual blocker for this brief is narrower than its opening states: it is the explicit
+`--arm` instrument channel plus baseline-arm automation (`harness.mjs:19`) — the exit-3
+precondition should key on an explicitly-stamped `--arm` record, not on the absence of a
+hardcode. Accordingly, the Must-NOT-do rule "do not fall back to slug-suffix arm derivation" is
+restated for the post-fix world as: **require an explicitly-stamped `--arm` record, not an
+inferred one** — the stamped field is now slug-derived (correct for labeling, per the
+`docs/impl/09` amendment), so measurement must not treat record `arm` as independent of the
+slug. Precondition text above is preserved as the record of what was true on 2026-08-16.

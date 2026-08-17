@@ -17,9 +17,10 @@
 //   judged.jsonl:  {seed_id,slug,arm,at,overall,dimensions:{...},
 //                   criterion_results:[{criterion,met,evidence}],summary,blockers}
 //
-// Arm derivation: the `arm` field on judged records is unreliable (all emit "zodyssey").
-// Arm is derived from the slug suffix: ends with "-baseline" → baseline, else zodyssey.
-// Seed for results.jsonl records is derived the same way (strip the -<arm> suffix).
+// Arm derivation: the `arm` field on legacy judged records was unreliable (all emitted
+// "zodyssey" — fixed 2026-08-17: judge.mjs now stamps it via lib/arm.mjs's slug-suffix
+// derivation). Arm is still derived from the slug suffix rather than trusted: ends with
+// "-baseline" → baseline, else zodyssey. Seed for results.jsonl records likewise.
 
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";

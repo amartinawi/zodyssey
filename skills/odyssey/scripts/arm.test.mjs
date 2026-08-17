@@ -16,6 +16,8 @@
 // Run:  node arm.test.mjs   (exit 0 = pass, 1 = fail)
 
 import { armFromSlug } from "./lib/arm.mjs";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { exit } from "node:process";
 
 let pass = 0, fail = 0;
@@ -35,8 +37,6 @@ check("seed id containing 'baseline' mid-slug only counts at the end (a-baseline
   armFromSlug("a-baseline-baseline") === "baseline");
 
 // consumer wiring: both importers actually call the lib, not a private copy
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 const HERE = new URL(".", import.meta.url).pathname;
 const judgeSrc = readFileSync(join(HERE, "judge.mjs"), "utf8");
 const dashSrc = readFileSync(join(HERE, "dashboard.mjs"), "utf8");

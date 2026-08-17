@@ -21,23 +21,23 @@ Which dir is live is not a guess and not a property of the tree — it is record
 `~/.zcode/cli/plugins/installed_plugins.json` carries the `zodyssey@zodyssey-local` entry with
 `"version": "0.5.2"` and `"installPath": ".../cache/zodyssey-local/zodyssey/0.5.2"` (plus a
 marketplace-owned `cacheTransactionId`). `scripts/install.mjs` already reads exactly this truth:
-`PLUGINS_JSON_PATH` at `scripts/install.mjs:56`, `loadPluginsJson()` at `:138-149`,
-`findInstalledEntry()` at `:154-160`, `resolveInstallPath()` at `:162-167`. The repo manifest
+`PLUGINS_JSON_PATH` at `scripts/install.mjs:56`, `loadPluginsJson()` at `:140-151`,
+`findInstalledEntry()` at `:156-162`, `resolveInstallPath()` at `:164-169`. The repo manifest
 (`.zcode-plugin/plugin.json:4`) also reads `0.5.2` today, but that is coincidence of timing, not
 the mechanism — during a version bump the registry points at the OLD dir while the repo says the
 NEW one, so "matches the repo's VERSION" is exactly the wrong live-ness test.
 
 No prune path exists. Proof by exhaustion of the delete sites: `grep -n 'rmSync'
-scripts/install.mjs` → exactly 3 hits — the import (`:40`), the pre-v0.3.0 pollution purge
-(`:419`, removing `~/.zcode/skills`-era paths), and `--uninstall` (`:955`, the same purge paths)
+scripts/install.mjs` → exactly 3 hits — the import (`:42`), the pre-v0.3.0 pollution purge
+(`:421`, removing `~/.zcode/skills`-era paths), and `--uninstall` (`:968`, the same purge paths)
 — none of which walks `cache/<marketplace>/<plugin>/<version>/`. The one command that writes into
 the cache at all, `--sync-cache`, only ever `cpSync`s INTO the registered dir
 (`scripts/install.mjs:284`) and its own header boasts "no registry writes, no config edits"
-(`:183-184`); the marketplace subsystem owns cache creation (`:6-7`) and leaves old versions
+(`:185-186`); the marketplace subsystem owns cache creation (`:6-7`) and leaves old versions
 behind on Update — empirically, six of them in four days. `--verify` checks the registered
 path's liveness (`scripts/install.mjs:670-688`) but never enumerates its siblings, so the
 accumulation is invisible to every current check; `--uninstall` explicitly defers cache +
-registry to the GUI (`:958-961`).
+registry to the GUI (`:971-974`).
 
 The paired-probe broken direction below shows the sharpest edge: today `install.mjs` accepts any
 argv without complaint (only the four booleans at `scripts/install.mjs:95-98` are ever consulted),
@@ -49,7 +49,7 @@ directory level up.
 ## What fixed means
 
 Stated as observable behaviour, not as a diff. **No registry writes, ever** — the v0.3.0 bug was
-hand-writing `installed_plugins.json` (`scripts/install.mjs:8-10`, `:219-222`); this change reads
+hand-writing `installed_plugins.json` (`scripts/install.mjs:8-10`, `:221-224`); this change reads
 it, and deletes only cache directories it proves are not live.
 
 **1. Retention policy, stated once.** Of the version-shaped directories in the live version's
@@ -116,7 +116,7 @@ POSIX: the suite spawns `install.mjs` with `HOME=<fixture>` and a fake
 The declared editable set — this becomes the fix-run plan's `Files:` list, verbatim and complete:
 
 - `scripts/install.mjs` (the `--prune-cache` flag + exclusive mode, the default-run final prune
-  step, the `--verify` informational line, the usage block at `:27-32`)
+  step, the `--verify` informational line, the usage block at `:29-34`)
 - `scripts/lib/cache-prune.mjs` (new — the pure plan function; no deletion code lives here)
 - `scripts/cache-prune.test.mjs` (new — no install/cache suite exists today; `ls scripts/*.test.mjs`
   → `deploy-surface.test.mjs`, `version-consistency.test.mjs` only. `scripts/run-tests.mjs`
@@ -368,7 +368,7 @@ touches the cache"), each checked against the 2026-08-16 tree:
   the existing sentence "The cache is laid out per version … and `installed_plugins.json` records
   which one is live" gains "and the installer prunes everything older than the rollback window,
   never the live dir".
-- `docs/INSTALL.md` flags/usage section (the `--uninstall` entry at `:134` region) — document
+- `docs/INSTALL.md` flags/usage section (the `--uninstall` entry at `:136` region) — document
   `--prune-cache` with its exit codes and the fail-closed rule.
 - `CHANGELOG.md` — shape below.
 

@@ -14,7 +14,7 @@ Census re-measured 2026-08-16 (this run, not an ideation-doc number): grep for `
 `skills/`, `scripts/`, `agents/`, `commands/` (`*.mjs`, `*.bash`), excluding `compact.mjs` itself →
 **zero code callers**. Every remaining reference is doc prose: `skills/odyssey/SKILL.md:158` ("MAY
 run `scripts/compact.mjs <repo> <slug>`" — an instruction addressed to the conductor, inside the
-phase-6 OPTIONAL COMPACTION box at `:156-163`), `skills/odyssey/SKILL.md:212` ("the **optional**
+phase-6 OPTIONAL COMPACTION box at `:157-164`), `skills/odyssey/SKILL.md:212` ("the **optional**
 `_compact-brief.md`"), `skills/odyssey/references/scripts.md:17` ("OPTIONAL pre-final-wave
 notepad compactor"), `README.md:59`, `README.md:81`, `README.md:264`, `CHANGELOG.md:534`. The
 script's own header admits it: `skills/odyssey/scripts/compact.mjs:20-21` — "OPT-IN: the

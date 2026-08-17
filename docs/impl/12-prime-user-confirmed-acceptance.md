@@ -23,7 +23,7 @@ party independent of the model — never confirms them.** The chain, anchored:
   model-derived. The user's only touchpoints in the whole pipeline are: the ambiguity ritual at
   PRIME ("· ambiguities → ask the user (max 3, then commit)" at `skills/odyssey/SKILL.md:74`;
   "ask the user FIRST and WAIT" at `:76-77`), metis's user-questions at consult
-  (`skills/odyssey/SKILL.md:98`, `:356`), and the momus-loop safety rail (`:273`). **None of these
+  (`skills/odyssey/SKILL.md:98`, `:357`), and the momus-loop safety rail (`:274`). **None of these
   confirms the criteria themselves** — ambiguities are about what was asked, not about what will
   count as done.
 - The criteria that actually gate execution are authored later, by prometheus, into the plan the

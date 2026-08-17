@@ -24,7 +24,7 @@ two records with slug `std-01-baseline` (at 2026-08-01T20:47:01Z) and `arch-01-b
 (2026-08-01T21:01:51Z) — baseline runs that actually happened — both stamped `arm: "zodyssey"`.
 The repo's own consumer has given up on the field: `skills/odyssey/scripts/dashboard.mjs:20` —
 "Arm derivation: the `arm` field on judged records is unreliable (all emit 'zodyssey')" — and
-works around it with a slug-suffix heuristic at `:48-52` whose fallback silently buckets everything
+works around it with a slug-suffix heuristic at `skills/odyssey/scripts/lib/arm.mjs:14-17` whose fallback silently buckets everything
 non-`-baseline` into the zodyssey arm.
 
 **The harness cannot run the control arm.** `skills/odyssey/scripts/harness.mjs:19` documents
@@ -128,7 +128,7 @@ The declared editable set — this becomes the fix-run plan's `Files:` list, ver
   the queue's `<topic>.<scope>.test.mjs` convention, e.g. 05's `set-phase.eval-lane.test.mjs`).
 
 Nothing else. `dashboard.mjs` is deliberately absent — its slug-suffix arm derivation
-(`:48-52`) keeps working unchanged because arm-bearing slugs are unchanged, which is the point.
+(`skills/odyssey/scripts/lib/arm.mjs:14-17`) keeps working unchanged because arm-bearing slugs are unchanged, which is the point.
 `seed.jsonl` is untouchable (see Must NOT do). `set-phase.mjs`, `scaffold.mjs`, `consult.mjs`:
 untouched. The docs listed under "Docs to update" belong to the release pass, not the gated run —
 do not widen the set to include them by default.
@@ -322,7 +322,7 @@ The intended break: the baseline arm stops being a paragraph and starts costing 
   no run-both-arms convenience is added; the first settling run should use `--task` on a subset;
   and the fix-run itself spends zero (all criteria hermetic or dry).
 - **Corpus readers see a new `arm` value.** `dashboard.mjs` verified safe — it derives arm from
-  the slug suffix (`:48-52`) and baseline records carry `-baseline` slugs exactly as the two
+  the slug suffix (`skills/odyssey/scripts/lib/arm.mjs:14-17`) and baseline records carry `-baseline` slugs exactly as the two
   historical ones do, so its per-arm table keeps rendering with zero changes. Its header comment
   at `:20` ("the `arm` field … is unreliable") becomes stale the moment the stamp lands — true
   drift, but the file is outside this change's set; named under *Known, not fixed*. Any operator

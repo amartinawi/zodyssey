@@ -24,9 +24,9 @@ run-report and appends its JSON record to `~/.zcode/orchestration/eval/results.j
 (203 records at re-derivation time; the file is live and drifted 184 → 185 → 203 across this
 queue's own lifetime — stamp your own count). That record already carries everything a run-span
 needs: timing (`skills/odyssey/scripts/run-report.mjs:37-42` derives `start` from
-`state.started_at` and `end` from the phase/checkpoint tail; `:106` emits `wall_clock_min`),
-outcome (`:94-113` — `success`, `verdict`, `review_rounds`, `todos_total/done/failed`, retries,
-resume events, hook blocks), and cost (`:90` calls `collectRunTokens`; `:116` passes `tokens`
+`state.started_at` and `end` from the phase/checkpoint tail; `:117` emits `wall_clock_min`),
+outcome (`:103-124` — `success`, `verdict`, `review_rounds`, `todos_total/done/failed`, retries,
+resume events, hook blocks), and cost (`:99` calls `collectRunTokens`; `:127` passes `tokens`
 through, null-or-populated per queue item 06). `results.jsonl` is read by exactly two audiences:
 this repo's own dashboard script and a human with `grep`. No standard observability tool — no
 collector, no Jaeger, no vendor backend — can see any of it. The GenAI semconv shape this data maps
@@ -64,7 +64,7 @@ Stated as observable behaviour, not as a diff:
    same derivation run-report uses (`skills/odyssey/scripts/run-report.mjs:37-42`), and attributes
    mapped from the already-computed run-report record (slug, intent, verdict, success,
    `todos_total/done/failed`, `wall_clock_min`, token totals when populated). The emitter consumes
-   that record — set-phase already has it in hand at `:218-224` — rather than re-deriving scorecard
+   that record — set-phase already has it in hand at `:232-238` — rather than re-deriving scorecard
    arithmetic that could drift from run-report. One source of truth.
 2. **No endpoint → recorded inert, zero cost.** With the env var unset, run close makes **no
    network attempt and spawns no emitter process**; run state gains an additive
@@ -103,7 +103,7 @@ The declared editable set — this becomes the fix-run plan's `Files:` list, ver
 - `skills/odyssey/scripts/otel-emit.mjs` (new — the emitter: env check, span build, OTLP/JSON
   export, inert stamping, the `SEMCONV_SNAPSHOT` map)
 - `skills/odyssey/scripts/set-phase.mjs` (the hook-in, following the B8 wiring precedent at
-  `:205-211`: a bounded `execFileSync` child inside the `done|audited` block at `:217-228`, plus
+  `:219-225`: a bounded `execFileSync` child inside the `done|audited` block at `:231-242`, plus
   the additive `telemetry.otel` state stamp — reusing the file's existing locked-write helpers,
   best-effort)
 - `skills/odyssey/scripts/otel-emit.test.mjs` (new — local receiver test; see Paired probe)
@@ -271,7 +271,7 @@ When configured, the honest blast radius is:
 - **Run close gains one outbound HTTP request and one bounded child spawn.** Opt-in by env var;
   the operator who set the endpoint asked for exactly this. The ~2 s timeout and
   inert-on-error contract bound the worst case (the B8/CRIT-4a wiring shape at
-  `skills/odyssey/scripts/set-phase.mjs:332-342` and `:430-441` is the precedent: best-effort
+  `skills/odyssey/scripts/set-phase.mjs:332-342` and `:444-455` is the precedent: best-effort
   child inside the transition, `try/catch`, never fail the phase).
 - **Consumers pinned to today's `gen_ai.*` attribute names can break when semconv renames them**
   — the external caveat, now inherited. Mitigated, not solved: the `SEMCONV_SNAPSHOT` constant
@@ -303,15 +303,15 @@ rule fails the same shape of test it must copy.
 Every doc that states the claim this change alters, each checked against the 2026-08-16 tree:
 
 - `docs/MEASUREMENT.md` — the observability/output-channel material (the trend-log pipeline around
-  `:122-129`): add the OTel export as a second output channel — the env var, the one-span
+  `:133-140`): add the OTel export as a second output channel — the env var, the one-span
   granularity and why, the snapshot constant, and the inert outcome shapes.
 - `CHANGELOG.md` — new version's **Added** entry (shape below) plus the *Known, not fixed*
   residuals.
 - `skills/odyssey/references/scripts.md` — a new entry for `scripts/otel-emit.mjs` (argv, env var,
   exit contract `0/2`, stdout outcome line, `SEMCONV_SNAPSHOT`); the set-phase entry at `:9` gains
   one clause (on `done|audited`, exports one run-span when the OTLP endpoint is configured).
-- `docs/DESIGN.md` §11 "Observability & evaluation" (`:384`; the eval-harness inventory row at
-  `:412` names `results.jsonl` today) — add the OTLP export as the standard-tooling leg of the
+- `docs/DESIGN.md` §11 "Observability & evaluation" (`:398`; the eval-harness inventory row at
+  `:426` names `results.jsonl` today) — add the OTLP export as the standard-tooling leg of the
   observability story, with the Development-stability caveat carried.
 - `README.md` — checked: it makes no observability-channel claim (zero hits for observ/telemetry/
   results.jsonl). No edit required unless the release notes want to advertise the env var; record

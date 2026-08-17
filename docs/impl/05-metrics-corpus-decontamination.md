@@ -54,7 +54,7 @@ Measured 2026-08-16 during this queue's authoring (todo 10 of run impl-prompts-v
   five times before anyone built anything.
 
 **Why this gates the queue.** `dashboard.mjs` reads exactly this file
-(`skills/odyssey/scripts/dashboard.mjs:28-31`; its arm logic at `:48-52` counts every
+(`skills/odyssey/scripts/dashboard.mjs:31-34`; its arm logic at `skills/odyssey/scripts/lib/arm.mjs:14-17` counts every
 fixture record as arm "zodyssey"), so the win-rate it renders is 83.7% fixture noise — vacuous.
 Every measurement item behind this one draws its first number from the same file: **06**
 (token telemetry — populated-fraction denominators), **09** (two-arm eval — arm comparisons),
@@ -312,7 +312,7 @@ The intended break: fixture records stop arriving in the operator's trend log. H
 radius beyond that:
 
 - **Anything assuming one corpus file.** The exact readers, checked against the 2026-08-16 tree:
-  `skills/odyssey/scripts/dashboard.mjs:28-31` (reads `results.jsonl` + `judged.jsonl` from the
+  `skills/odyssey/scripts/dashboard.mjs:31-34` (reads `results.jsonl` + `judged.jsonl` from the
   eval dir) — post-split its win-rate covers real runs only and its numbers **shift**; that is
   the purpose, but the historical tail remains mixed until `capJsonl` ages it out, so the
   pre-cutover window must be documented in `docs/MEASUREMENT.md` or the next reader attributes
@@ -337,8 +337,8 @@ radius beyond that:
 to the operator's real data sink because the sink has no notion of provenance. The 143
 `add-truncate` records are this class accumulated in production: five of them arrived while this
 very prompt was being written. The dashboard's vacuous win-rate
-(`skills/odyssey/scripts/dashboard.mjs:28-31` counting fixture records as arm "zodyssey" via
-`:48-52`) is the class's observable damage, and the queue's whole measurement block (06, 09, 10)
+(`skills/odyssey/scripts/dashboard.mjs:31-34` counting fixture records as arm "zodyssey" via
+`skills/odyssey/scripts/lib/arm.mjs:14-17`) is the class's observable damage, and the queue's whole measurement block (06, 09, 10)
 is its blast radius-to-be.
 
 How this change could reintroduce the class: a **future** test or harness invoking
