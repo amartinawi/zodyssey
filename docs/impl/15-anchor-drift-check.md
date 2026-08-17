@@ -293,7 +293,7 @@ the filename before the line number, and CHANGELOG.md keys are exempt from the l
   that carries no
   filename, so a shifted file leaves it stale while the suite stays green (found by external
   audit round 2; reconciled via git-hunk-derived shift bands, commit `7b33454`).
-- **comma/slash continuations** — `CHANGELOG.md:415, :554`, `:415/:554`, `md:33,31` — same
+- **comma/slash continuations** — `CHANGELOG.md:453, :592`, `:415/:554`, `md:33,31` — same
   blindness inside the exempt CHANGELOG target (found by round 3).
 
 Until the dialects are either lockable or linted, reconciliation passes here must grep for

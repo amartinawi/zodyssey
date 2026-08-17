@@ -34,7 +34,13 @@ Paired probe, both directions, active run: `evil:momus`, `someplugin:momus`, `ev
 
 **Known, not fixed:** a lookalike `*:momus` dispatch is still allowed by design — every write the dispatched agent attempts remains scope- and verdict-gated; the orchestrator-adversary residual stands unchanged (the nonce binds a real dispatch, not what the reviewer returned); a new legitimate reviewer packaging now requires a one-line allowlist edit, surfaced loudly by the near-miss warning rather than silently at the final wave; the `agent_type`/`type` extractor fallback fields are unchanged and out of scope; and case variance narrows with the same stroke — a mixed-case dispatch (`ZODYSSEY:momus`) minted before via the matcher's lowercasing and now falls to the warning, fail-closed on the harness's lowercase dispatch behaviour.
 
-## [Unreleased]
+## [0.6.0] — 2026-08-17
+
+### Added — the zero-caller checks fire from phase transitions
+
+`check-imports`, `coverage-delta` and `resolve-capabilities` each shipped with a passing suite and zero code callers — "run it during verify" prose addressed to a conductor. They now fire as mechanism. Entering `execute` captures the run's git baseline (HEAD + untracked set), idempotently, in both execute-entry paths. Entering `verify` invokes `check-imports` on the run's changed set (baseline diff plus files created since execute entry — plain `--since` is blind to untracked files) and records `state.imports`; a new `done` precondition refuses while its status is `unresolved`, naming the findings. Entering `final` records `state.coverage` and `state.capabilities_check` — neither gates: coverage is evidence by contract, and capability-absent or failing infrastructure records `inert`, never a block, because over-blocking is the failure class the wiring exists to avoid. Paired probe: hand-invocation exited 9 on a passing run before the wiring; after it, entering `verify` records `unresolved` and `done` refuses.
+
+**Known, not fixed:** `regression-gate --check` still has no code caller (the snapshot is wired; the comparison is invoked by prose convention only — a follow-up using this change's pattern); `capabilities.lock.json` still has no consumer; `state.coverage` is recorded but nothing renders it yet; and `build-capsules.mjs` is a fourth zero-caller outside this change's named set.
 
 The ISNAD-engine adaptation (queue rows 17-20, `docs/impl/17`–`20`): four non-duplicate capabilities ported from a provenance/trust layer, chosen precisely because ZOdyssey already enforces the rest in stronger form.
 

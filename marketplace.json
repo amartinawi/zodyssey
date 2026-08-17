@@ -4,7 +4,7 @@
     {
       "name": "zodyssey",
       "source": ".",
-      "version": "0.5.5",
+      "version": "0.6.0",
       "description": "A hybrid-enforced multi-agent orchestration pipeline for ZCode: prime, triage, consult, plan, review (gated), execute, verify, final-wave. Code-enforces the invariants omo leaves to convention.",
       "keywords": [
         "orchestration",
