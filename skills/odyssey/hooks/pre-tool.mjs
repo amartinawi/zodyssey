@@ -1255,8 +1255,23 @@ if (isDispatch) {
   // hard-coded `feature-dev:code-reviewer` special case, so ANY other namespace (someplugin:oracle,
   // a differently-packaged code-reviewer) minted NO nonce — and the failure is silent until the
   // final wave rejects the artifact, by which point the reviewer round has been spent. isAgent
-  // compares the final name segment, so every packaging of a given reviewer mints its lane.
+  // compares the final name segment, which fixed that availability hole but over-corrected into
+  // authority (item 03, 2026-08-17): a lookalike `evil:momus` minted a real nonce, because the
+  // nonce lane consumed a ROUTING-grade matcher. Minting is now decided by EXACT dispatch type
+  // against NONCE_MINTERS at every nonce-lane site; the minters and the round-cap twin below share
+  // one Set, so they cannot disagree on what counts as the reviewer — the rule audit-3 finding 7
+  // stated ("or the guard is decorative"), settled upward this time. isAgent survives only as the
+  // near-miss detector that earns the warning. The extractor above normalizes `zodyssey:x` → `x`,
+  // so one exact entry covers both canonical forms; `feature-dev:code-reviewer` stays its own
+  // entry — a declared packaging, not a substring accident. sameName itself is untouched: the
+  // phase gate (inSet above) and F5 capability matching keep their deliberate tolerance.
   const isAgent = (want) => sameName(want, subagent);
+  const NONCE_MINTERS = {
+    review: new Set(["momus"]),
+    final_f2: new Set(["code-reviewer", "feature-dev:code-reviewer"]),
+    final_f4: new Set(["oracle"]),
+  };
+  const isDeclaredMinter = (lane) => NONCE_MINTERS[lane].has(subagent);
   const READONLY_AGENTS = new Set([
     "explore", "librarian", "oracle", "metis", "momus", "multimodal-looker",
     "code-explorer", "code-architect", "code-reviewer", "feature-dev:code-explorer",
@@ -1392,6 +1407,18 @@ if (isDispatch) {
       process.stderr.write(`ZOdyssey: ${subagent} dispatched — nonce ${nonce} written to state.${field}.pending_nonce. Pass it to the recorder script.\n`);
     } catch {} finally { try { closeSync(lockFd); unlinkSync(lockPath); } catch {} }
   }
+  // Item 03 near-miss branch: a lookalike namespace (evil:momus, someplugin:oracle) still
+  // DISPATCHES — read-only routing tolerance grants no authority, and every write the dispatched
+  // agent attempts stays scope- and verdict-gated — but mints nothing, and is told so loudly at
+  // dispatch time. That loudness is what lets this change keep the Class C availability fix without
+  // its authority cost: a packaging mistake surfaces here, immediately, instead of as the silent
+  // final-wave deadlock the tolerance was originally written to avoid.
+  const warnNearMissMinter = (lane) => process.stderr.write(
+    `ZOdyssey WARNING: dispatch type '${subagent}' resembles the ${lane} lane's reviewer but is ` +
+    `not one of its declared exact minters (${[...NONCE_MINTERS[lane]].join(" / ")}) — no nonce ` +
+    `minted, so no ${lane} artifact can be recorded from this dispatch. The dispatch itself is ` +
+    `allowed; if this packaging is an intended reviewer, add it to NONCE_MINTERS in pre-tool.mjs. (slug=${state.slug})\n`
+  );
   // REVIEW-ROUND RESIDUAL CAP (todo 13, 2026-08-10): record-review.mjs:168 ALREADY refuses an
   // OKAY verdict once round > max_rounds, so an accepted plan can never overrun the round budget.
   // The residual gap is the REJECT path: a REJECT at round >= max_rounds is recorded normally
@@ -1409,8 +1436,10 @@ if (isDispatch) {
   // lint here, then minted a review nonce down there — the same one-path-not-its-twin shape this
   // release was written to hunt, left in the file by the release that hunted it. Bounded in impact
   // (record-review enforces the cap independently), but the two sites must agree on what counts as
-  // momus or the guard is decorative.
-  if (isAgent("momus")) {
+  // momus or the guard is decorative. Item 03 settles the agreement upward: this twin and the
+  // minter below share NONCE_MINTERS, so a lookalike is neither capped, nor linted, nor minted —
+  // it is simply not the reviewer.
+  if (isDeclaredMinter("review")) {
     const _rr = (state.review && typeof state.review === "object") ? state.review : {};
     const _round = Number.isFinite(_rr.round) ? _rr.round : 0;
     const _max = Number.isFinite(_rr.max_rounds) ? _rr.max_rounds : 3;
@@ -1465,29 +1494,35 @@ if (isDispatch) {
   // no in-run recovery. The phase was never a security boundary: non-forgeability only needs the
   // nonce bound to a real, hook-witnessed dispatch. Drop the phase condition; keep a loud warning
   // so a dispatch in the wrong phase is visible rather than silently accepted.
-  if (isAgent("momus")) {
+  if (isDeclaredMinter("review")) {
     if (state.phase !== "review") {
       process.stderr.write(
         `ZOdyssey WARNING: momus dispatched in phase=${state.phase} (expected "review") — nonce minted anyway so the verdict is recordable, but the phase was not transitioned. Run 'node ${SET_PHASE_PATH} <repo> <slug> review' to reconcile, or the recorded verdict will not auto-advance to execute.\n`
       );
     }
     mintNonceFor("review");
+  } else if (isAgent("momus")) {
+    warnNearMissMinter("review");
   }
-  if (isAgent("code-reviewer")) {
+  if (isDeclaredMinter("final_f2")) {
     if (state.phase !== "final") {
       process.stderr.write(
         `ZOdyssey WARNING: code-reviewer dispatched in phase=${state.phase} (expected "final" for F2) — nonce minted anyway; reconcile the phase if this was not intended.\n`
       );
     }
     mintNonceFor("final_f2");
+  } else if (isAgent("code-reviewer")) {
+    warnNearMissMinter("final_f2");
   }
-  if (isAgent("oracle")) {
+  if (isDeclaredMinter("final_f4")) {
     if (state.phase !== "final") {
       process.stderr.write(
         `ZOdyssey WARNING: oracle dispatched in phase=${state.phase} (expected "final" for F4) — nonce minted anyway; reconcile the phase if this was not intended.\n`
       );
     }
     mintNonceFor("final_f4");
+  } else if (isAgent("oracle")) {
+    warnNearMissMinter("final_f4");
   }
   exit(0);
 }

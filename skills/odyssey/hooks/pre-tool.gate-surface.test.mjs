@@ -242,28 +242,72 @@ console.log("\n  Bash path parity with the Edit path:");
 // still bare-set membership with three hard-coded `feature-dev:` entries. A third-party-namespaced
 // read-only agent was rejected there as an "executor" and never reached the fixed minter, so the
 // minter fix alone changed nothing observable. Both sites are covered here for that reason.
+//
+// Item 03 (2026-08-17) flips the tolerance AT THE MINT: this block used to assert the lookalike
+// mint as intended behaviour — the suite grading the hole as correct (the audit's failure mode 4,
+// self-grading). Minting is exact per lane now (NONCE_MINTERS in pre-tool.mjs); the phase gate
+// above STAYS tolerant (a lookalike still dispatches — routing tolerance grants no authority), and
+// the round-cap twin agrees with the minter through the same Set. Every authority-bearing lane —
+// review, final_f2, final_f4 — is asserted here, both directions, so a fourth lane added with a
+// loose matcher has no passing assertion home unless this block is extended deliberately.
 console.log("\n  dispatch name matching (Class C):");
 {
-  const nonceFor = (agent, phase = "review") => {
+  const nonceFor = (agent, phase = "review", field = "review") => {
     const repo = makeRun({ phase, verdict: "REJECT" });
     const code = gate(repo, "Task", { subagent_type: agent, prompt: "review the plan" });
     let pending = false;
     try {
       pending = Boolean(JSON.parse(readFileSync(join(repo, ".zcode", "state", "t.json"), "utf8"))
-        .review?.pending_nonce);
+        [field]?.pending_nonce);
     } catch { /* leave false */ }
     return { code, pending };
   };
-  for (const agent of ["momus", "zodyssey:momus", "feature-dev:momus", "someplugin:momus"]) {
+  for (const agent of ["momus", "zodyssey:momus"]) {
     const r = nonceFor(agent);
     check(`    \`${agent}\` is dispatchable AND mints a review nonce`,
       r.code === 0 && r.pending, `(exit ${r.code}, nonce ${r.pending})`);
+  }
+  for (const agent of ["feature-dev:momus", "someplugin:momus", "evil:momus"]) {
+    const r = nonceFor(agent);
+    check(`    \`${agent}\` dispatches but mints NO review nonce (lookalike)`,
+      r.code === 0 && !r.pending, `(exit ${r.code}, nonce ${r.pending})`);
+  }
+  // The sibling lanes, both directions: only the DECLARED packagings mint.
+  for (const [agent, field] of [
+    ["code-reviewer", "final_f2"], ["feature-dev:code-reviewer", "final_f2"],
+    ["zodyssey:oracle", "final_f4"],
+  ]) {
+    const r = nonceFor(agent, "final", field);
+    check(`    \`${agent}\` is dispatchable AND mints the ${field} nonce`,
+      r.code === 0 && r.pending, `(exit ${r.code}, nonce ${r.pending})`);
+  }
+  for (const [agent, field] of [
+    ["evil:code-reviewer", "final_f2"], ["someplugin:oracle", "final_f4"],
+  ]) {
+    const r = nonceFor(agent, "final", field);
+    check(`    \`${agent}\` dispatches but mints NO ${field} nonce (lookalike)`,
+      r.code === 0 && !r.pending, `(exit ${r.code}, nonce ${r.pending})`);
   }
   // Tolerance must not turn an executor into a read-only agent by renaming it.
   const exec = nonceFor("sisyphus-junior", "plan");
   check("    CONTROL: an executor is still phase-gated out of plan", exec.code === 2, `(exit ${exec.code})`);
   const execNs = nonceFor("someplugin:sisyphus-junior", "plan");
   check("    CONTROL: and so is a NAMESPACED executor", execNs.code === 2, `(exit ${execNs.code})`);
+  // The audit-3 #7 agreement, pinned: the round-cap twin decides "is this the reviewer" the same
+  // way the minter does — exact. At the round budget a lookalike is neither capped, nor linted,
+  // nor minted (it is simply not the reviewer); the declared reviewer is still capped.
+  {
+    const repo = makeRun({ phase: "review", verdict: "REJECT" });
+    const stPath = join(repo, ".zcode", "state", "t.json");
+    const st = JSON.parse(readFileSync(stPath, "utf8"));
+    st.review.round = 3;
+    writeFileSync(stPath, JSON.stringify(st, null, 2));
+    check("    lookalike at the round budget: dispatches, uncapped, mints nothing",
+      gate(repo, "Task", { subagent_type: "evil:momus", prompt: "p" }) === 0 &&
+        !JSON.parse(readFileSync(stPath, "utf8")).review.pending_nonce);
+    check("    CONTROL: the declared reviewer is still round-capped",
+      gate(repo, "Task", { subagent_type: "momus", prompt: "p" }) === 2);
+  }
 }
 
 // --- Class B: the protected-dirs guard must survive a symlinked root --------

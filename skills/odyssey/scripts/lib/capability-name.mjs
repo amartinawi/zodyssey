@@ -14,8 +14,8 @@
 //
 // The rule: exact match always wins; otherwise compare the final name segment, so a bare
 // declaration matches a namespaced observation and vice versa. Accepted trade (deliberate): two
-// plugins exposing the same bare skill name can cross-match. F5 is a routing check, not a security
-// boundary — the security gates are the nonce chain and the scope gate.
+// plugins exposing the same bare skill name can cross-match. This matcher is ROUTING-GRADE ONLY
+// (item 03): an authority-bearing consumer must compare exact types at its own site, never this.
 
 // Lowercase and strip ALL whitespace (not just trim): plans are hand-written and
 // `routed: skill: my-skill` is the same declaration as `routed: skill:my-skill`.
