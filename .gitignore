@@ -49,3 +49,8 @@ Thumbs.db
 .claude-flow/
 .swarm/
 ruvector.db
+
+# External-audit working artifacts for stateless work (manual consult rounds; plan + task + prompt
+# driver + verdict JSON quote model output). Same ORCH-3 reasoning as .zcode/audits/ and
+# .zcode/reports/: run output, not source.
+.zcode/isnad-adaptation-audit/

@@ -56,7 +56,7 @@ record-verify's executed-criterion evidence.
 
 ## Acceptance criteria
 
-1. `node scripts/run-tests.mjs` — exit **0** (39/39; no code changed, suites must stay green).
+1. `node scripts/run-tests.mjs` — exit **0** (38/38; no code changed, suites must stay green).
 2. `grep -c "ISNAD R5" agents/sisyphus-junior.md agents/momus.md` — both **≥ 1**.
 
 ### Failure-mode check (Step 6)

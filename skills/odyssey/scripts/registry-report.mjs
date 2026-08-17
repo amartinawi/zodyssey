@@ -35,7 +35,9 @@
 //
 // IDEMPOTENCE: evidence rows carry stable ids (`<repoBase>:<slug>:consult:<round>[:g<i>]`,
 // `judge:<slug>:<seed_id>:<at>:c<i>`); re-scanning a repo re-derives the same ids and appends
-// nothing. The ledger is a rolling-capped (1000) JSONL — capJsonl twin of set-phase.mjs/judge.mjs.
+// nothing — within the rolling cap: rows aged out past the 1000-line capJsonl are re-appended on
+// the next scan under the same ids (harmless at current volumes; the cap is the same policy the
+// eval ledgers use).
 //
 // Usage:
 //   registry-report.mjs <repo> [--json] [--min-n <k>] [--store <dir>]

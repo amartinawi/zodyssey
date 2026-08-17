@@ -2,6 +2,32 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+The ISNAD-engine adaptation (queue rows 17-20, `docs/impl/17`–`20`): four non-duplicate capabilities ported from a provenance/trust layer, chosen precisely because ZOdyssey already enforces the rest in stronger form.
+
+### Added — fluency-exclusion invariant (ISNAD R8, row 17)
+`judge-rubric.test.mjs`, the sixth doc-claim invariant suite: pins the judge rubric to the five `MEASUREMENT.md` §2 dimensions and their weights, denies style/fluency/verbosity terms inside the rubric segment, and pins the auditor's no-style-rejections clause. Paired probe: an injected `Clarity of prose (0.1)` dimension fails the suite on two assertions.
+
+### Added — verification-origin labeling (ISNAD R4, row 18)
+Every run-report and `results.jsonl` record now states whether `success` stands on an external audit (`external-audit`, with `consult_rounds`) or in-session verification only (`in-session-only`); the dashboard's Recent-runs table renders a `verify` column, legacy records render `-`. Labeling only — nothing consumes the field as a gate. `run-report.mjs` gains its first test file.
+
+### Added — narrator trust registry (ISNAD R2, row 19)
+`registry-report.mjs`: cross-run agent-config reliability mined from external-audit verdicts (ACCEPT after momus OKAY → momus ✓; compliance gap → momus ✗; bug/quality/security gap → executor ✗) and judged criterion results (executor ✓/✗, zodyssey-arm records only). Keys are `sha256(agents/<name>.md)` content hashes — a prompt edit starts a new key at the cold-start prior (structural decay; trust attaches to the configuration, never the model name). Trust is Laplace `(s+1)/(s+m+2)` and n is ALWAYS printed beside it. Global idempotent ledger under `~/.zcode/orchestration/registry/`; consumed advisory-only by metis at consult. Real-data smoke on landing: momus 0.67 (n=4), executor 0.73 (n=9).
+
+### Fixed — judged records no longer hardcode `arm: "zodyssey"` (row 19, A0 rider)
+`lib/arm.mjs` derives the arm from the slug suffix (the authoritative source — `harness.mjs` constructs `${seed.id}-${arm}`), shared by `judge.mjs` and `dashboard.mjs` (private copy removed). Baseline runs no longer land in `judged.jsonl` mislabeled. Queue item 09's residual scope (explicit `--arm` instrument channel + baseline-arm automation) unchanged.
+
+### Added — agent citation discipline (ISNAD R5, row 20)
+Executor notepads/summaries must cite the `path:line` or command output that witnessed each factual claim; momus blockers must anchor to plan text. Prompt-layer advisory only — the enforcement twins (notepad append-only, test-integrity guard, record-verify executed criteria) already exist.
+
+### Known, not fixed
+- Judge-lane registry evidence predates agent hashing and attributes to the *current* config key (`assumed_current_config` marked on rows/entries).
+- The registry is consult-fed and starts sparse by design; consult is opt-in.
+- Nothing renders narrator trust in `dashboard.mjs` yet.
+- Registry ledger idempotence is bounded by the rolling 1000-row cap: evidence aged out past the cap re-appends on re-scan under the same ids (harmless at current volumes).
+- `registry-report.mjs --json` emits a wrapper object (`{scanned_repo, …, entries}`), richer than the briefs' "array" phrasing.
+
 ## [0.5.2] — 2026-08-15
 
 An independent paired run against v0.5.1 found **no new bypasses** — the first round in four that didn't. What it did confirm is that the remaining surface is no longer pattern-shaped. Two items here are that surface's narrow, structural end; the rest is documented as the queue it is.

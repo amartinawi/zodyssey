@@ -158,7 +158,7 @@ the release pass, not the gated run — do not widen the set to include them by 
   pre-tool gate; do not touch `probe-toolchain.mjs`'s detection order or fields.
 - Do not parse lint output beyond exit status and captured stderr. Per-diagnostic diffing
   (which message is new) is a deliberately-unbuilt known-limit — runner-specific output parsing
-  is the conceded-to-rot class (`docs/MEASUREMENT.md:55`).
+  is the conceded-to-rot class (`docs/MEASUREMENT.md:56`).
 - No new `state.json` schema (side-file only, and the side-file is optional everywhere it is
   read); no new env vars; no async; no daemon.
 - Do not batch this into a release carrying queue items 01, 03, or 04 (one security change per
@@ -375,7 +375,7 @@ Patch-level `fix(hooks)` entry, its own entry even if it rides the v0.6 minor:
 - **Known, not fixed** — name them; the next audit should not have to find them:
   - Attribution is exit-code-level. Per-diagnostic diffing (which message is new) is
     deliberately unbuilt — runner-specific output parsing is the conceded-to-rot class
-    (`docs/MEASUREMENT.md:55`).
+    (`docs/MEASUREMENT.md:56`).
   - The baseline is per-run, frozen at first touch. Cross-file induced diagnostics (editing A
     changes what B's lint reports) are baselined at B's first touch, not at run start — chosen
     to bound cost; a full-repo lint at execute entry was rejected as too slow for big repos.

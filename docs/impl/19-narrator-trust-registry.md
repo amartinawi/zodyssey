@@ -117,7 +117,7 @@ not `[drift]`, and are invisible to a drift-only reconciliation pass — grep fo
 3. `node skills/odyssey/scripts/arm.test.mjs` — exit **0** (11/11 incl. consumer-wiring
    assertions: no private `armFromSlug` copies remain).
 4. `node scripts/install.mjs --dry-run` — exit **0**, prints `init registry dir:`.
-5. `node scripts/run-tests.mjs` — exit **0**, suite count 37 → **39** (registry + arm suites).
+5. `node scripts/run-tests.mjs` — exit **0**, suite count 36 → **38** (registry + arm suites).
 6. Real-data smoke: `node skills/odyssey/scripts/registry-report.mjs <any repo with consult
    history>` exits **0** and prints at least one narrator row with a nonzero n.
 
