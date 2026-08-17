@@ -53,7 +53,7 @@ SKILL.md keeps only one-line reminders; the full signatures, flags, and exit cod
 
 ## Phase 3 (REVIEW) — exact order to record a verdict
 
-1. Dispatch zodyssey:momus via `Task(subagent_type="zodyssey:momus")`. The enforcement hook observes this and mints a one-time **nonce** into `state.review.pending_nonce` (read it from there, or from the hook's stderr line). NOTE: SKILL.md older prose said `pending_momus` — that field does not exist; the real field is `pending_nonce`.
+1. Dispatch zodyssey:momus via `Task(subagent_type="zodyssey:momus")`. The enforcement hook observes this and mints a one-time **nonce** into `state.review.pending_nonce` (read it from there, or from the hook's stderr line). Only the exact `subagent_type` mints — a lookalike namespace (`*:momus`) dispatches but mints nothing and warns on stderr. NOTE: SKILL.md older prose said `pending_momus` — that field does not exist; the real field is `pending_nonce`.
 > **The hook lints the plan BEFORE it will dispatch momus.** If `parse-plan --lint` fails, the
 > `Task(zodyssey:momus)` dispatch is blocked with the specific problems listed. Fix the plan, then
 > dispatch. This exists because the lint used to run at the *end* of the review: momus would
