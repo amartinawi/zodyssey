@@ -195,13 +195,13 @@ const recent = [...results]
 if (recent.length === 0) {
   push("_(no completed runs yet)_");
 } else {
-  push("| generated_at | seed | arm | slug | success | overall | phase |");
-  push("|--------------|------|-----|------|---------|---------|-------|");
+  push("| generated_at | seed | arm | slug | success | overall | phase | verify |");
+  push("|--------------|------|-----|------|---------|---------|-------|--------|");
   for (const r of recent) {
     const o = overallBySlug.get(r.slug);
     push(
       `| ${r.generated_at} | ${seedFromSlug(r.slug)} | ${armFromSlug(r.slug)} ` +
-      `| ${r.slug} | ${r.success ? "yes" : "no"} | ${o === undefined ? "-" : fmt(o)} | ${r.phase || "-"} |`
+      `| ${r.slug} | ${r.success ? "yes" : "no"} | ${o === undefined ? "-" : fmt(o)} | ${r.phase || "-"} | ${r.verify_origin || "-"} |`
     );
   }
   push("");

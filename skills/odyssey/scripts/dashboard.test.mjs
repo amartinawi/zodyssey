@@ -43,6 +43,7 @@ function makeFixture() {
     { slug: "std-01-zodyssey", intent: "standard", phase: "done", verdict: "OKAY", success: true,
       wall_clock_min: 4, review_rounds: 1, todos_total: 1, todos_done: 1, todos_failed: 0,
       todo_retries: 0, resume_events: 0, hook_blocks: 0, capabilities_used: {}, tokens_per_todo: null,
+      verify_origin: "external-audit", consult_rounds: 1,
       generated_at: "2026-08-01T20:42:43.442Z" },
     { slug: "std-01-baseline", intent: "standard", phase: "done", verdict: "OKAY", success: false,
       wall_clock_min: 5, review_rounds: 1, todos_total: 1, todos_done: 1, todos_failed: 0,
@@ -81,6 +82,10 @@ console.log("dashboard.mjs tests\n");
     check("fixture: baseline arm derived from -baseline slug", stdout.includes("baseline"));
     // mean overall: zodyssey arm has one judged run at 0.83
     check("fixture: zodyssey mean overall rendered", stdout.includes("0.83"));
+    // verify column (ISNAD R4): the audited record renders its origin, legacy records render "-"
+    check("fixture: verify column header present", stdout.includes("| verify |"));
+    check("fixture: audited record shows external-audit", /std-01-zodyssey.*external-audit/.test(stdout));
+    check("fixture: legacy record (no verify_origin) shows '-'", /std-01-baseline.*\| - \|/.test(stdout));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -209,7 +209,7 @@ judge/harness invocations in the test run under a hermetic `HOME` (temp dir hold
 `eval/seed.jsonl`, `eval/judged.jsonl`, fixture repo with `.zcode/state/<slug>.json` carrying a
 valid `run_start_sha`, and a `CLAUDE_CLI` stub script that echoes one fixed verdict JSON and tees
 its stdin to a file — `judge.mjs` resolves everything from `env.HOME`/`env.CLAUDE_CLI`, so no
-product change is needed for hermeticity; `dashboard.test.mjs:64`'s mkdtemp isolation is the
+product change is needed for hermeticity; `dashboard.test.mjs:65`'s mkdtemp isolation is the
 in-repo precedent). The real operator corpus is never written by any criterion.
 
 1. `node --check skills/odyssey/scripts/judge.mjs && node --check skills/odyssey/scripts/harness.mjs`

@@ -85,7 +85,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 - **Evidence:** `skills/odyssey/scripts/lib/tokens.mjs:35` (reads `~/.zcode/cli/db/db.sqlite`),
   `:83-92` (SQL over `model_usage JOIN session` scoped by repo + time window), `:13-18`
   (double-counting arithmetic rules), `:121` (`confidence: "estimate"`); `skills/odyssey/scripts/
-  run-report.mjs:86-91` wires it in; results.jsonl inspected directly: 177 records, 1 populated
+  run-report.mjs:95-100` wires it in; results.jsonl inspected directly: 177 records, 1 populated
   `tokens` object, 60 explicit `null` (notepad 2, observability). **no published outcome evidence**
   for telemetry-wiring as an intervention — the defect is internal and directly measured.
 - **Cost:** low (invoke collection where runs already close — the terminal transition — using the

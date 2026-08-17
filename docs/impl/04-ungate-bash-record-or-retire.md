@@ -95,7 +95,7 @@ Stated as observable behaviour, not as a diff:
 3. The run report surfaces the count. `skills/odyssey/scripts/run-report.mjs` reads the ledger if
    present and emits an integer field `ungated_bash_calls` in its `--json` object (0 when the file
    is absent) plus one scorecard line, following the exact precedent of `hook_blocks`
-   (`skills/odyssey/scripts/run-report.mjs:63-70`, report field at `:113`). Because
+   (`skills/odyssey/scripts/run-report.mjs:72-79`, report field at `:113`). Because
    `skills/odyssey/scripts/set-phase.mjs:430-439` already pipes `run-report --json` into the trend
    log at `done`/`audited`, the count lands in `results.jsonl` with no `set-phase.mjs` change.
 4. Recording is never itself gated: no second environment variable, flag, or phase condition may

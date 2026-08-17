@@ -44,6 +44,7 @@ Because paths are non-deterministic, we judge the **end state**, not the sequenc
 | **Code quality** | no regressions introduced | F2 (claude-security + code-reviewer) — **parses the reviewer's verdict as of 2026-08-11; before that it only confirmed a reviewer was dispatched** | 0 new findings |
 | **Verification rigor** | were QA scenarios real, not vibes? | judge scores the acceptance criteria | high |
 | **Factual accuracy** | no hallucinated APIs/files | judge + explore re-check | high |
+| **Verification origin** | does "success" stand on an external audit or in-session checks only? | `run-report.mjs` emits `verify_origin` (`external-audit` \| `in-session-only`) + `consult_rounds` into every results.jsonl record; dashboard's Recent-runs table renders the column | audited where it matters |
 
 > **Honest status of this table (corrected 2026-08-16).** These are targets. Three mechanisms exist
 > to serve them, and only one of the three is actually invoked:

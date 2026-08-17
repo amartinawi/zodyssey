@@ -53,6 +53,15 @@ const retries = todoList.reduce((s, t) => s + Math.max(0, (t.attempts || 0) - 1)
 const reviewRounds = state.review?.round ?? 0;
 const verdict = state.review?.verdict ?? null;
 
+// --- verification origin (ISNAD R4, independence labeling) ---
+// A run that was externally audited is a different verification grade than one verified only
+// in-session: F1-F5 all read the same plan + notepads (one origin), while the consult auditor is
+// a separate process that cannot inherit the run's assumptions. The report says which one stands
+// behind "success" — an in-session-only run is never silently equivalent to an audited one.
+const consultHist = Array.isArray(state.consult?.history) ? state.consult.history : [];
+const verifyOrigin = (consultHist.length > 0 || state.phase === "audited") ? "external-audit" : "in-session-only";
+const consultRounds = state.consult?.rounds || consultHist.length || null;
+
 // --- checkpoints (resume signal) ---
 const checkpoints = state.checkpoints || [];
 const resumeEvents = checkpoints.filter((c) => /resume|restart|stopped/i.test(c.note || "")).length;
@@ -95,6 +104,8 @@ const report = {
   intent: state.intent,
   phase: state.phase,
   verdict,
+  verify_origin: verifyOrigin,
+  consult_rounds: consultRounds,
   // T3-#7: success derives from the EVIDENCE (state.final.verdict), not the phase string.
   // Reaching "done" only means the final wave ran; the final wave's verdict is what says the
   // work passed. A run that reached done through a bug (not real verification) won't have
@@ -132,6 +143,9 @@ console.log(`  ${"─".repeat(48)}`);
 console.log(`  intent            ${state.intent}`);
 console.log(`  phase             ${state.phase}    verdict: ${verdict ?? "—"}`);
 console.log(`  success           ${report.success ? "YES ✅" : "no ⚠"}`);
+console.log(`  verify origin     ${verifyOrigin === "external-audit"
+  ? `external audit${consultRounds ? ` (${consultRounds} round${consultRounds === 1 ? "" : "s"})` : ""}`
+  : "in-session only — never externally audited"}`);
 console.log(`  ${"─".repeat(48)}`);
 console.log(`  wall-clock        ${wallClockMin} min`);
 console.log(`  review rounds     ${reviewRounds}/3    ${bar(3 - reviewRounds + 1, 3)} (1 = great)`);
