@@ -339,6 +339,12 @@ NOT batch queue items 01 or 04 into this release even though all three touch
     binds a real dispatch, not what the reviewer returned).
   - A new legitimate reviewer packaging now requires a one-line allowlist edit, surfaced loudly by
     the near-miss warning rather than silently at the final wave.
+  - Case variance narrows with the same stroke (found in run verification, pinned by no criterion):
+    a mixed-case dispatch (`ZODYSSEY:momus`) minted before via `sameName`'s norm() lowercasing and
+    now falls to the near-miss warning. Fail-closed is the intended direction and the harness
+    dispatches lowercase (the extractor at `skills/odyssey/hooks/pre-tool.mjs:1252` strips
+    only `zodyssey:`), but the narrowing rests on that harness behaviour — the release entry
+    carries a line saying so rather than leaving it in a run report.
   - The `agent_type` / `type` fallback fields in the extractor at
     `skills/odyssey/hooks/pre-tool.mjs:1252` are unchanged and out of scope.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
