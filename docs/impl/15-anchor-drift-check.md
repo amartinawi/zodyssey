@@ -282,3 +282,21 @@ No runtime surface, no hook, no dependency. **Patch release.** Can ship alongsid
 item; must not ship in the same release as 01, 03 or 04, whose whole purpose is editing the
 most-cited file in the repo — land those first and re-baseline, or land this first and let it catch
 them. Either order works; sharing a release does not.
+
+## Note — 2026-08-17: the checker-invisible citation dialects (external-audit rounds 2-3)
+
+Two continuation dialects are invisible to `check-anchors.mjs` because the CITE regex requires
+the filename before the line number, and CHANGELOG.md keys are exempt from the lock entirely
+(unstable-by-format, `scripts/check-anchors.mjs` NO_PIN_TARGETS):
+
+- **bare continuations** — a full cite of `file.mjs` line 120 followed by a sibling `` `:138-149` ``
+  that carries no
+  filename, so a shifted file leaves it stale while the suite stays green (found by external
+  audit round 2; reconciled via git-hunk-derived shift bands, commit `7b33454`).
+- **comma/slash continuations** — `CHANGELOG.md:415, :554`, `:415/:554`, `md:33,31` — same
+  blindness inside the exempt CHANGELOG target (found by round 3).
+
+Until the dialects are either lockable or linted, reconciliation passes here must grep for
+`` `: `` (backtick-colon-digit) and `[0-9]+[,:/] ?[0-9]+` after every cited-file edit. The
+hunk-derived band tables used in `7b33454` are the reusable method: never re-derive shifts from
+memory, read `git diff <base>..HEAD -U0` hunk headers.

@@ -117,7 +117,16 @@ const ledger = readLedger();
 const knownIds = new Set(ledger.map((r) => r.id));
 
 // --- scan the repo's state files -------------------------------------------------------------
+// Two state files carrying the SAME slug field (a copy, a manual duplicate) would derive
+// identical evidence ids — dedupe within the scan too (external-audit round-3 advisory), not
+// just against the ledger, or one scan double-counts what the next scan would skip.
 const newRows = [];
+const scanIds = new Set();
+const pushRow = (row) => {
+  if (knownIds.has(row.id) || scanIds.has(row.id)) return;
+  scanIds.add(row.id);
+  newRows.push(row);
+};
 let scannedStates = 0, skippedMalformed = 0;
 for (const f of readdirSync(stateDir).filter((f) => f.endsWith(".json")).sort()) {
   let st;
@@ -132,14 +141,13 @@ for (const f of readdirSync(stateDir).filter((f) => f.endsWith(".json")).sort())
     const baseId = `${repoBase}:${slug}:consult:${h.round}`;
     const at = typeof h.at === "string" ? h.at : null;
     if (h.verdict === "ACCEPT") {
-      if (!knownIds.has(baseId)) newRows.push({ id: baseId, key: MOMUS_KEY, agent: "momus", outcome: "success", at, source: "consult", repo: repoBase });
+      pushRow({ id: baseId, key: MOMUS_KEY, agent: "momus", outcome: "success", at, source: "consult", repo: repoBase });
     } else if (h.verdict === "REJECT" && Array.isArray(h.gaps)) {
       h.gaps.forEach((g, i) => {
         const cat = String(g && g.category || "").toLowerCase();
         const key = MOMUS_GAP.has(cat) ? MOMUS_KEY : EXECUTOR_GAP.has(cat) ? EXECUTOR_KEY : null;
         if (!key) { process.stderr.write(`registry-report.mjs: skipping gap with unknown category "${cat}" in ${slug} round ${h.round}\n`); return; }
-        const id = `${baseId}:g${i}`;
-        if (!knownIds.has(id)) newRows.push({ id, key, agent: key === MOMUS_KEY ? "momus" : "sisyphus-junior", outcome: "miss", at, source: "consult", repo: repoBase });
+        pushRow({ id: `${baseId}:g${i}`, key, agent: key === MOMUS_KEY ? "momus" : "sisyphus-junior", outcome: "miss", at, source: "consult", repo: repoBase });
       });
     }
   }
@@ -160,9 +168,7 @@ if (existsSync(judgedPath)) {
     judgeRecords++;
     const baseId = `judge:${rec.slug}:${rec.seed_id}:${rec.at}`;
     rec.criterion_results.forEach((c, i) => {
-      const id = `${baseId}:c${i}`;
-      if (knownIds.has(id)) return;
-      newRows.push({ id, key: EXECUTOR_KEY, agent: "sisyphus-junior", outcome: c && c.met === true ? "success" : "miss", at: rec.at || null, source: "judge", repo: null });
+      pushRow({ id: `${baseId}:c${i}`, key: EXECUTOR_KEY, agent: "sisyphus-junior", outcome: c && c.met === true ? "success" : "miss", at: rec.at || null, source: "judge", repo: null });
     });
   }
 }

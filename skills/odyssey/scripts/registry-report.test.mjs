@@ -151,6 +151,22 @@ console.log("registry-report.mjs — narrator trust registry (ISNAD R2)\n");
   } finally { rmSync(repo, { recursive: true, force: true }); rmSync(store, { recursive: true, force: true }); rmSync(evalDir, { recursive: true, force: true }); }
 }
 
+// --- (k) duplicate-slug state files: in-scan dedup (round-3 advisory) -------------
+{
+  const repo = makeRepo();
+  const store = mkdtempSync(join(tmpdir(), "zod-reg-store6-"));
+  try {
+    const st = { slug: "dupe", review: OKAY, consult: { history: [
+      { round: 1, at: "2026-08-17T14:00:00Z", verdict: "ACCEPT", gaps: [] }] } };
+    writeState(repo, "dupe", st);
+    writeState(repo, "dupe-copy", st); // same slug field, different file
+    const r = run([repo, "--json", "--store", store]);
+    check("(k) duplicate-slug state counted once within one scan",
+      r.code === 0 && JSON.parse(r.stdout).entries.find((e) => e.agent === "momus")?.n === 1,
+      `got ${r.stdout.slice(0, 200)}`);
+  } finally { rmSync(repo, { recursive: true, force: true }); rmSync(store, { recursive: true, force: true }); }
+}
+
 // --- (i) malformed state tolerated ------------------------------------------------
 {
   const repo = makeRepo();
