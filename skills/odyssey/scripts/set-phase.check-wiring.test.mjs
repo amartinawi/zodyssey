@@ -20,6 +20,14 @@
 // The paired direction (criterion 8): with only set-phase.mjs reverted, every invocation/
 // recording assertion below fails because no lane is ever written — the suite exits 1.
 //
+// Coverage note: this suite drives every transition through set-phase.mjs, so the SECOND
+// baseline-capture site — record-review.mjs's enteredExecute block, the entry a real run
+// actually takes into execute — is NOT asserted here. It is asserted in
+// pipeline-integration.test.mjs ("import-check baseline sha captured at execute entry"), the
+// one suite that drives a real record-review → execute path. Reverting record-review.mjs
+// leaves this file green; that assertion is what goes red. Don't conclude from this suite
+// alone that the baseline has one site.
+//
 // Run:  node set-phase.check-wiring.test.mjs   (exit 0 = pass, 1 = fail)
 
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync } from "node:fs";
