@@ -2,6 +2,16 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.3] — 2026-08-17
+
+### Fixed — the post-OKAY Edit-path containment escape
+
+`classifyTarget` returned `rel: ""` for any target outside both the run repo and `PROJECT_DIR`, so every post-OKAY guard hanging off `if (rel)` — the plan-sha tamper check, `Files:` containment, the fail-closed catch, the file lock — silently skipped and the edit fell through to the unconditional allow. The Bash twin's classifier already handled exactly this class, so an executor could edit `~/.zcode/cli/config.json`, `/etc/...`, or a sibling project via Edit while the identical write-capable Bash command was already blocked.
+
+Converged the twins: an outside-both-roots target now yields `rel: <absolute path>` with bookkeeping flags false, mirroring the Bash classifier's fall-through, and the existing `if (rel)` boundary then applies verbatim. A plan that literally declares the outside absolute path in `Files:` keeps working — exact-match containment. Paired probe, both directions, armed post-OKAY run: an Edit to an outside target was exit 0 on the prior build and is exit 2 (scope violation naming the target) on this one; the Bash twin, the declared/undeclared in-repo controls, and the no-run no-op are unchanged on both builds.
+
+**Known, not fixed:** Edit events with no resolvable target path still pass; a target exactly equal to the run repo or `PROJECT_DIR` still yields `rel: ""` on both twins (the tools reject directory targets themselves); the pre-existing new-file lexical fallback / symlink redirect and the unlocked state writes are untouched.
+
 ## [Unreleased]
 
 The ISNAD-engine adaptation (queue rows 17-20, `docs/impl/17`–`20`): four non-duplicate capabilities ported from a provenance/trust layer, chosen precisely because ZOdyssey already enforces the rest in stronger form.
