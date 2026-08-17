@@ -17,11 +17,11 @@ Item 01 (`4bc9dff`) closed the post-OKAY Edit-path containment escape. The Bash 
 closed. That leaves **exactly one tool class that can still write the enforcement surface from
 inside an approved run: a non-native tool, in practice a filesystem MCP.**
 
-The H3 guard at `skills/odyssey/hooks/pre-tool.mjs:1503` catches every tool the gate does not
+The H3 guard at `skills/odyssey/hooks/pre-tool.mjs:1538` catches every tool the gate does not
 natively classify, but — before this item — protected only two directories:
-`skills/odyssey/hooks/pre-tool.mjs:1549` built `protectedDirs` as the run's `.zcode/state` and
+`skills/odyssey/hooks/pre-tool.mjs:1584` built `protectedDirs` as the run's `.zcode/state` and
 `.zcode/reviews` alone. Its own header says so plainly
-(`skills/odyssey/hooks/pre-tool.mjs:1501-1502`): *"a targeted forge-surface guard, not a blanket
+(`skills/odyssey/hooks/pre-tool.mjs:1536-1537`): *"a targeted forge-surface guard, not a blanket
 MCP block."*
 
 That scope was defensible when Edit and Bash were the load-bearing paths. It is not anymore,
@@ -122,12 +122,12 @@ Nothing else. The docs under "Docs to update" belong to the release pass, not th
 - **Do not touch the Edit or Bash branches.** Item 01 closed the Edit path
   (`4bc9dff`); both are verified and out of scope here. This change lives entirely inside the
   `if (!isEdit && !isBash && !isDispatch)` block at
-  `skills/odyssey/hooks/pre-tool.mjs:1503`.
+  `skills/odyssey/hooks/pre-tool.mjs:1538`.
 - **Do not add a pattern to `WRITE_PATTERNS`.** Wrong file, wrong class.
 - **Do not widen `protectedDirs` by hard-coding an absolute path you guessed.** Self-relative for
   the install root; a named constant with a stated reason for the host registry.
 - Do not change the `strings` collector's depth or cap
-  (`skills/odyssey/hooks/pre-tool.mjs:1556-1557`) — that is a separate tuning question and
+  (`skills/odyssey/hooks/pre-tool.mjs:1591-1592`) — that is a separate tuning question and
   widening it here would conflate two changes.
 
 ### Constraints carried forward (Step 5, verbatim)
