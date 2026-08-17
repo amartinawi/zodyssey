@@ -274,6 +274,12 @@ repo — whole-root protection blocked every MCP write into it, declared files i
 declared scope. That is the isolation gap rather than the takeover gap, and closing it needs the
 harness to declare tool write-capability — the same class of dependency as the
 nonce-to-transcript binding.
+
+**Known, deliberate:** the boundary is `skills/odyssey/`, not `skills/`. Exactly one skill ships
+today, so they are equivalent — but a second skill added under `skills/` lands outside the
+enforcement set *by decision, not oversight*. When adding one, decide explicitly whether it
+belongs in the set; if it carries a prompt or a script the run trusts, the T4-4 principle says it
+does.
 ```
 
 ## Capability routing
