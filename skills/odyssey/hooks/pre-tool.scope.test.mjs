@@ -24,7 +24,7 @@
 //
 // Run:  node pre-tool.scope.test.mjs   (exit 0 = pass, 1 = fail)
 
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync, cpSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -149,9 +149,9 @@ console.log("pre-tool.mjs — scope prohibitions and the phase-3 staging path\n"
   // native twins, which left this branch the only unguarded writer to the enforcement surface —
   // the plugin install root, the host hook registry, and the run dirs. All three probe rows from
   // docs/impl/16-mcp-path-containment.md's paired probe, as assertions:
-  check("mcp__* tool writing the RUNNING HOOK is BLOCKED (install root, self-relative)",
+  check("mcp__* tool writing the RUNNING HOOK is BLOCKED (enforcement subtree, self-relative)",
     hook(repo, "mcp__fs__write_file", { path: HOOK }) === 2);
-  check("mcp__* tool writing a trusted script under scripts/ is BLOCKED (install root)",
+  check("mcp__* tool writing a trusted script under scripts/ is BLOCKED (enforcement subtree)",
     hook(repo, "mcp__fs__write_file", { path: join(HOOK, "..", "..", "scripts", "set-phase.mjs") }) === 2);
   check("mcp__* tool writing the host hook registry (~/.zcode/cli/config.json) is BLOCKED",
     hook(repo, "mcp__fs__write_file", { path: join(homedir(), ".zcode", "cli", "config.json") }) === 2);
@@ -196,6 +196,62 @@ console.log("pre-tool.mjs — scope prohibitions and the phase-3 staging path\n"
   check("an undeclared in-repo file is still blocked (control)", editUnrelated(repo) === 2);
   check("a plan that DECLARES the outside absolute path keeps it editable (exact-match semantics)",
     hook(repoWithScope("Edit the probe.", { files: [outside] }), "Edit", { file_path: outside }) === 0);
+}
+
+// --- impl/16 amendment: the dogfood topology — plugin root == run repo ----------------------
+//
+// The first cut of item 16 protected the whole plugin install root. In production (the plugin
+// cache) that root is disjoint from the user's repo — but in a dev checkout it IS the repo, so
+// every MCP write into the repo was blocked during an active run, DECLARED files and ordinary
+// docs included. No pre-existing fixture could catch it: every other fixture here runs the REAL
+// install's hook against a fresh mkdtemp PROJECT_DIR, so installRoot and PROJECT_DIR are
+// disjoint by construction. This fixture copies the plugin tree into the temp repo and runs the
+// COPY, making installRoot == PROJECT_DIR — the only topology where the boundary is observable.
+// The set is now drawn at the enforcement subtree (skills/odyssey, agents/, commands/,
+// .zcode-plugin/), so ordinary repo work inside the install root passes.
+{
+  const repo = realpathSync(mkdtempSync(join(tmpdir(), "zod-dogfood-")));
+  cleanup.push(repo);
+  const repoRoot = join(HOOK, "..", "..", "..", "..");
+  cpSync(join(repoRoot, "skills", "odyssey"), join(repo, "skills", "odyssey"), { recursive: true });
+  for (const d of ["agents", "commands", ".zcode-plugin"])
+    cpSync(join(repoRoot, d), join(repo, d), { recursive: true });
+  mkdirSync(join(repo, ".zcode", "state"), { recursive: true });
+  mkdirSync(join(repo, ".zcode", "plans"), { recursive: true });
+  mkdirSync(join(repo, "docs"), { recursive: true });
+  writeFileSync(join(repo, "docs", "guide.md"), "// declared\n");
+  const dogHook = join(repo, "skills", "odyssey", "hooks", "pre-tool.mjs");
+  const planPath = join(repo, ".zcode", "plans", "t.md");
+  const planText = "# t\n\n## Scope\n\nEdit `docs/guide.md`.\n\n## Todos\n\n- [ ] 1. go\n  - Files: [`docs/guide.md`]\n";
+  writeFileSync(planPath, planText);
+  writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify(stampMarker({
+    slug: "t", phase: "execute", updated_at: new Date().toISOString(), plan_path: planPath,
+    review: { verdict: "OKAY", round: 1, max_rounds: 3, plan_sha256: createHash("sha256").update(planText).digest("hex") },
+  }, "t"), null, 2));
+  const dog = (tool_name, tool_input) => spawnSync(process.execPath, [dogHook], {
+    input: JSON.stringify({ tool_name, tool_input }), encoding: "utf8",
+    env: { ...process.env, CLAUDE_PROJECT_DIR: repo, ZODYSSEY_UNGATE_BASH: "" },
+  }).status;
+  check("dogfood: MCP writing the hook copy is BLOCKED (enforcement subtree)",
+    dog("mcp__fs__write_file", { path: dogHook }) === 2);
+  check("dogfood: MCP writing a trusted script copy is BLOCKED",
+    dog("mcp__fs__write_file", { path: join(repo, "skills", "odyssey", "scripts", "set-phase.mjs") }) === 2);
+  check("dogfood: MCP writing the conductor SKILL.md is BLOCKED (prompts are enforcement)",
+    dog("mcp__fs__write_file", { path: join(repo, "skills", "odyssey", "SKILL.md") }) === 2);
+  check("dogfood: MCP writing the momus reviewer prompt is BLOCKED (verdict-shaping)",
+    dog("mcp__fs__write_file", { path: join(repo, "skills", "odyssey", "references", "momus-prompt.md") }) === 2);
+  check("dogfood: MCP writing an agent prompt is BLOCKED",
+    dog("mcp__fs__write_file", { path: join(repo, "agents", "metis.md") }) === 2);
+  check("dogfood: MCP writing a command definition is BLOCKED",
+    dog("mcp__fs__write_file", { path: join(repo, "commands", "orchestrate.md") }) === 2);
+  check("dogfood: MCP writing the plugin manifest is BLOCKED",
+    dog("mcp__fs__write_file", { path: join(repo, ".zcode-plugin", "plugin.json") }) === 2);
+  check("dogfood: MCP writing an ORDINARY doc inside the install root is ALLOWED (the regression fixed)",
+    dog("mcp__fs__write_file", { path: join(repo, "docs", "undeclared.md") }) === 0);
+  check("dogfood: MCP writing the DECLARED file inside the install root is ALLOWED",
+    dog("mcp__fs__write_file", { path: join(repo, "docs", "guide.md") }) === 0);
+  check("dogfood: a NEVER-SEEN tool name is BLOCKED on the enforcement subtree (reopening risk)",
+    dog("SomeFutureTool", { target: dogHook }) === 2);
 }
 
 for (const d of cleanup) { try { rmSync(d, { recursive: true, force: true }); } catch {} }

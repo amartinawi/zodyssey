@@ -1495,8 +1495,8 @@ if (isDispatch) {
 // SEC (audit H3): the gate natively classifies only Write/Edit/…/Bash/Task. Every OTHER tool —
 // all mcp__* tools and any unknown write-capable tool — otherwise reaches this exit(0) ungated. A
 // local-filesystem MCP could rewrite the gate itself, or forge a verdict, with NONE of the gates
-// firing. Protect the enforcement surface — a closed set — from any non-native tool: the running
-// plugin install root, the host hook registry, this run's .zcode/state and .zcode/reviews.
+// firing. Protect the enforcement surface — a closed set — from any non-native tool: the plugin's
+// enforcement subtree, the host hook registry, this run's .zcode/state and .zcode/reviews.
 // (Native Edit/Bash writes there are already gated by verdict+scope above; the trusted-writer
 // scripts reach these dirs only through the Bash allowlist. A read-only MCP that never names those
 // paths is unaffected — this is a targeted forge-surface guard, not a blanket MCP block.)
@@ -1511,14 +1511,34 @@ if (!isEdit && !isBash && !isDispatch) {
     // Item 16: the two run dirs below were the whole set until the Edit twin (item 01) and the
     // Bash twin closed — right when written (v0.4.1: Edit and Bash were the load-bearing
     // writers), the weak link once the neighbours were fixed. Complete the set to the full
-    // enforcement surface:
-    // The install root, self-relative exactly the way SCRIPTS_DIR is: this hook lives at
-    // <install-root>/skills/odyssey/hooks/, so the root that ships the hooks and the trusted
-    // scripts together is three levels above SCRIPTS_DIR — layout-independent by construction,
-    // and nothing inside the audited repo is trusted to derive it. (Computed here, beside its
-    // only use, rather than up beside SCRIPTS_DIR: same value, but a module-scope insertion
-    // would shift the ~50 pinned citations above this point for no functional gain.)
+    // enforcement surface.
+    // The install root is derived self-relative exactly the way SCRIPTS_DIR is: this hook lives
+    // at <install-root>/skills/odyssey/hooks/, so the root is three levels above SCRIPTS_DIR —
+    // layout-independent by construction, and nothing inside the audited repo is trusted to
+    // derive it. (Computed here, beside its only use, rather than up beside SCRIPTS_DIR: same
+    // value, but a module-scope insertion would shift the ~50 pinned citations above this
+    // point for no functional gain.)
+    // But the ROOT itself is not the boundary. In a dev checkout the plugin root IS the user's
+    // repo, and the first cut of this fix — protecting the whole root — blocked every MCP write
+    // into that repo, declared files and ordinary docs included: exactly the availability
+    // regression the closed-set design exists to avoid. No suite fixture could catch it (every
+    // fixture ran the real install's hook against a fresh mkdtemp PROJECT_DIR, so installRoot
+    // and PROJECT_DIR were disjoint by construction; the scope suite now ships a dogfood-
+    // topology fixture that runs a copy of the hook from inside the temp repo). Draw the
+    // boundary at the enforcement subtree instead:
+    //   · skills/odyssey/ — the conductor SKILL.md, hooks/, the trusted scripts, and
+    //     references/ (momus-prompt.md and auditor-prompt.md shape verdicts; prompts are
+    //     enforcement, the T4-4 principle). Nothing ordinary lives under it.
+    //   · agents/, commands/ — sub-agent prompts and slash-command definitions (T4-4 again).
+    //   · .zcode-plugin/ — the manifest that declares which hooks run at all.
+    // docs/, README.md, CHANGELOG.md and any user work inside a checkout stay ordinary.
     const installRoot = pathResolve(SCRIPTS_DIR, "..", "..", "..");
+    const enforcementDirs = [
+      join(installRoot, "skills", "odyssey"),
+      join(installRoot, "agents"),
+      join(installRoot, "commands"),
+      join(installRoot, ".zcode-plugin"),
+    ];
     // The host hook registry — the file the host reads to decide which hooks run at all. Not
     // derivable from this file's location (it belongs to the host, not the plugin), so it is a
     // named constant with the reason stated here. Precisely the file, not the ~/.zcode/cli
@@ -1529,7 +1549,7 @@ if (!isEdit && !isBash && !isDispatch) {
     const protectedDirs = [
       join(runRepo, ".zcode", "state"),
       join(runRepo, ".zcode", "reviews"),
-      installRoot,
+      ...enforcementDirs,
       HOST_HOOK_REGISTRY,
     ].filter(Boolean);
     const strings = [];
@@ -1547,8 +1567,8 @@ if (!isEdit && !isBash && !isDispatch) {
         // longer slips past. Relative strings resolve against the run's repo, not the caller's cwd.
         if (containedIn(pathResolve(runRepo, s), d)) {
           block(
-            `tool ${toolName} targets the enforcement surface (${s.slice(0, 120)}). The plugin ` +
-              `install, the host hook registry, and this run's .zcode/state + .zcode/reviews are ` +
+            `tool ${toolName} targets the enforcement surface (${s.slice(0, 120)}). The plugin's ` +
+              `enforcement dirs, the host hook registry, and this run's .zcode/state + .zcode/reviews are ` +
               `reserved for the trusted machinery — a ` +
               `${toolName.startsWith("mcp__") ? "MCP" : "non-native"} tool cannot write there from ` +
               `inside a run. (slug=${state.slug})`
