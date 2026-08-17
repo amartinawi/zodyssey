@@ -12,6 +12,18 @@ Converged the twins: an outside-both-roots target now yields `rel: <absolute pat
 
 **Known, not fixed:** Edit events with no resolvable target path still pass; a target exactly equal to the run repo or `PROJECT_DIR` still yields `rel: ""` on both twins (the tools reject directory targets themselves); the pre-existing new-file lexical fallback / symlink redirect and the unlocked state writes are untouched.
 
+## [0.5.4] — 2026-08-17
+
+### Fixed — the last tool that could still write the gate
+
+Item 01 closed the post-OKAY Edit-path containment escape; the Bash twin was already closed. That left one class: a non-native tool. The H3 guard protected the run's `.zcode/state` and `.zcode/reviews` — correct when it was written, and the weak link once its neighbours were fixed. Measured on one armed run: `Edit` and `Bash` to `~/.zcode/cli/config.json` both blocked, `mcp__fs__write_file` to the same path allowed; same split on the running hook itself.
+
+The protected set is now the enforcement subtree — `skills/odyssey/` (conductor prompt, hooks, trusted scripts, verdict-shaping references), `agents/`, `commands/`, the plugin manifest — anchored on an install root resolved from the running hook's own location the way the trusted-script allowlist already resolves `SCRIPTS_DIR`, plus the host hook registry and the two run-scoped directories. Declared-scope parity was rejected deliberately: the hook cannot tell a write from a read on a non-native tool, so parity would block every read-only MCP that names a path. The subtree, not the whole root, because in a dev checkout the install root IS the user's repo — whole-root protection blocked every MCP write into it, declared files included.
+
+**Known, not fixed:** a non-native tool can still write ordinary repo files outside the plan's declared scope. That is the isolation gap rather than the takeover gap, and closing it needs the harness to declare tool write-capability — the same class of dependency as the nonce-to-transcript binding.
+
+**Known, deliberate:** the boundary is `skills/odyssey/`, not `skills/`. Exactly one skill ships today, so they are equivalent — but a second skill added under `skills/` lands outside the enforcement set *by decision, not oversight*. When adding one, decide explicitly whether it belongs in the set; if it carries a prompt or a script the run trusts, the T4-4 principle says it does.
+
 ## [Unreleased]
 
 The ISNAD-engine adaptation (queue rows 17-20, `docs/impl/17`–`20`): four non-duplicate capabilities ported from a provenance/trust layer, chosen precisely because ZOdyssey already enforces the rest in stronger form.
