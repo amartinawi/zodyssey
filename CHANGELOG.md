@@ -24,6 +24,16 @@ The protected set is now the enforcement subtree — `skills/odyssey/` (conducto
 
 **Known, deliberate:** the boundary is `skills/odyssey/`, not `skills/`. Exactly one skill ships today, so they are equivalent — but a second skill added under `skills/` lands outside the enforcement set *by decision, not oversight*. When adding one, decide explicitly whether it belongs in the set; if it carries a prompt or a script the run trusts, the T4-4 principle says it does.
 
+## [0.5.5] — 2026-08-17
+
+### Fixed — nonce minting is restricted to the exact declared minter type per lane
+
+The review/F2/F4 nonce minters decided identity with a final-segment matcher built for routing, so any dispatch whose type merely ended in `momus`/`code-reviewer`/`oracle` (`evil:momus`, `someplugin:oracle`, `evil:code-reviewer`) minted a genuine, hook-witnessed nonce — and the credential chain then treated whatever artifact followed as reviewed. The gate-surface suite had asserted that lookalike mint as intended behaviour; this release flips those assertions (stated plainly: the suite was grading the hole as correct). Mechanism, in one clause: a lane-local allowlist of exact dispatch types at the mint site — `sameName`'s segment tolerance retained only for routing (the phase gate and F5 capability matching) — with the round-cap twin sharing the same set so the two sites cannot disagree on what counts as the reviewer. A lookalike still dispatches, because read-only routing tolerance grants no authority, but mints nothing and is named in a one-line stderr warning.
+
+Paired probe, both directions, active run: `evil:momus`, `someplugin:momus`, `evil:code-reviewer` and `someplugin:oracle` minted on the prior build (exit 0, nonce written) and mint nothing on this one (exit 0, warning only); the canonical controls — `zodyssey:momus`, bare `momus`, `code-reviewer`, `feature-dev:code-reviewer`, `zodyssey:oracle` — mint on both builds. The `capability-name.mjs` header now states the matcher is routing-grade only: an authority-bearing consumer must compare exact types at its own site.
+
+**Known, not fixed:** a lookalike `*:momus` dispatch is still allowed by design — every write the dispatched agent attempts remains scope- and verdict-gated; the orchestrator-adversary residual stands unchanged (the nonce binds a real dispatch, not what the reviewer returned); a new legitimate reviewer packaging now requires a one-line allowlist edit, surfaced loudly by the near-miss warning rather than silently at the final wave; the `agent_type`/`type` extractor fallback fields are unchanged and out of scope; and case variance narrows with the same stroke — a mixed-case dispatch (`ZODYSSEY:momus`) minted before via the matcher's lowercasing and now falls to the warning, fail-closed on the harness's lowercase dispatch behaviour.
+
 ## [Unreleased]
 
 The ISNAD-engine adaptation (queue rows 17-20, `docs/impl/17`–`20`): four non-duplicate capabilities ported from a provenance/trust layer, chosen precisely because ZOdyssey already enforces the rest in stronger form.
