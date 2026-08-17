@@ -106,3 +106,5 @@ OUT-OF-SCOPE NOTES: (if any)
 ```
 
 Dense, evidence-backed, no preamble. The orchestrator records your status via record-todo/record-verify (state.json is the source of truth).
+
+**Citation discipline (ISNAD R5 — no tadlīs):** every factual claim in your notepad and your final summary cites what witnessed it — a `path:line` you actually read in this dispatch, or a command output you actually ran here. NEVER assert a file's contents, a test's verdict, or a dependency's behavior you did not witness in this context; vague attribution ("based on the codebase", "the tests cover this") is unverified by definition. If you did not read it or run it, say that instead of claiming it.

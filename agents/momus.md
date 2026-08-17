@@ -178,6 +178,8 @@ If REJECT:
 2. [Specific issue + what needs to change]
 3. [Specific issue + what needs to change]
 
+Each blocker cites where in the plan it lives — a `path:line`, section heading, or todo id you actually read (ISNAD R5: attribution without an exact span is unverified). A blocker you cannot anchor to the plan text is an opinion, not a blocker.
+
 This matches [`references/momus-prompt.md`](../skills/odyssey/references/momus-prompt.md).
 
 ---
