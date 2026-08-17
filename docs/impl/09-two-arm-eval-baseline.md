@@ -14,9 +14,9 @@ Do exactly this one change.
 
 ## What is broken
 
-**The judge cannot label arms.** `skills/odyssey/scripts/judge.mjs:171` constructs every record
+**The judge cannot label arms.** `skills/odyssey/scripts/judge.mjs:176` constructs every record
 with the literal `arm: "zodyssey"`. The argv surface knows no arm flag at all —
-`skills/odyssey/scripts/judge.mjs:40-45` destructures `<run-repo> <slug> <seed-id>` plus
+`skills/odyssey/scripts/judge.mjs:41-46` destructures `<run-repo> <slug> <seed-id>` plus
 `jrest.includes("--double")`, and the usage line at `:42` documents only `[--double]`. So even a
 run that was in fact a baseline run is recorded as arm `"zodyssey"`. This is not hypothetical: the
 live corpus (~/.zcode/orchestration/eval/judged.jsonl, **5 records**, counted 2026-08-16) contains
@@ -51,16 +51,16 @@ Stated as observable behaviour, not as a diff.
 appends a record whose `arm` equals the `--arm` value; with no `--arm`, the record says
 `arm: "zodyssey"` — every existing invocation is bit-for-bit unchanged. `--arm` is a validated
 enum: any other value exits **2** (the script's existing "bad args" contract, `judge.mjs:15`).
-The arm NEVER enters the judged prompt: the scoring prompt built at `judge.mjs:101-135` contains
+The arm NEVER enters the judged prompt: the scoring prompt built at `judge.mjs:102-136` contains
 the criteria, the task prompt, and the diff — no arm — and must stay that way, so judging remains
 blind to which arm produced the work. The stamp is record bookkeeping only.
 
 **2. `harness.mjs --arm baseline` runs the seed end-to-end without orchestration.** The shared
 prefix — fresh fixture copy (`:95-97`), the SEC-M12 git baseline (`:103-113`), the scaffold
 (`:117-124`, which records `run_start_sha` at `skills/odyssey/scripts/scaffold.mjs:226,284` —
-this is what makes the run judgeable, `judge.mjs:61-64`) — is UNCHANGED and runs for BOTH arms.
+this is what makes the run judgeable, `judge.mjs:62-65`) — is UNCHANGED and runs for BOTH arms.
 Then, instead of printing instructions, the harness spawns **one** external CLI agent (the same
-binary `judge.mjs:141` already resolves: `env.CLAUDE_CLI || "claude"`), with cwd = the fresh copy,
+binary `judge.mjs:142` already resolves: `env.CLAUDE_CLI || "claude"`), with cwd = the fresh copy,
 input = the seed's `prompt` field verbatim (nothing else — the pipeline arm does not see the
 success_criteria either; `harness.mjs:120` scaffolds from `seed.prompt` only), a bounded timeout
 (one named constant; 60 minutes is a sound default — the corpus's longest real run measured 61.6
@@ -89,7 +89,7 @@ make a pre-fix `--dry-run` dangerous; strict arm validation is part of this chan
 **5. A comparison command reports per-seed two-arm deltas.**
 `node skills/odyssey/scripts/judge.mjs --compare` (read-only; it never appends) reads
 `judged.jsonl`, groups by the STAMPED `arm` field — no slug sniffing, and no
-everything-else→zodyssey default (`dashboard.mjs:49`'s fallback is the silent-bucket shape this
+everything-else→zodyssey default (`lib/arm.mjs:14`'s fallback is the silent-bucket shape this
 instrument must not replicate; an unknown arm value prints as its own group with a warning) — and
 prints, per seed, `{zodyssey, baseline, delta}` of the judge `overall`, plus per-arm means and n.
 A seed missing an arm is printed as such (that is data, not an error). Records whose slug suffix
@@ -107,9 +107,9 @@ authority. The two arms compare under the ONE existing judge.
 **7. Judge noise is bounded by design, and the caveat is carried honestly.** The spec's evidence
 (`docs/implementation-prompt.md:166-167`): LLM judges run 56.6–65.7% on hard pairs with a 61.3%
 flip rate under paraphrase. Neither arm's absolute score is meaningful at this corpus size; what
-the two-arm design buys is that the SAME judge, rubric (`judge.mjs:105-112`), criteria, and seeds
+the two-arm design buys is that the SAME judge, rubric (`judge.mjs:106-113`), criteria, and seeds
 score BOTH arms, so systematic judge error is shared and largely cancels in the DELTA.
-Per-record variance stays visible through the existing `--double` (`judge.mjs:45,160-168`;
+Per-record variance stays visible through the existing `--double` (`judge.mjs:46,161-169`;
 `docs/MEASUREMENT.md` §6.1: judge twice, flag disagreements > 0.15) — the settling run should use
 it. Per `docs/MEASUREMENT.md` §6.2 the result is directional, not statistically tight.
 
@@ -259,7 +259,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
 1. **Enumeration instead of structure.** The arm is a plumbed enum — argv → slug → stamped record —
    not a per-callsite label list; `--compare` groups by the stamped field with no catch-all
    default, so an unknown value surfaces instead of silently joining the treatment arm. The
-   rejected alternative (deriving arm from slug suffixes, as `dashboard.mjs:48-52` does) is
+   rejected alternative (deriving arm from slug suffixes, as `lib/arm.mjs:14-17` does) is
    sentinel matching — the exact shape `harness.mjs:53-55`'s own comment condemns.
 2. **A check that cannot detect the class of failure it exists for.** Criterion 4 proves the stamp
    assertions go red; case (f) proves a "dry-run" that writes anything fails; case (g) plus
@@ -344,7 +344,7 @@ The intended break: the baseline arm stops being a paragraph and starts costing 
 **A measurement that cannot see its control — an experiment with no baseline can only confirm.**
 The repo's core bet (enforced orchestration over a single capable agent,
 `docs/ideation-report.md:296`, falsifiable only by "this repo's own two-arm eval", `:325-327`)
-was structurally untestable: every judged record wore one label (`judge.mjs:171`) and the control
+was structurally untestable: every judged record wore one label (`judge.mjs:176`) and the control
 arm was documentation (`harness.mjs:19,128-132`). The class's observable damage: five judged
 records, zero comparisons possible, and a consumer reduced to slug sniffing (`dashboard.mjs:20`).
 
@@ -354,7 +354,7 @@ baked in; or a comparison that silently buckets unknown labels into the treatmen
 prevents it: (a) the arm is argv-plumbed end-to-end (argv → slug → stamped record) and the test
 asserts stamp == argv for EVERY declared enum value — extending the enum without plumbing fails
 the iteration; (b) `--compare` has no everything-else→zodyssey default (the shape
-`dashboard.mjs:49` got away with because it is a renderer, not the instrument) — an unknown arm
+`lib/arm.mjs:14` got away with because it is a renderer, not the instrument) — an unknown arm
 surfaces as its own warned group; (c) the mismatch warning cross-checks stamp against slug
 suffix, so a future hardcode appears as corpus warnings on the next compare; (d) criterion 8's
 tripwire fails the build if the `arm: "zodyssey"` object literal returns. Residual, named
@@ -446,3 +446,16 @@ lines of new test (`two-arm-eval.test.mjs`: hermetic `HOME` + `CLAUDE_CLI` stub,
 controls); ~30 lines of docs. **Minor release** — rides the v0.6 minor with non-security queue
 items, never with 01/03/04. Gates queue item 10 (prompt-surface measurement) the moment it lands:
 that item's first number becomes drawable once both arms are runnable and labeled.
+
+## Amendment — 2026-08-17, after the arm-derivation rider shipped
+
+The ISNAD-adaptation work (queue row 19, build step A0) shipped `skills/odyssey/scripts/lib/arm.mjs`
+and switched `judge.mjs` to `arm: armFromSlug(slug)` — the derivation this brief's build-time notes
+once listed as the *rejected* labeling alternative (`:262`) is now the shipped **default label
+source**, because it is deterministic, offline, and correct for the existing corpus (slug suffix is
+authoritative: `harness.mjs` constructs `${seed.id}-${arm}`). This brief's residual scope is
+unchanged where it matters: the **instrument** still needs the explicit `--arm` channel (an
+override the runner controls, not a suffix inference) and the **baseline arm automation**
+(`harness.mjs:19`) this item exists for. The mislabeling defect in the corpus ("every judged record
+wore one label", `:347`) is fixed for all *future* records; historical judged.jsonl rows stay as
+written.

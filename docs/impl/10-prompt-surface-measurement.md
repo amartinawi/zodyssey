@@ -10,7 +10,7 @@ measurement-class · minor release.
 > first paired data. Executable gate:
 > `grep -c '"arm":"baseline"' ~/.zcode/orchestration/eval/judged.jsonl` must return **≥ 1**. As this
 > prompt was written (2026-08-16, todo 15 of run `impl-prompts-v0-6`) it returns **0**: the arm
-> field is hardcoded to `"zodyssey"` (`skills/odyssey/scripts/judge.mjs:171`), so no record can
+> field is hardcoded to `"zodyssey"` (`skills/odyssey/scripts/judge.mjs:176`), so no record can
 > carry `arm:"baseline"` until 09's `--arm` instrument lands. Until then there is nothing to
 > measure, and the script you build here must refuse (exit 3). That refusal is correct behaviour,
 > not a bug — the failure mode it prevents is a measurement rendered over absent data.
@@ -42,10 +42,10 @@ nothing can say "this row has never earned its keep".
 against outcomes needs outcome *variance* — a delta between a guided run and an unguided one on the
 same task. Verified blocker chain (all re-derived 2026-08-16):
 
-1. `skills/odyssey/scripts/judge.mjs:171` writes `arm: "zodyssey"` hardcoded — it is the only `arm`
+1. `skills/odyssey/scripts/judge.mjs:176` writes `arm: "zodyssey"` hardcoded — it is the only `arm`
    occurrence in the file; no flag is parsed, so even a baseline run judged today is recorded as arm
    `"zodyssey"`. The judged record shape (`seed_id`, `slug`, `arm`, `overall`, `dimensions`,
-   `criterion_results` — `judge.mjs:170-177`) can hold the comparison, but the label is wrong.
+   `criterion_results` — `judge.mjs:171-182`) can hold the comparison, but the label is wrong.
 2. `skills/odyssey/scripts/harness.mjs:19` — the usage line still reads
    `--arm zodyssey|baseline … baseline = single-agent, no pipeline — TODO`; the baseline branch at
    `:128-135` prints manual instructions instead of automating the arm.
@@ -54,7 +54,7 @@ same task. Verified blocker chain (all re-derived 2026-08-16):
    `arch-01-baseline` 0.62, measured 2026-08-16). The field cannot express the comparison;
    `skills/odyssey/scripts/dashboard.mjs:20` already concedes this ("the `arm` field on judged
    records is unreliable (all emit 'zodyssey')") and works around it with a slug-suffix heuristic
-   (`dashboard.mjs:48`) — display-only, and exactly the crutch a measurement must not lean on.
+   (`lib/arm.mjs:14`) — display-only, and exactly the crutch a measurement must not lean on.
 
 The witnessed-activity substrate the measurement joins against also exists but is not yet populated
 in the eval runs: run state records hook-witnessed capability loads
@@ -74,7 +74,7 @@ closed.
 
 Stated as observable behaviour, not as a diff. One new operator-run script,
 `skills/odyssey/scripts/prompt-surface.mjs` (usage `prompt-surface.mjs [eval-dir] [repo-root]`,
-defaults matching `dashboard.mjs:28-29`: eval-dir `~/.zcode/orchestration/eval`, repo-root `cwd`):
+defaults matching `dashboard.mjs:29-30`: eval-dir `~/.zcode/orchestration/eval`, repo-root `cwd`):
 
 1. **It refuses to run without 09's data — fail closed.** It reads `judged.jsonl` from the eval dir
    and requires **≥ 1 paired seed**: a `seed_id` with at least one record whose **`arm` field** is
@@ -102,7 +102,7 @@ defaults matching `dashboard.mjs:28-29`: eval-dir `~/.zcode/orchestration/eval`,
    - `contradicted` — same witness count AND mean delta ≤ **−0.15**;
    - `unmeasured` — everything else: below `MIN_N`, never witnessed, delta inside the noise band,
      or the state substrate absent/empty (today's `capabilities: []` case).
-   The 0.15 threshold is not invented: it is `judge.mjs:165`'s own double-judge disagreement flag —
+   The 0.15 threshold is not invented: it is `judge.mjs:166`'s own double-judge disagreement flag —
    a delta smaller than judge-to-judge noise cannot be called load-bearing. `MIN_N` and the
    threshold are named constants printed in the report header, not buried.
 4. **The report prints one aggregate pipeline line plus the tagged table, to stdout only.**
@@ -142,7 +142,7 @@ update" belong to the release pass, not the gated run.
   witnessed activity, compare deltas. The only LLM in this pipeline is 09's judge, whose scores
   this script *consumes* — **no LLM opinion layer** is added on top.
 - **Do not fall back to slug-suffix arm derivation** when the `arm` field is absent or uniformly
-  `"zodyssey"`. `dashboard.mjs:48`'s heuristic is display-only; keying measurement on it is
+  `"zodyssey"`. `lib/arm.mjs:14`'s heuristic is display-only; keying measurement on it is
   measurement from a mislabeled comparison — the exact failure the precondition exists to refuse.
   Fail closed (exit 3) instead.
 - **Do not match capabilities by last-segment tolerance** ("any `*:prometheus` matches the
@@ -255,7 +255,7 @@ Both directions, stated. The "broken build" for a new script is its absence:
   with no `arm:"baseline"` record. **Broken build: exit 1 (module not found). Fixed build:
   exit 3, stderr carries `two-arm` + `09-two-arm-eval-baseline`, stdout empty.** Against the *live*
   eval dir the refusal is today the universal case — 5 records, all `arm:"zodyssey"`
-  (measured 2026-08-16; `judge.mjs:171` hardcodes the field) — so this probe doubles as the
+  (measured 2026-08-16; `judge.mjs:176` hardcodes the field) — so this probe doubles as the
   demonstration that the script refuses on real absent data, not only on synthetic emptiness.
 - **Probe B — the tagged report over paired data.** Hermetic fixture (criterion 6's exact tree):
   one paired seed, one witnessed agent capability. **Broken build: exit 1. Fixed build: exit 0**,
@@ -314,7 +314,7 @@ Every doc that states the claim this change alters, each checked against the 202
 
 - `docs/MEASUREMENT.md` — add the prompt-surface metric: the per-status counts, the unmeasured
   fraction as the headline, the canonical commands (`prompt-surface.mjs [eval-dir] [repo-root]`,
-  exit contract), the thresholds (`MIN_N = 3`, delta ±0.15 anchored to `judge.mjs:165`'s judge-noise
+  exit contract), the thresholds (`MIN_N = 3`, delta ±0.15 anchored to `judge.mjs:166`'s judge-noise
   flag), and the precondition (requires `arm:"baseline"` records — i.e. 09 landed).
 - `skills/odyssey/references/scripts.md` — new entry for `prompt-surface.mjs`: signature, exit
   contract **0/2/3**, and the explicit divergence from `dashboard.mjs`'s exit-0-on-empty convention

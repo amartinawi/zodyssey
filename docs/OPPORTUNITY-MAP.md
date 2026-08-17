@@ -70,7 +70,7 @@ Reproduction script: Appendix C.
 `REPLACE_WITH` sentinel match was replaced with `existsSync`, and the runner now exits 4 when every
 seed skips.
 
-`judge.mjs:171` does hardcode `arm: "zodyssey"`, and the damage is visible in the data
+`judge.mjs:176` hardcoded `arm: "zodyssey"` (**fixed 2026-08-17**: now derives from the slug suffix via `lib/arm.mjs`), and the damage was visible in the data
 (`slug: "std-01-baseline", arm: "zodyssey"`). But `dashboard.mjs:20` states the field is unreliable
 and derives the arm from the slug suffix instead. **The arm bug is a data-hygiene defect, not the
 Phase C blocker.**

@@ -23,6 +23,7 @@ import { argv, exit, env } from "node:process";
 import { execFileSync, spawnSync } from "node:child_process";
 import { redactSecrets, isSecretPath } from "./lib/redact.mjs";
 import { isFatalSpawnError } from "./lib/spawn.mjs";
+import { armFromSlug } from "./lib/arm.mjs";
 
 // PERF (memory fix 3b): rolling cap for the cross-run eval ledgers (see set-phase.mjs for twin).
 function capJsonl(path, max) {
@@ -168,7 +169,11 @@ if (doubleJudge) {
 }
 
 const record = {
-  seed_id: seedId, slug, arm: "zodyssey", at: new Date().toISOString(),
+  // audit LOW + ISNAD study: derive the arm from the slug suffix (harness.mjs constructs
+  // `${seed.id}-${arm}`) instead of hardcoding "zodyssey" — baseline runs were landing in
+  // judged.jsonl mislabeled, and cross-run consumers (dashboard, the narrator registry) either
+  // re-derived it anyway or ingested the lie.
+  seed_id: seedId, slug, arm: armFromSlug(slug), at: new Date().toISOString(),
   overall: finalOverall,
   dimensions: verdict.dimensions || {},
   criterion_results: Array.isArray(verdict.criterion_results) ? verdict.criterion_results : [],

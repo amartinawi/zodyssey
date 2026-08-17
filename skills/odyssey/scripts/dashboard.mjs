@@ -24,6 +24,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit, env } from "node:process";
+import { armFromSlug } from "./lib/arm.mjs";
 
 const DEFAULT_EVAL_DIR = join(env.HOME || "", ".zcode", "orchestration", "eval");
 const evalDir = argv[2] ? argv[2] : DEFAULT_EVAL_DIR;
@@ -45,11 +46,8 @@ function readJsonl(path) {
   return out;
 }
 
-function armFromSlug(slug) {
-  // -baseline suffix → baseline arm; everything else (incl. -zodyssey) → zodyssey arm.
-  if (typeof slug !== "string") return "zodyssey";
-  return slug.endsWith("-baseline") ? "baseline" : "zodyssey";
-}
+// armFromSlug moved to ./lib/arm.mjs (shared with judge.mjs and the narrator trust registry);
+// see the file-header note at :20 for why the slug suffix is the authoritative arm source.
 
 function seedFromSlug(slug) {
   // strip the trailing -<arm> token to recover the seed id
