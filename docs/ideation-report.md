@@ -42,7 +42,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
   changed files" is an instruction to a model, the only invocation path (notepad 1, rows b-B9-1/2/3);
   `skills/odyssey/scripts/check-imports.mjs:1-23` + `CHANGELOG.md:414` (shipped v0.3.2, offline
   import resolution, exit 9 on unresolved); the wiring pattern is proven in-repo by B8:
-  `skills/odyssey/scripts/set-phase.mjs:208` auto-invokes the regression gate at the execute
+  `skills/odyssey/scripts/set-phase.mjs:339` auto-invokes the regression gate at the execute
   transition and nothing depends on prose for it. **no published outcome evidence** exists for
   "check invocation as phase transition" as a mechanism (notepad 3: harness-layer scoring models are
   absent from the fetched literature entirely).
@@ -263,7 +263,7 @@ The repo ran a natural experiment on convention vs enforcement and convention lo
 `check-imports.mjs` shipped v0.3.2 with a passing test and zero code callers (its only invocation
 is the prose at `skills/odyssey/references/scripts.md:45`); token telemetry populated 1 of 177
 records; `compact.mjs` is opt-in and unwired. Meanwhile the one check that IS wired as a
-transition — the B8 regression gate, auto-invoked at `skills/odyssey/scripts/set-phase.mjs:208`
+transition — the B8 regression gate, auto-invoked at `skills/odyssey/scripts/set-phase.mjs:339`
 and blocking `done` on regression — holds and accumulated tests. Generalize the B8 pattern to every
 shipped check: `check-imports` at verify→final, compaction before final-wave dispatch, token
 collection at run close; unsupported repos degrade to a recorded `inert`, never a block.
@@ -395,13 +395,13 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 
 | CLAIM | VERDICT | file:line | one-line evidence |
 |---|---|---|---|
-| (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:151-154); hook gates at pre-tool.mjs:798,1086 |
+| (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:278-281); hook gates at pre-tool.mjs:798,1086 |
 | (a2) Non-forgeable verdicts via nonce chain | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1366-1392; skills/odyssey/scripts/record-review.mjs:113-124,130-141 | hook mints one-time nonce; record-review refuses verdicts whose nonce is not bound to artifact path+sha256+round; plan-sha mandatory |
 | (a3) Authenticated run discovery (HMAC) | CONFIRMED | skills/odyssey/scripts/lib/state-auth.mjs:26,65; skills/odyssey/hooks/lib/find-run.mjs:21 | createHmac over run identity; dropped/copied state files are inert |
 | (a4) Bash/Edit write gate with declared-file scope | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:954,1085-1086 | write-capable Bash requires OKAY + declared Files:; Edit path same at :788 (boundary behavior of the Edit path — see Reconciliation M1) |
 | (a5) Append-only notepads (hook-enforced) | CONFIRMED — enforced by PRE-TOOL | skills/odyssey/hooks/pre-tool.mjs:759-767 | Write on existing `.zcode/notepads/*` blocked: "notepads are APPEND-ONLY" |
 | (a6) Test-integrity guard | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:131,253-256 | SKIP_MARKER regex + `git diff --numstat` flags deleted/net-weakened test files |
-| (a7) Pass-to-pass regression gate | CONFIRMED | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:208 | auto-snapshot entering execute; exit 8 on pass→fail; done blocked while regressed |
+| (a7) Pass-to-pass regression gate | CONFIRMED | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:339 | auto-snapshot entering execute; exit 8 on pass→fail; done blocked while regressed |
 | (a8) F1–F5 incl. behavioural capability cross-check | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:86,468-481,500-503; skills/odyssey/hooks/post-tool.mjs:148-168 | F5 cross-checks declared `routed:` tokens against hook-witnessed state.capabilities[] |
 | (a9) Segment-tolerant capability matching | CONFIRMED | skills/odyssey/scripts/lib/capability-name.mjs:13; skills/odyssey/scripts/record-final-wave.mjs:61 | exact match wins, else final name segment — bare matches namespaced and vice versa |
 | (a10) Real token accounting from the session DB | CONFIRMED — at skills/odyssey/scripts/lib/tokens.mjs, reading ~/.zcode/cli/db/db.sqlite | skills/odyssey/scripts/lib/tokens.mjs:35,66,83-92; skills/odyssey/scripts/run-report.mjs:18,90 | node:sqlite read-only; SQL over model_usage JOIN session by repo+time-window; attribution honestly "estimate" |
@@ -423,7 +423,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B5) Test files read-only at hook layer | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:789,1200-1204 | Edit path "test files are read-only during phase=…"; Bash path "test files are FROZEN" |
 | (b-B6) Criteria must invoke toolchain.test_cmd | CONFIRMED shipped (conditional) | skills/odyssey/scripts/parse-plan.mjs:370-373 | enforced only when .zcode/toolchain.json declares one (bare repo exempt) |
 | (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:313-327; skills/odyssey/scripts/pipeline-integration.test.mjs:93 | scaffold invokes it at run start; integration test asserts the wiring |
-| (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:208 | auto-snapshot entering execute; done blocked on regression |
+| (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:339 | auto-snapshot entering execute; done blocked on regression |
 | (b-B9-3) Phase B item B9 shipped | CONFIRMED shipped as standalone script, NOT phase-wired | CHANGELOG.md:414; skills/odyssey/references/scripts.md:45 | shipped v0.3.2; pipeline presence is prompt-convention only |
 | (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:60-88 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |
 | (c-F) Shell-escaping splits command tokens | CONFIRMED | CHANGELOG.md:23; skills/odyssey/hooks/pre-tool.mjs:184,249-272 | `p\ython -c`, `py''thon -c` defeat regex tokenization; no shell-grammar parser |

@@ -52,7 +52,7 @@ Because paths are non-deterministic, we judge the **end state**, not the sequenc
 >   It runs inside `record-final-wave.mjs`, on the path to `done`.
 > - **`regression-gate.mjs`** (pass-to-pass) — **half-wired; the gate has never fired.** The earlier
 >   wording here said "enforced at `done`", which was wrong. `--snapshot` is invoked automatically
->   (`set-phase.mjs:208`, `record-review.mjs:265`), but `--check` — the only writer of
+>   (`set-phase.mjs:339`, `record-review.mjs:295`), but `--check` — the only writer of
 >   `status: "regressed"`, the field `set-phase.mjs:131` refuses `done` on — has **zero code
 >   callers**. The baseline is taken; the comparison never runs; the refusal reads a field nothing
 >   populates.

@@ -320,7 +320,7 @@ no recorded before-state, so it cannot distinguish what the run did from what it
 This repo has already closed two twins and treats the shape as known: the pass-to-pass
 regression gate snapshots the suite at `phase→execute` because that is "the last moment before
 any product code changes… the only point a truthful 'before' reading exists"
-(`skills/odyssey/scripts/set-phase.mjs:199-204`), and its design rule is exactly this change's
+(`skills/odyssey/scripts/set-phase.mjs:326-331`), and its design rule is exactly this change's
 rule — "baseline already failing → recorded, never fails the gate"
 (`skills/odyssey/scripts/regression-gate.mjs:15-21`); `coverage-delta.mjs` derives its tool
 from the same toolchain file and reports a delta, never a raw number

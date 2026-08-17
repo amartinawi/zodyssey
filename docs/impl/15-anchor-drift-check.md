@@ -82,7 +82,7 @@ dialects in live use:
 | `SKILL.md:354` | `skills/odyssey/SKILL.md` |
 | `trusted-invoke.test.mjs:105` | `skills/odyssey/hooks/pre-tool.trusted-invoke.test.mjs` (basename suffix match) |
 | `.zcode-plugin/plugin.json:44` | itself — **leading dot; a naive `[A-Za-z]`-anchored regex drops it** |
-| `pre-tool.mjs:817`, `set-phase.mjs:208` | `skills/odyssey/hooks/`, `skills/odyssey/scripts/` |
+| `pre-tool.mjs:817`, `set-phase.mjs:339` | `skills/odyssey/hooks/`, `skills/odyssey/scripts/` |
 
 Resolution order must be deterministic and **ambiguity must fail, not guess** — if a bare basename
 matches two files, that is a citation defect to report, not a coin flip. A false positive here is

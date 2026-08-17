@@ -12,9 +12,9 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 ## What is broken
 
 **The wiring already exists and, since one specific moment, works.** When a run reaches
-`done|audited`, `skills/odyssey/scripts/set-phase.mjs:217-226` auto-appends a run-report record to
+`done|audited`, `skills/odyssey/scripts/set-phase.mjs:430-439` auto-appends a run-report record to
 `~/.zcode/orchestration/eval/results.jsonl` by executing run-report from the **plugin cache**
-(`skills/odyssey/scripts/set-phase.mjs:220-224` — `fileURLToPath(new URL("./run-report.mjs",
+(`skills/odyssey/scripts/set-phase.mjs:433-437` — `fileURLToPath(new URL("./run-report.mjs",
 import.meta.url))`, with the in-code comment "so it is found from the plugin cache install").
 `skills/odyssey/scripts/run-report.mjs:90` calls `collectRunTokens`, which reads ZCode's durable
 telemetry — the SQLite DB at `~/.zcode/cli/db/db.sqlite` (`skills/odyssey/scripts/lib/tokens.mjs:35`,
@@ -154,7 +154,7 @@ docs listed under "Docs to update" belong to the release pass, not the gated run
   reproducible.
 - Do not make telemetry failure fail anything: run-report's exit contract
   (`skills/odyssey/scripts/run-report.mjs:13` — 0 ok, 2 bad args, 3 state missing) is unchanged,
-  and the auto-append's best-effort guarantee (`set-phase.mjs:216`, verified untouched) stands.
+  and the auto-append's best-effort guarantee (`set-phase.mjs:426`, verified untouched) stands.
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — every verification
   in this change is an exit code or a grep.
 
@@ -272,7 +272,7 @@ Three probes, each with both directions stated:
   record whose `tokens` is populated or inert-with-reason (criterion 8 asserts the shape on the
   live report). **Before: bare null whenever the source is absent; no reason anywhere.**
   **After: never bare null.** Cache lesson carried from the natural experiment: the auto-append
-  executes the CACHED run-report (`set-phase.mjs:220-224`), so the end-to-end direction is only
+  executes the CACHED run-report (`set-phase.mjs:433-437`), so the end-to-end direction is only
   observable after the release is re-Got/Updated into the plugin cache — a fix that stays only in
   the dev tree populates nothing (that is precisely why 116 records have no field).
 
@@ -360,7 +360,7 @@ ship it without unrelated riders so the cache-refresh effect is attributable).
     except that the record now says which mode it used.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   **re-Get/Update the plugin so the marketplace cache picks up the scripts** — the auto-append
-  runs the CACHED run-report (`set-phase.mjs:220-224`), and the `truncate-roundto` pair (null at
+  runs the CACHED run-report (`set-phase.mjs:433-437`), and the `truncate-roundto` pair (null at
   16:17Z, populated at 19:36Z, cache refresh 18:39Z) is the standing proof that a fix which stays
   in the dev tree populates nothing.
 

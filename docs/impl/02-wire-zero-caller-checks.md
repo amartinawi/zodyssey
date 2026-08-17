@@ -35,7 +35,7 @@ Every remaining reference is doc prose: `check-imports` at
 The failure mode is **ceremony without mechanism**, in the repo's own words.
 `skills/odyssey/references/scripts.md:45` ends: "Run it during verify on the run's changed
 files." — an imperative addressed to the conductor. The repo's B8 comment explains why that is not
-enforcement: `skills/odyssey/scripts/set-phase.mjs:203-205` — "Wired here rather than as a SKILL.md
+enforcement: `skills/odyssey/scripts/set-phase.mjs:330-332` — "Wired here rather than as a SKILL.md
 instruction on purpose: an instruction to a conductor is the prompt-convention 'enforcement' this
 project exists to replace." v0.3.2 shipped these as "the three gates `MEASUREMENT.md` promised and
 never had" (`CHANGELOG.md:411`) — and shipped them unwired:
@@ -53,7 +53,7 @@ broken; the pipeline is deaf to it.
 
 One finer-grained fact from this run's census, which both ideation documents missed and which sets
 the design bar for this change: **the wiring precedent itself is half-wired.**
-`skills/odyssey/scripts/set-phase.mjs:208` invokes only `regression-gate.mjs --snapshot`;
+`skills/odyssey/scripts/set-phase.mjs:339` invokes only `regression-gate.mjs --snapshot`;
 `regression-gate.mjs --check` — the only writer of `status: "regressed"`
 (`skills/odyssey/scripts/regression-gate.mjs:179`) — has **no code caller either**, and
 `skills/odyssey/SKILL.md` never mentions it (its only regression mention is the env var at
@@ -68,11 +68,11 @@ Stated as observable behaviour, not as a diff. All new state fields are OPTIONAL
 `st.imports`, `st.coverage`, `st.capabilities` — read via `|| {}`); runs created before this change
 load and transition unchanged.
 
-**1. Entering `execute`** (in the B8 block at `skills/odyssey/scripts/set-phase.mjs:206-211`):
+**1. Entering `execute`** (in the B8 block at `skills/odyssey/scripts/set-phase.mjs:334-342`):
 record the current `git rev-parse HEAD` as the run's baseline sha in state. A non-git repo records
 `null`. This is the "before" marker the import check diffs against — mirroring how
 `regression-gate --snapshot` at the same moment defines "before" for the suite
-(`skills/odyssey/scripts/set-phase.mjs:199-201`).
+(`skills/odyssey/scripts/set-phase.mjs:326-328`).
 
 **2. Entering `verify`**: `set-phase.mjs` invokes
 `check-imports.mjs <repo> --since <baseline_sha>` and records `state.imports = { status,
@@ -83,7 +83,7 @@ exit_code, findings, at }`:
 | exit 9 (findings; manifest present) | `unresolved` + finding list | **`done` refuses** — new clause in `checkPrecondition`, mirroring the regression consumer at `skills/odyssey/scripts/set-phase.mjs:131-135` |
 | exit 0 (manifest present) | `clean` | none |
 | repo capability absent — no git work-tree, or no `package.json` AND no Python manifest | `inert` (recorded without invoking, or from the empty result) | none — **never a block** |
-| anything else (timeout, crash, exit 2) | `inert` + reason | none — B8's own posture: a check that cannot run degrades (`skills/odyssey/scripts/set-phase.mjs:210`) |
+| anything else (timeout, crash, exit 2) | `inert` + reason | none — B8's own posture: a check that cannot run degrades (`skills/odyssey/scripts/set-phase.mjs:341`) |
 
 Recovery from `unresolved`: fix the import or declare the dependency, then re-enter verify
 (`verify → execute → verify` is legal, `TRANSITIONS` at `skills/odyssey/scripts/set-phase.mjs:91`)
@@ -121,7 +121,7 @@ repo-capability check degrades to a recorded `inert`, never to a block"):
 
 Mechanism notes, secondary to the behaviour: invoke via `execFileSync` with a hard timeout (~60s)
 AFTER the phase write and OUTSIDE the state lock (the B8 shape at
-`skills/odyssey/scripts/set-phase.mjs:206-211`; note `LOCK_STALE_MS` is 60s at `:56` — do not hold
+`skills/odyssey/scripts/set-phase.mjs:334-342`; note `LOCK_STALE_MS` is 60s at `:56` — do not hold
 the lock across a scan); record each lane with the same atomic tmp+rename write the file already
 uses. The three check scripts themselves are **untouched** — the wiring consumes their existing
 exit codes and stdout.
@@ -151,7 +151,7 @@ to the release pass, not the gated run — do not widen the set to include them 
 - Do not touch `skills/odyssey/hooks/pre-tool.mjs` or any hook. F5 consuming
   `capabilities.lock.json` is a separate change; this one only records.
 - Do not extend `--force` beyond `blocked`/`abandoned` (SEC-3,
-  `skills/odyssey/scripts/set-phase.mjs:167`). There is deliberately no flag that skips an
+  `skills/odyssey/scripts/set-phase.mjs:295`). There is deliberately no flag that skips an
   `unresolved` imports record — the recovery is fixing the import, not argv.
 - Do not wire `regression-gate.mjs --check` in this change, tempting as it is given the finding
   above — it is named under *Known, not fixed* and is a natural follow-up using this change's
@@ -301,7 +301,7 @@ documented with an imperative sentence addressed to a conductor
 (`skills/odyssey/references/scripts.md:45`) that no mechanism ever executed. The class has a
 finer-grained member this run found: a check wired on ONE side only — invoke without consumer, or
 consumer without invoke (`regression-gate.mjs --snapshot` is wired at
-`skills/odyssey/scripts/set-phase.mjs:208`; `--check`, the only writer of the `regressed` status
+`skills/odyssey/scripts/set-phase.mjs:339`; `--check`, the only writer of the `regressed` status
 the `done` gate consumes at `:131`, is convention-only,
 `skills/odyssey/scripts/regression-gate.mjs:179`).
 
@@ -359,7 +359,7 @@ this change is not security-class; it may share the v0.6 minor with other non-se
   cites its probes, not just its diffs.
 - **Known, not fixed** — name them; the next audit should not have to find them:
   - `regression-gate.mjs --check` has no code caller: the snapshot is wired
-    (`skills/odyssey/scripts/set-phase.mjs:208`) but the comparison — the only writer of the
+    (`skills/odyssey/scripts/set-phase.mjs:339`) but the comparison — the only writer of the
     `regressed` status the `done` gate consumes (`skills/odyssey/scripts/regression-gate.mjs:179`,
     consumer at `set-phase.mjs:131`) — is invoked by prose convention only
     (`references/scripts.md:44`). Deliberately out of this change; wiring it is a follow-up using

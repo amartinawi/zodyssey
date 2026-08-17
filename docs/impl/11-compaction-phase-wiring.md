@@ -60,7 +60,7 @@ adding a second — the assertion is the same `phase === "final"`). It invokes
 | Aggregate non-empty lines across source notepads > N | `_compact-brief.md` is (re)written; the brief path is printed (existing `compact.mjs:108`, via `stdio: "inherit"`); transition exits 0 |
 | Aggregate ≤ N | **Inert**: exit 0, no brief written, nothing deleted, one line printed saying below-threshold |
 | `ZODYSSEY_NO_AUTO_COMPACT=1` in the environment | Wiring skipped entirely — no invocation, no brief |
-| No notepad dir / any compact failure or timeout | Best-effort: a warning line on stderr, transition still exits 0 (the B8/CRIT-4a posture at `set-phase.mjs:210`, `:228`) |
+| No notepad dir / any compact failure or timeout | Best-effort: a warning line on stderr, transition still exits 0 (the B8/CRIT-4a posture at `set-phase.mjs:341`, `:441`) |
 
 The threshold unit is **aggregate non-empty lines across source notepads** — line count, not token
 count, because that is compact.mjs's own deterministic unit (`compact.mjs:30-31`, the same
@@ -92,7 +92,7 @@ refusal, no state lane. Context economy that could block a transition would be o
 new failure of the class this change exists to remove.
 
 Mechanism notes, secondary to the behaviour: invoke via `execFileSync` with a hard timeout (~10s —
-a directory walk, not a suite run; contrast B8's 15min at `set-phase.mjs:208-209`) AFTER the phase
+a directory walk, not a suite run; contrast B8's 15min at `set-phase.mjs:339-340`) AFTER the phase
 write and OUTSIDE the state lock (the B8 shape; the lock is released in the `finally` at
 `:197-199`); policy (threshold constant, opt-out env var) lives in `set-phase.mjs`, keeping
 `compact.mjs` policy-free.
@@ -242,7 +242,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
    every run of the suite.
 3. **Ceremony without mechanism.** This is the change's own subject: a "MAY run" sentence
    addressed to a conductor (`SKILL.md:157`) becomes a transition invoke with a printed signal —
-   the exact transformation the repo's B8 comment prescribes (`set-phase.mjs:203-205`).
+   the exact transformation the repo's B8 comment prescribes (`set-phase.mjs:330-332`).
 4. **Self-grading.** Every criterion is machine-executed with a recorded exit code; the paired
    probe runs against both builds. Nobody grades prose.
 5. **A fix that reopens its own class.** Covered in "The class it closes" — the dangerous

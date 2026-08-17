@@ -323,7 +323,7 @@ session can observe the prune except by `du`.
 ## The class it closes
 
 **Unbounded accumulation of derived state with no GC** — the disk twin of the metrics-corpus
-defect prompt 05 closes (`skills/odyssey/scripts/set-phase.mjs:226` appends every run
+defect prompt 05 closes (`skills/odyssey/scripts/set-phase.mjs:439` appends every run
 unconditionally; the cache appends every release unconditionally). Both are shared mutable state
 that only grows, invisible to every check that reads the current entry and never the siblings.
 
