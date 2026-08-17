@@ -19,7 +19,7 @@ inside an approved run: a non-native tool, in practice a filesystem MCP.**
 
 The H3 guard at `skills/odyssey/hooks/pre-tool.mjs:1503` catches every tool the gate does not
 natively classify, but — before this item — protected only two directories:
-`skills/odyssey/hooks/pre-tool.mjs:1529` built `protectedDirs` as the run's `.zcode/state` and
+`skills/odyssey/hooks/pre-tool.mjs:1549` built `protectedDirs` as the run's `.zcode/state` and
 `.zcode/reviews` alone. Its own header says so plainly
 (`skills/odyssey/hooks/pre-tool.mjs:1501-1502`): *"a targeted forge-surface guard, not a blanket
 MCP block."*
@@ -48,9 +48,28 @@ by changing tool a second time. This is the "one path but not its twin" class
 Stated as observable behaviour, not as a diff.
 
 A non-native tool naming a path inside **the enforcement surface** is blocked, in every phase,
-exactly as Edit and Bash are. The enforcement surface is a closed set: the running plugin install
-root (the hooks and trusted scripts that decide everything else), the host hook registry, and the
-two run-scoped directories H3 already protects.
+exactly as Edit and Bash are. The enforcement surface is a closed set: the plugin's enforcement
+subtree — `skills/odyssey/` (the conductor SKILL.md, the hooks, the trusted scripts, and the
+verdict-shaping `references/`), `agents/`, `commands/`, `.zcode-plugin/` — the host hook registry,
+and the two run-scoped directories H3 already protects.
+
+### Amendment — the install root was too coarse (2026-08-17)
+
+The first implementation protected the whole install root, and that regressed the one topology no
+fixture could see: a dev checkout, where the plugin root IS the user's repo. Measured on an armed
+run in this repo, every MCP write into the repo exited 2 — an ordinary undeclared doc and the
+plan's own DECLARED file included. The suite was blind to it by construction: every fixture runs
+the real install's hook against a fresh mkdtemp project dir, so installRoot and PROJECT_DIR are
+always disjoint. `pre-tool.scope.test.mjs` now ships a dogfood-topology fixture that copies the
+plugin tree into the temp repo and runs the copy, making the two coincide — the only topology
+where the boundary is observable.
+
+The boundary is now the enforcement subtree. `skills/odyssey/` is folded whole rather than as
+`hooks/` + `scripts/`: the conductor SKILL.md and `references/momus-prompt.md` /
+`auditor-prompt.md` are prompts, and prompts are enforcement (the T4-4 principle) — leaving them
+outside the set would have kept a verdict-shaping write open via MCP in every install, not just
+dogfood ones. The install root remains the derivation anchor (self-relative, below) but not the
+protected set; `docs/`, `README.md` and `CHANGELOG.md` inside a checkout stay ordinary.
 
 Every other MCP call is unaffected. A read-only MCP naming an ordinary repo path still passes —
 `skills/odyssey/hooks/pre-tool.scope.test.mjs:144` asserts exactly that today and must keep
@@ -108,7 +127,7 @@ Nothing else. The docs under "Docs to update" belong to the release pass, not th
 - **Do not widen `protectedDirs` by hard-coding an absolute path you guessed.** Self-relative for
   the install root; a named constant with a stated reason for the host registry.
 - Do not change the `strings` collector's depth or cap
-  (`skills/odyssey/hooks/pre-tool.mjs:1536-1537`) — that is a separate tuning question and
+  (`skills/odyssey/hooks/pre-tool.mjs:1556-1557`) — that is a separate tuning question and
   widening it here would conflate two changes.
 
 ### Constraints carried forward (Step 5, verbatim)
@@ -193,9 +212,9 @@ broken the gate's twin-parity in the other direction.
 
 ## What it breaks
 
-- **A filesystem MCP can no longer write the plugin install directory.** That is the point. If an
-  operator legitimately updates the plugin, they do it outside an active run — the hook is a no-op
-  then — or through the installer.
+- **A filesystem MCP can no longer write the plugin's enforcement subtree.** That is the point.
+  If an operator legitimately updates the plugin, they do it outside an active run — the hook is
+  a no-op then — or through the installer.
 - **Nothing else.** Ordinary MCP calls, read-only servers, and every native path are untouched.
   This narrows one branch of one guard.
 - **Not covered, and stated rather than hidden:** a non-native tool can still write ordinary repo
@@ -242,11 +261,14 @@ That left one class: a non-native tool. The H3 guard protected the run's `.zcode
 fixed. Measured on one armed run: `Edit` and `Bash` to `~/.zcode/cli/config.json` both blocked,
 `mcp__fs__write_file` to the same path allowed; same split on the running hook itself.
 
-The protected set is now the enforcement surface — the plugin install root, resolved from the
-running hook's own location the way the trusted-script allowlist already resolves `SCRIPTS_DIR`,
-plus the host hook registry and the two run-scoped directories. Declared-scope parity was
-rejected deliberately: the hook cannot tell a write from a read on a non-native tool, so parity
-would block every read-only MCP that names a path.
+The protected set is now the enforcement subtree — `skills/odyssey/` (conductor prompt, hooks,
+trusted scripts, verdict-shaping references), `agents/`, `commands/`, the plugin manifest —
+anchored on an install root resolved from the running hook's own location the way the
+trusted-script allowlist already resolves `SCRIPTS_DIR`, plus the host hook registry and the two
+run-scoped directories. Declared-scope parity was rejected deliberately: the hook cannot tell a
+write from a read on a non-native tool, so parity would block every read-only MCP that names a
+path. The subtree, not the whole root, because in a dev checkout the install root IS the user's
+repo — whole-root protection blocked every MCP write into it, declared files included.
 
 **Known, not fixed:** a non-native tool can still write ordinary repo files outside the plan's
 declared scope. That is the isolation gap rather than the takeover gap, and closing it needs the
