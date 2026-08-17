@@ -25,7 +25,7 @@
 // Run:  node pre-tool.scope.test.mjs   (exit 0 = pass, 1 = fail)
 
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -145,6 +145,29 @@ console.log("pre-tool.mjs — scope prohibitions and the phase-3 staging path\n"
     hook(repo, "mcp__fs__write_file", { path: join(repo, "src", "text.js") }) === 0);
   check("mcp__* read-shaped call with no path is ALLOWED",
     hook(repo, "mcp__codegraph__explore", { query: "how does auth work" }) === 0);
+  // Item 16: the two run dirs above were the whole protected set until items 01/Bash closed the
+  // native twins, which left this branch the only unguarded writer to the enforcement surface —
+  // the plugin install root, the host hook registry, and the run dirs. All three probe rows from
+  // docs/impl/16-mcp-path-containment.md's paired probe, as assertions:
+  check("mcp__* tool writing the RUNNING HOOK is BLOCKED (install root, self-relative)",
+    hook(repo, "mcp__fs__write_file", { path: HOOK }) === 2);
+  check("mcp__* tool writing a trusted script under scripts/ is BLOCKED (install root)",
+    hook(repo, "mcp__fs__write_file", { path: join(HOOK, "..", "..", "scripts", "set-phase.mjs") }) === 2);
+  check("mcp__* tool writing the host hook registry (~/.zcode/cli/config.json) is BLOCKED",
+    hook(repo, "mcp__fs__write_file", { path: join(homedir(), ".zcode", "cli", "config.json") }) === 2);
+  // A tool name the gate has never seen must hit the same wall — a fourth native tool arriving
+  // later must not reopen this class the way the third one (MCP) had.
+  check("a NEVER-SEEN tool name is BLOCKED on the enforcement surface (reopening risk)",
+    hook(repo, "SomeFutureTool", { target: HOOK }) === 2);
+  // The closed-set tradeoff, pinned: the hook cannot tell a read from a write on a non-native
+  // tool, so naming the enforcement surface blocks regardless of intent — while naming anything
+  // else (the two ALLOWED checks above) passes regardless of intent.
+  check("read-shaped mcp__* naming the enforcement surface is BLOCKED (cannot tell read from write)",
+    hook(repo, "mcp__fs__read_file", { path: HOOK }) === 2);
+  // The registry is protected as the precise FILE, not the ~/.zcode/cli directory: session
+  // transcripts and rollout logs share the directory and must stay unaffected.
+  check("a non-registry sibling under ~/.zcode/cli stays ALLOWED (file, not the directory)",
+    hook(repo, "mcp__fs__write_file", { path: join(homedir(), ".zcode", "cli", "rollout", "s.jsonl") }) === 0);
 }
 
 // --- impl/01: the Edit-path containment escape — targets outside BOTH roots ------------

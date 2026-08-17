@@ -1494,9 +1494,9 @@ if (isDispatch) {
 
 // SEC (audit H3): the gate natively classifies only Write/Edit/…/Bash/Task. Every OTHER tool —
 // all mcp__* tools and any unknown write-capable tool — otherwise reaches this exit(0) ungated. A
-// local-filesystem MCP could write state.json or drop a .zcode/reviews/ artifact and forge a
-// verdict with NONE of the gates firing. Protect the two trust-critical dirs from any non-native
-// tool: if the tool input references a path under this run's .zcode/state or .zcode/reviews, block.
+// local-filesystem MCP could rewrite the gate itself, or forge a verdict, with NONE of the gates
+// firing. Protect the enforcement surface — a closed set — from any non-native tool: the running
+// plugin install root, the host hook registry, this run's .zcode/state and .zcode/reviews.
 // (Native Edit/Bash writes there are already gated by verdict+scope above; the trusted-writer
 // scripts reach these dirs only through the Bash allowlist. A read-only MCP that never names those
 // paths is unaffected — this is a targeted forge-surface guard, not a blanket MCP block.)
@@ -1508,7 +1508,30 @@ if (!isEdit && !isBash && !isDispatch) {
     // symlinked path (or one an MCP server resolves against its own cwd) walked straight past.
     // containedIn normalizes both sides.
     const runRepo = resolvePath(pathResolve(RUN_STATE_DIR, "..", ".."));
-    const protectedDirs = [join(runRepo, ".zcode", "state"), join(runRepo, ".zcode", "reviews")];
+    // Item 16: the two run dirs below were the whole set until the Edit twin (item 01) and the
+    // Bash twin closed — right when written (v0.4.1: Edit and Bash were the load-bearing
+    // writers), the weak link once the neighbours were fixed. Complete the set to the full
+    // enforcement surface:
+    // The install root, self-relative exactly the way SCRIPTS_DIR is: this hook lives at
+    // <install-root>/skills/odyssey/hooks/, so the root that ships the hooks and the trusted
+    // scripts together is three levels above SCRIPTS_DIR — layout-independent by construction,
+    // and nothing inside the audited repo is trusted to derive it. (Computed here, beside its
+    // only use, rather than up beside SCRIPTS_DIR: same value, but a module-scope insertion
+    // would shift the ~50 pinned citations above this point for no functional gain.)
+    const installRoot = pathResolve(SCRIPTS_DIR, "..", "..", "..");
+    // The host hook registry — the file the host reads to decide which hooks run at all. Not
+    // derivable from this file's location (it belongs to the host, not the plugin), so it is a
+    // named constant with the reason stated here. Precisely the file, not the ~/.zcode/cli
+    // directory: session transcripts, rollout logs, and the plugin caches share that directory
+    // and must stay unaffected. env.HOME follows the repo's existing idiom; no HOME means no
+    // registry to protect, and the empty string is filtered out below.
+    const HOST_HOOK_REGISTRY = env.HOME ? join(env.HOME, ".zcode", "cli", "config.json") : "";
+    const protectedDirs = [
+      join(runRepo, ".zcode", "state"),
+      join(runRepo, ".zcode", "reviews"),
+      installRoot,
+      HOST_HOOK_REGISTRY,
+    ].filter(Boolean);
     const strings = [];
     (function collect(v, depth) {
       if (depth > 4 || v == null || strings.length > 200) return;
@@ -1524,10 +1547,11 @@ if (!isEdit && !isBash && !isDispatch) {
         // longer slips past. Relative strings resolve against the run's repo, not the caller's cwd.
         if (containedIn(pathResolve(runRepo, s), d)) {
           block(
-            `tool ${toolName} targets a trust-critical path (${s.slice(0, 120)}). Writes under ` +
-              `.zcode/state and .zcode/reviews are reserved for the trusted-writer scripts — a ` +
-              `${toolName.startsWith("mcp__") ? "MCP" : "non-native"} tool cannot place a verdict, nonce, ` +
-              `or review artifact there. (slug=${state.slug})`
+            `tool ${toolName} targets the enforcement surface (${s.slice(0, 120)}). The plugin ` +
+              `install, the host hook registry, and this run's .zcode/state + .zcode/reviews are ` +
+              `reserved for the trusted machinery — a ` +
+              `${toolName.startsWith("mcp__") ? "MCP" : "non-native"} tool cannot write there from ` +
+              `inside a run. (slug=${state.slug})`
           );
         }
       }
