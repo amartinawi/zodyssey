@@ -23,7 +23,7 @@ post-review, in-scope or not — exits 0 past the verdict gate, the SEC-4 plan-s
 the per-target scope check, and nothing anywhere records that it happened. The affordance is
 deliberate and documented: the hook's own comment (`skills/odyssey/hooks/pre-tool.mjs:984-987`,
 "POWER-USER ESCAPE HATCH"), the installer's AGENTS.md template written into every user's repo at
-`scripts/install.mjs:881` ("set \`ZODYSSEY_UNGATE_BASH=1\` to disable if you trust your agents"),
+`scripts/install.mjs:883` ("set \`ZODYSSEY_UNGATE_BASH=1\` to disable if you trust your agents"),
 the env table at `docs/INSTALL.md:152`, and the README comparison row at `README.md:121`. It
 originated as the author's personal low-friction setup (`CHANGELOG.md:614`).
 
@@ -62,7 +62,7 @@ ungated call**.
   ambient presence shipping as a deleted gate. An operator who never sets it gains nothing from
   its existence; an operator who sets it accidentally loses everything.
 - *For recording (and against retiring):* retirement breaks a legitimate, documented, four-anchor
-  affordance (`scripts/install.mjs:881`, `docs/INSTALL.md:152`, `README.md:121`,
+  affordance (`scripts/install.mjs:883`, `docs/INSTALL.md:152`, `README.md:121`,
   `skills/odyssey/hooks/pre-tool.mjs:984-987`) whose explicit contract is low-friction operation
   for operators who "trust your agents" — a real use case this repo's own author is. And the
   deletion history is causal evidence **against** removal, not for it: the gate was deleted twice
@@ -336,16 +336,16 @@ say "silently", which was exactly the problem), each checked against the 2026-08
 - `docs/INSTALL.md:152` — env-table row: extend the tradeoff sentence to state that every ungated
   call is recorded in `.zcode/state/<slug>.ungated.jsonl` and surfaced as `ungated_bash_calls` on
   the run report. This is the table an operator reads before setting the variable.
-- `skills/odyssey/SKILL.md:383-389` — the "Environment overrides (documented)" list omits
+- `skills/odyssey/SKILL.md:384-390` — the "Environment overrides (documented)" list omits
   `ZODYSSEY_UNGATE_BASH` entirely today; add the row with the recording semantics so the conductor
-  prompt matches the installer's AGENTS.md template (`scripts/install.mjs:881`).
+  prompt matches the installer's AGENTS.md template (`scripts/install.mjs:883`).
 - `docs/DESIGN.md:261` — §6 hook table, Bash write-gate row: the row currently does not mention the
   hatch at all; add that the documented escape hatch exists and is recorded per-call.
 - `README.md:121` — comparison-table row: "…Secure by default; `ZODYSSEY_UNGATE_BASH=1` disables"
   gains "(every ungated call is recorded in run state)".
 - `skills/odyssey/references/scripts.md:35` — `run-report.mjs` entry: name the
   `ungated_bash_calls` field alongside `success`.
-- `scripts/install.mjs:881` — the AGENTS.md template string still advertises the var without the
+- `scripts/install.mjs:883` — the AGENTS.md template string still advertises the var without the
   recording fact. **Outside this change's declared `Files:`** — the fix-run cannot edit it under
   the scope gate. Correct it in the release pass (and re-run the installer so the user-scope
   AGENTS.md copies refresh), or name it in *Known, not fixed*.
@@ -380,7 +380,7 @@ security change per release, shipped alone** — the repo rule, with its precede
     hatch.
   - Bash calls with the variable set but **no active run** remain unrecorded (the hook is a no-op
     without a run; there is no run state to audit into).
-  - `scripts/install.mjs:881`'s AGENTS.md template text mentions the hatch without the recording
+  - `scripts/install.mjs:883`'s AGENTS.md template text mentions the hatch without the recording
     fact — release-pass edit; user-scope copies refresh on installer re-run.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   re-Get/Update the plugin so the marketplace cache picks up the hook — a fix that stays only in

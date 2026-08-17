@@ -22,7 +22,9 @@
 //      rename every tool the conductor references by its bare name.
 //   5. AGENTS.md  — merge the ZODYSSEY orchestration block into ~/.zcode/AGENTS.md.
 //   6. EVAL DIR   — init ~/.zcode/orchestration/eval/ (seed + .gitkeep).
-//   7. SUPERPOWERS — detect the optional superpowers plugin; print a hint if missing.
+//   7. REGISTRY   — init ~/.zcode/orchestration/registry/ (.gitkeep) for the narrator
+//      trust registry ledger (registry-report.mjs creates it on demand too).
+//   8. SUPERPOWERS — detect the optional superpowers plugin; print a hint if missing.
 //
 // Usage:
 //   node scripts/install.mjs                      # run all steps (default)
@@ -936,6 +938,17 @@ function initEvalDir() {
   if (!existsSync(gitkeep)) writeFileSync(gitkeep, "");
 }
 
+// ---------- orchestration/registry init (narrator trust ledger) ----------
+
+function initRegistryDir() {
+  const registryDir = join(ZCODE_DIR, "orchestration", "registry");
+  log(`init registry dir: ${registryDir}`);
+  if (DRY) return;
+  mkdirSync(registryDir, { recursive: true });
+  const gitkeep = join(registryDir, ".gitkeep");
+  if (!existsSync(gitkeep)) writeFileSync(gitkeep, "");
+}
+
 // ============================================================
 // --uninstall
 // ============================================================
@@ -1005,6 +1018,7 @@ function main() {
   registerMCPs();
   mergeAgentsMd();
   initEvalDir();
+  initRegistryDir();
   detectSuperpowers();
 
   printSummary();

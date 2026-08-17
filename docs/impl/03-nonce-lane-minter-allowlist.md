@@ -13,7 +13,7 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 ## What is broken (pre-fix — closed by this item, 2026-08-17)
 
 The review nonce — the one-time credential that makes an OKAY verdict non-forgeable
-(`skills/odyssey/SKILL.md:379`: "the nonce only exists after a real `Task(zodyssey:momus)` call the
+(`skills/odyssey/SKILL.md:380`: "the nonce only exists after a real `Task(zodyssey:momus)` call the
 hook witnessed") — is minted for **any dispatch whose agent name merely ends in `momus`**, not just
 for `zodyssey:momus`. The lane decides identity with a routing-grade matcher:
 
@@ -260,7 +260,7 @@ over-blocked or over-tightened.
 
 Legitimate non-zodyssey momus-named agents: **none exist to break.** `momus` is ZOdyssey's own
 reviewer, defined in this repo (`agents/momus.md`), dispatched as `zodyssey:momus`
-(`skills/odyssey/SKILL.md:375`, `skills/odyssey/references/scripts.md:55`). The only
+(`skills/odyssey/SKILL.md:376`, `skills/odyssey/references/scripts.md:56`). The only
 "legitimate third-party momus" instances in the tree are the Class C fixtures that assert the
 tolerance itself — this change flips them deliberately. No agent loses the ability to be
 *dispatched*; a lookalike loses only a credential it should never have had, and it is told so on
@@ -309,10 +309,10 @@ nonce"), each checked against the 2026-08-16 tree:
 - `README.md:123` — comparison-table row "Review verdicts are read, not assumed": extend the
   ZOdyssey cell to state the nonce is minted only for the exact declared minter type, never for a
   lookalike namespace.
-- `skills/odyssey/SKILL.md:375-381` — the review-gate chain description: the sentence "the nonce
+- `skills/odyssey/SKILL.md:376-382` — the review-gate chain description: the sentence "the nonce
   only exists after a real `Task(zodyssey:momus)` call the hook witnessed" becomes enforced by
   exact type; add the minter-allowlist fact and the lookalike warning.
-- `skills/odyssey/references/scripts.md:55-66` — review-lane walkthrough, step 1: state that only
+- `skills/odyssey/references/scripts.md:56-67` — review-lane walkthrough, step 1: state that only
   the exact `subagent_type` mints and that a lookalike dispatch warns and mints nothing.
 
 A fix that leaves any of these asserting the old behaviour has created the next doc-code drift.
@@ -335,7 +335,7 @@ NOT batch queue items 01 or 04 into this release even though all three touch
 - **Known, not fixed** — name them; the next audit should not have to find them:
   - A lookalike `*:momus` dispatch is still ALLOWED by design — read-only routing tolerance grants
     no authority; every write the dispatched agent attempts remains scope- and verdict-gated.
-  - The orchestrator-adversary residual stands unchanged (`skills/odyssey/SKILL.md:381`: the nonce
+  - The orchestrator-adversary residual stands unchanged (`skills/odyssey/SKILL.md:382`: the nonce
     binds a real dispatch, not what the reviewer returned).
   - A new legitimate reviewer packaging now requires a one-line allowlist edit, surfaced loudly by
     the near-miss warning rather than silently at the final wave.

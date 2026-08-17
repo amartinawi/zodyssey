@@ -79,7 +79,7 @@ dialects in live use:
 | `skills/odyssey/references/scripts.md:45` | itself (repo-root-relative) |
 | `references/scripts.md:45` | `skills/odyssey/references/scripts.md` |
 | `scripts.md:45`, `capabilities.md:10` | `skills/odyssey/references/` |
-| `SKILL.md:354` | `skills/odyssey/SKILL.md` |
+| `SKILL.md:355` | `skills/odyssey/SKILL.md` |
 | `trusted-invoke.test.mjs:105` | `skills/odyssey/hooks/pre-tool.trusted-invoke.test.mjs` (basename suffix match) |
 | `.zcode-plugin/plugin.json:44` | itself — **leading dot; a naive `[A-Za-z]`-anchored regex drops it** |
 | `pre-tool.mjs:817`, `set-phase.mjs:339` | `skills/odyssey/hooks/`, `skills/odyssey/scripts/` |

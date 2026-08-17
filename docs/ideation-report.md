@@ -103,7 +103,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
   recency-ordered lists.
 - **Evidence:** `skills/odyssey/scripts/compact.mjs` header — "OPT-IN … not wired into any phase
   transition or hook" — with `:37` (`MAX_LINES_PER_NOTEPAD = 40`, truncation to the first 40
-  non-empty lines); `skills/odyssey/SKILL.md:394` (memory-MCP knowledge graph written "at end of
+  non-empty lines); `skills/odyssey/SKILL.md:395` (memory-MCP knowledge graph written "at end of
   run" by instruction, nothing in code verifies the write); `skills/odyssey/scripts/
   recall-corrections.mjs:2-25` + `recall-outcomes.mjs:2-9` (top-K=5, recency-ranked); the only
   code-enforced property in the layer is negative — append-only notepads
@@ -179,7 +179,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 - **Claim:** five stale plugin versions accumulate in the marketplace cache with no pruning.
 - **Evidence:** `~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/` — 6 dirs on disk (0.3.2,
   0.4.0, 0.4.1, 0.5.0, 0.5.1 stale; 0.5.2 live, all three manifests agree); `scripts/install.mjs`
-  contains no pruning, only a stale-cache warning at `install.mjs:684` (notepad 1, row c-cache).
+  contains no pruning, only a stale-cache warning at `install.mjs:686` (notepad 1, row c-cache).
   **no published outcome evidence** — trivially internal.
 - **Cost:** low-medium (the safety logic matters: never touch the live/registered version;
   marketplace rollback semantics must survive).
@@ -213,14 +213,14 @@ evidence for that verdict:
    opt-in, "not wired into any phase transition or hook," and reduces each notepad to its first
    40 non-empty lines. No context-pressure trigger, no summarization: the layer's most advanced
    feature is unwired truncation.
-2. `skills/odyssey/SKILL.md:394` — the canonical cross-run store (memory-MCP knowledge graph)
+2. `skills/odyssey/SKILL.md:395` — the canonical cross-run store (memory-MCP knowledge graph)
    is sustained purely by end-of-run prompt convention; no hook, script, or gate verifies the
    write occurred. Contrast `skills/odyssey/hooks/pre-tool.mjs:748-766`, which enforces notepads
    append-only: the only code-enforced property in this layer is a negative one (don't destroy),
    never a retrieval one.
 3. `skills/odyssey/scripts/recall-corrections.mjs:2-25` + `recall-outcomes.mjs:2-9` — the entire
    retrieval surface over past runs is two recency-ordered structured lists capped at top-K=5;
-   in-run handoff is "downstream todos read prior notepads by path" (`skills/odyssey/SKILL.md:208`)
+   in-run handoff is "downstream todos read prior notepads by path" (`skills/odyssey/SKILL.md:209`)
    — pointers the orchestrator must already know. No relevance search over notepad or outcome
    content exists anywhere in the tree.
 
@@ -307,7 +307,7 @@ Supporting argument (from notepad 4, grounded in notepads 1–3):
 - **The repo's own history is a natural experiment on the bet.** Every mechanism left to prompt
   convention measurably failed to fire: `check-imports.mjs` has zero code callers since v0.3.2
   (`skills/odyssey/references/scripts.md:45`); the canonical cross-run memory store is verified by
-  nothing (`skills/odyssey/SKILL.md:394`); token telemetry populated 1 of 177 records; `compact.mjs`
+  nothing (`skills/odyssey/SKILL.md:395`); token telemetry populated 1 of 177 records; `compact.mjs`
   is opt-in and unwired. Everything enforced in code — append-only notepads, review gate,
   regression gate — held and accumulated tests. Inside this codebase the question is already
   answered.
@@ -431,7 +431,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:25; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
 | (c-head-allowlist) Head-allowlist inversion unshipped | CONFIRMED | CHANGELOG.md:27; skills/odyssey/hooks/pre-tool.mjs:100-199 | "deliberately **not** in this release: it wants its own release and its own paired run"; code remains a deny-list |
 | (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:56; skills/odyssey/hooks/pre-tool.mjs:1402 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
-| (c-cache) Five stale cache versions, no pruning | CONFIRMED (5 stale + 1 live) | ~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/ (6 dirs); package.json:3; scripts/install.mjs:684 | 0.3.2–0.5.1 stale, 0.5.2 live; install.mjs only warns, never prunes |
+| (c-cache) Five stale cache versions, no pruning | CONFIRMED (5 stale + 1 live) | ~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/ (6 dirs); package.json:3; scripts/install.mjs:686 | 0.3.2–0.5.1 stale, 0.5.2 live; install.mjs only warns, never prunes |
 
 **Phase B scorecard (code-derived):** B1–B9 shipped (B9 standalone-only — its invocation is
 convention); B10 unshipped. The brief's "validated gaps" section is therefore wrong on B9 (already
@@ -479,7 +479,7 @@ settled by code, never by preference or seniority.
 5. **Phase B scorecard** (map §0.5 ≡ notepad 1 rows b-B1..b-B10-2): B1–B9 shipped (B9
    standalone-only), B10 unshipped — identical tables.
 6. **Context/memory weakest** (map §1.1 ≡ §2): both argue it from `compact.mjs`'s unwired
-   truncation, the convention-only memory store (`SKILL.md:394`), and the recency-list retrieval
+   truncation, the convention-only memory store (`SKILL.md:395`), and the recency-list retrieval
    surface; the repo's own `outcomes.jsonl` corpus is 8 lines, nearly all contentless template
    entries (re-checked this run).
 7. **Observability not thin** (map §1.2 "not thin" ≡ notepad 2 MEDIUM): both disconfirm the
@@ -491,7 +491,7 @@ settled by code, never by preference or seniority.
 9. **§5 steelman convergence** (map §5 ≡ §5 above): both identify enumeration-as-intrinsic-shape,
    permanent maintenance cost, and unreplicated evidence as the core attack; both settling designs
    count gate-relevant violations/failures as a primary observable.
-10. **Cache pruning residual** (map item #13 ≡ §1 entry 8): 5 stale versions, `install.mjs:684`
+10. **Cache pruning residual** (map item #13 ≡ §1 entry 8): 5 stale versions, `install.mjs:686`
     warns but never prunes.
 
 ### Divergences (settled by code)
@@ -563,7 +563,7 @@ closing this (~5 lines, converging the Edit path with its Bash twin) would compe
 
 **M2 — `ZODYSSEY_UNGATE_BASH` escape hatch (map item #6). Verified.**
 `skills/odyssey/hooks/pre-tool.mjs:988` — `if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1")
-exit(0);` — one environment variable disables the entire Bash gate, and `scripts/install.mjs:881`
+exit(0);` — one environment variable disables the entire Bash gate, and `scripts/install.mjs:883`
 advertises it in every user's AGENTS.md. The map's causal note (mirroring the author's local
 UNGATE copy is how v0.1.1 shipped the gate deleted) is consistent with the twice-deleted history
 both documents share. Making the hatch loud (record every ungated call into run state) is

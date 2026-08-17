@@ -92,6 +92,7 @@ Because sub-agents cannot load skills (trust anchor), **the orchestrator loads t
         │    (search_nodes for this repo + intent keywords).  │
         │    `recall-outcomes.mjs <repo>` — blocked/failed runs│
         │    `recall-corrections.mjs <repo>` — correction sigs.│
+        │    `registry-report.mjs <repo>` — narrator trust.    │
         │    Then hand zodyssey:metis: request + repo root +   │
         │    memories. She returns intent, risks, questions,   │
         │    directives. If she lists user-questions, surface  │

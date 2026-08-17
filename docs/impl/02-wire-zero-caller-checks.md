@@ -15,7 +15,7 @@ number): grep for each script's name across `skills/`, `scripts/`, `agents/`, `c
 (`*.mjs`, `*.bash`), excluding the script itself and its `.test.mjs` → **zero hits for all three**.
 Every remaining reference is doc prose: `check-imports` at
 `skills/odyssey/references/scripts.md:45`, `docs/MEASUREMENT.md:50`, `README.md:129`;
-`resolve-capabilities` at `skills/odyssey/SKILL.md:377`,
+`resolve-capabilities` at `skills/odyssey/SKILL.md:378`,
 `skills/odyssey/references/capabilities.md:106`,
 `skills/odyssey/references/scripts.md:48`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
 `docs/DESIGN.md:418`; `coverage-delta` at `CHANGELOG.md:579` only (it has no
@@ -328,7 +328,7 @@ checked against the 2026-08-16 tree:
 - `skills/odyssey/references/scripts.md` — **add** the missing `coverage-delta.mjs` entry (it has
   none today; the check is about to be wired before it is documented, which would be a fresh
   doc-code drift in the making).
-- `skills/odyssey/SKILL.md:371-377` — the transition one-liners: entering `verify` / entering
+- `skills/odyssey/SKILL.md:372-378` — the transition one-liners: entering `verify` / entering
   `final` note that the checks fire automatically (a conductor sentence that no longer needs to
   exist is the win; keep them to one clause each). `:377`'s diagnostics mention of
   `resolve-capabilities` stays true — manual invocation remains possible.

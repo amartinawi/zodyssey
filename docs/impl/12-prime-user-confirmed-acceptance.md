@@ -23,7 +23,7 @@ party independent of the model — never confirms them.** The chain, anchored:
   model-derived. The user's only touchpoints in the whole pipeline are: the ambiguity ritual at
   PRIME ("· ambiguities → ask the user (max 3, then commit)" at `skills/odyssey/SKILL.md:74`;
   "ask the user FIRST and WAIT" at `:76-77`), metis's user-questions at consult
-  (`skills/odyssey/SKILL.md:97`, `:356`), and the momus-loop safety rail (`:273`). **None of these
+  (`skills/odyssey/SKILL.md:98`, `:356`), and the momus-loop safety rail (`:273`). **None of these
   confirms the criteria themselves** — ambiguities are about what was asked, not about what will
   count as done.
 - The criteria that actually gate execution are authored later, by prometheus, into the plan the
@@ -86,7 +86,7 @@ qualitative, vague, or absent → **no round** — the trigger fails and the flo
 **2. Recording — a stamped state, not a memory.** The conductor passes the round's outcome to the
 scaffold when it creates the run: `scripts/scaffold.mjs <repo> <slug> <title> <intent> [task-brief]
 --criteria-state confirmed|adjusted|skipped` (the invocation the conductor already makes, at
-`skills/odyssey/SKILL.md:373`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
+`skills/odyssey/SKILL.md:374`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
 writes for the primed brief (`skills/odyssey/scripts/scaffold.mjs:213`, `:217`) — with a first
 line:
 
@@ -103,7 +103,7 @@ a value outside the three-state vocabulary exits **2** (bad args — the existin
 at `skills/odyssey/scripts/scaffold.mjs:36-37`), before any file is written.
 
 **3. Transcription — downstream honors the adjustment.** The PLAN phase
-(`skills/odyssey/SKILL.md:104-112`) gains one rule keyed to the stamp: `adjusted` → the user's
+(`skills/odyssey/SKILL.md:105-113`) gains one rule keyed to the stamp: `adjusted` → the user's
 criteria are transcribed verbatim (as executable commands) into the todos' Acceptance criteria —
 they are the source of truth, not the model's paraphrase of them; `confirmed` → the presented
 criteria; `skipped` or no stamp → today's authorship, unchanged. The user's role stays
