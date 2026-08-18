@@ -21,7 +21,7 @@
 //
 // Run:  node pre-tool.bash-gate.test.mjs   (exit 0 = pass, 1 = fail)
 
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -200,6 +200,94 @@ console.log("pre-tool.mjs — Bash write-gate regression suite\n");
   const { repo } = repoFor({ verdict: "REJECT", phase: "done" });
   const { code } = runHook(repo, { command: "sed -i 's/a/b/' src/secret.js" });
   check("terminal phase (done) disarms the gate", code === 0, `(exit ${code}, expected 0)`);
+}
+
+// --- 10. The hatch must testify: every ungated call leaves a ledger row (item 04) -------------
+// Both gate deletions were caused by this variable's SILENT ambient presence (header above);
+// the committed decision is RECORD, not retire. The hatch still opens (section 6 asserts that),
+// and every call that walks through it appends one JSON line {at, command} to
+// .zcode/state/<slug>.ungated.jsonl — read-only calls included, because filtering by
+// write-capability would re-run the gate analysis the hatch exists to skip: under the hatch the
+// hook witnesses, it does not judge. Controls: a blocked call never took the hatch exit and so
+// writes nothing; a read-only or trusted-script pass with the variable UNSET is ordinary
+// traffic, not a bypass; with no active run the hook is a no-op and audits nothing. The run
+// report counts the rows as ungated_bash_calls (0 with no ledger file).
+{
+  const { repo } = repoFor({ verdict: "REJECT" });
+  const ledger = join(repo, ".zcode", "state", "t.ungated.jsonl");
+  const rows = () => { try { return readFileSync(ledger, "utf8").split("\n").filter((l) => l.trim()); } catch { return []; } };
+
+  // (a) write-capable, ungated: still exit 0 — recording never re-gates — and exactly one row.
+  const uw = runHook(repo, { command: "sed -i 's/a/b/' src/secret.js" }, { env: { ZODYSSEY_UNGATE_BASH: "1" } });
+  check("ungated write call: exit 0 (hatch still opens)", uw.code === 0, `(exit ${uw.code}, expected 0)`);
+  check("ungated write call: exactly one ledger row", rows().length === 1, `(${rows().length} rows)`);
+  let row = null; try { row = JSON.parse(rows()[0]); } catch {}
+  check("ledger row carries { at, command }",
+    !!(row && row.at && row.command === "sed -i 's/a/b/' src/secret.js"), JSON.stringify(row));
+
+  // (b) read-only, ungated: ALSO recorded — the ledger is a witness, not a judgement.
+  const ur = runHook(repo, { command: "ls -la" }, { env: { ZODYSSEY_UNGATE_BASH: "1" } });
+  check("ungated read-only call: exit 0 AND recorded", ur.code === 0 && rows().length === 2,
+    `(exit ${ur.code}, ${rows().length} rows)`);
+
+  // (c) blocked call (variable empty): exit 2, and no new row — it never took the hatch exit.
+  const blk = runHook(repo, { command: "sed -i 's/a/b/' src/secret.js" });
+  check("blocked call: exit 2, NO ledger row added", blk.code === 2 && rows().length === 2,
+    `(exit ${blk.code}, ${rows().length} rows)`);
+
+  // (d) read-only with the variable unset: ordinary traffic, not a bypass.
+  const ro = runHook(repo, { command: "ls -la" });
+  check("read-only with variable unset: exit 0, NO ledger row", ro.code === 0 && rows().length === 2,
+    `(exit ${ro.code}, ${rows().length} rows)`);
+
+  // (e) trusted-script invoke with the variable unset: allowed via branch 2, not the hatch.
+  const realSetPhase = join(new URL("..", import.meta.url).pathname, "scripts", "set-phase.mjs");
+  const tr = runHook(repo, { command: `node ${realSetPhase} ${repo} t execute` });
+  check("trusted-script invoke, variable unset: exit 0, NO ledger row", tr.code === 0 && rows().length === 2,
+    `(exit ${tr.code}, ${rows().length} rows)`);
+
+  // (f) variable set but no active run: the hook no-ops at the run check — nothing to audit into.
+  const bare = realpathSync(mkdtempSync(join(tmpdir(), "zod-bare2-")));
+  cleanup.push(bare);
+  const nr = runHook(bare, { command: "rm -rf /" }, { env: { ZODYSSEY_UNGATE_BASH: "1" } });
+  check("ungated with NO active run: exit 0, no ledger anywhere",
+    nr.code === 0 && !existsSync(join(bare, ".zcode", "state", "t.ungated.jsonl")),
+    `(exit ${nr.code}, ledger ${existsSync(join(bare, ".zcode", "state", "t.ungated.jsonl"))})`);
+
+  // (g) report surface: run-report counts ledger rows as ungated_bash_calls; absent ledger -> 0.
+  const REPORT = join(new URL("..", import.meta.url).pathname, "scripts", "run-report.mjs");
+  const jsonOf = (r) => { try { return JSON.parse(r.stdout); } catch { return null; } };
+  const rep = jsonOf(spawnSync(process.execPath, [REPORT, repo, "t", "--json"], { encoding: "utf8" }));
+  check("run-report --json: ungated_bash_calls counts the ledger (2)",
+    !!(rep && rep.ungated_bash_calls === 2), JSON.stringify(rep && rep.ungated_bash_calls));
+  const { repo: repo0 } = repoFor({ verdict: "REJECT" });
+  const rep0 = jsonOf(spawnSync(process.execPath, [REPORT, repo0, "t", "--json"], { encoding: "utf8" }));
+  check("run-report --json: ungated_bash_calls === 0 with no ledger",
+    !!(rep0 && rep0.ungated_bash_calls === 0), JSON.stringify(rep0 && rep0.ungated_bash_calls));
+
+  // (h) STRUCTURAL — the class, not the instance: scan the hook's own source. Every
+  // process.env.ZODYSSEY_* read whose guarded branch reaches an early exit(0) is a bypass site,
+  // and the recorder must sit between the read and the exit. Exactly one such site exists today
+  // (the UNGATE hatch); a future ZODYSSEY_SKIP_WHATEVER=1 copy-pasted beside it without a
+  // recorder fails HERE the day it lands, not two releases later. The scan names no variable —
+  // it asserts routing — so it also fails if the recorder helper is renamed or moved out from
+  // between, and cannot rot into a tautology.
+  const src = readFileSync(HOOK, "utf8").split("\n");
+  let bypassSites = 0, unrouted = 0;
+  for (let i = 0; i < src.length; i++) {
+    if (!/process\.env\.ZODYSSEY_[A-Z_]+/.test(src[i])) continue;
+    const win = [src[i], ...src.slice(i + 1, i + 7)]; // the env read + <=6 following lines
+    const exitIdx = win.findIndex((l) => l.includes("exit(0)"));
+    if (exitIdx === -1) continue; // env read not guarding an early pass — not a bypass site
+    bypassSites++;
+    const between = win.slice(0, exitIdx + 1).join("\n");
+    const rec = between.lastIndexOf("recordUngatedBash");
+    if (rec === -1 || rec > between.indexOf("exit(0)")) unrouted++;
+  }
+  check("structural: exactly one env-bypass site exists (the hatch)", bypassSites === 1,
+    `(${bypassSites} sites — extend this scan deliberately if you add one)`);
+  check("structural: every bypass site routes through recordUngatedBash before exit(0)",
+    unrouted === 0, `(${unrouted} unrouted)`);
 }
 
 for (const d of cleanup) { try { rmSync(d, { recursive: true, force: true }); } catch {} }

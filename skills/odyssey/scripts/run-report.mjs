@@ -78,6 +78,19 @@ if (logPath && existsSync(logPath)) {
   } catch {}
 }
 
+// --- ungated Bash calls (item 04: the hatch testifies) ---
+// ZODYSSEY_UNGATE_BASH=1 opens the whole Bash gate; pre-tool.mjs witnesses every call that walks
+// through the open gate as one JSON line in <repo>/.zcode/state/<slug>.ungated.jsonl. Count =
+// ledger rows; absent file = 0 (the ledger records bypasses, not ordinary traffic — a blocked
+// call never took the hatch exit and writes nothing). The count is evidence, never a gate.
+let ungatedBashCalls = 0;
+try {
+  const ungatedLedger = join(repoRoot, ".zcode", "state", `${slug}.ungated.jsonl`);
+  if (existsSync(ungatedLedger)) {
+    ungatedBashCalls = readFileSync(ungatedLedger, "utf8").split("\n").filter((l) => l.trim()).length;
+  }
+} catch {}
+
 // --- capability usage (audit gap #9c) ---
 // Read the STRUCTURED state.capabilities array. MAJOR-3: distinguish OBSERVED (hook-recorded on
 // real Skill/MCP tool calls) from SELF-DECLARED (record-capability.mjs, called by the agent).
@@ -122,6 +135,7 @@ const report = {
   todo_retries: retries,
   resume_events: resumeEvents,
   hook_blocks: hookBlocks,
+  ungated_bash_calls: ungatedBashCalls,
   capabilities_used: caps,
   tokens_per_todo: tokensPerTodo,
   tokens, // null when telemetry is unavailable; see lib/tokens.mjs for the arithmetic rules
@@ -154,6 +168,7 @@ console.log(`  todo retries      ${retries}    ${bar(3 - Math.min(3, retries), 3
 console.log(`  failed todos      ${failed}`);
 console.log(`  resume events     ${resumeEvents}    (0 = no crashes mid-run)`);
 if (logPath) console.log(`  hook blocks       ${hookBlocks}`);
+console.log(`  ungated Bash      ${ungatedBashCalls}    (0 = gate never bypassed)`);
 console.log(`  ${"─".repeat(48)}`);
 const capStr = Object.entries(caps).map(([k, v]) => `${k}×${v}`).join(" · ");
 console.log(`  capabilities used ${capStr || "(none recorded)"}`);
