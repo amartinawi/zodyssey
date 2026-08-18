@@ -14,8 +14,8 @@ The repo ships half a diagnostics mechanism. When an executor edits a file durin
 post-edit arm at `skills/odyssey/hooks/post-tool.mjs:104` (gated on
 `Edit|Write|MultiEdit`; the matcher already carries the family at
 `.zcode-plugin/plugin.json:44`) reads the target repo's `.zcode/toolchain.json`
-(`skills/odyssey/hooks/lib/lint-invocation.mjs:44-48`), takes its `lint_cmd` (`:49-50`), and runs the repo's own lint command against the
-edited file — AFTER the edit (`spawnSync` at `:53`, 5s timeout at `:56`). Any non-zero exit
+(`skills/odyssey/hooks/lib/lint-invocation.mjs:45-49`), takes its `lint_cmd` (`:50-51`), and runs the repo's own lint command against the
+edited file — AFTER the edit (`spawnSync` at `:54`, 5s timeout at `:57`). Any non-zero exit
 injects a `decision: "block"` reason back to the executor (`skills/odyssey/hooks/post-tool.mjs:140-147`). That is the whole
 mechanism, and it has no "before": nothing anywhere captures the file's lint state prior to the
 edit. `pre-tool.mjs` never lints a file — its single `spawnSync` call site is the momus
@@ -102,7 +102,7 @@ toolchain read, single-file lint, `decision: "block"` JSON, exit 0 always — bu
 | `inert` (capture failed) | any | no block, recorded `inert` |
 
 **3. Capability failures are never diagnostics, on either side.** A lint that times out (5s cap,
-`skills/odyssey/hooks/lib/lint-invocation.mjs:38`), cannot spawn, or whose baseline capture failed,
+`skills/odyssey/hooks/lib/lint-invocation.mjs:39`), cannot spawn, or whose baseline capture failed,
 records `inert` and blocks nothing. This deletes the timeout-blocks defect above: after the
 fix, a slow linter costs one recorded `inert`, not a false block.
 
@@ -301,8 +301,8 @@ or leaked into a neighbouring arm:
 
 The honest cost is latency, paid once per file: a run's FIRST edit to each file now spawns the
 repo lint BEFORE the edit, in addition to the existing post-edit run
-(`skills/odyssey/hooks/lib/lint-invocation.mjs:53`). In a repo with a slow lint, executors pay up to the
-5s cap (`:38`) twice on first touch instead of once. The stance, deliberate: the 5s cap is kept
+(`skills/odyssey/hooks/lib/lint-invocation.mjs:54`). In a repo with a slow lint, executors pay up to the
+5s cap (`:39`) twice on first touch instead of once. The stance, deliberate: the 5s cap is kept
 on both sides, and a timed-out lint degrades to a recorded `inert` — a slow linter must never
 wedge an edit or masquerade as a diagnostic (it does the latter today: timeout →
 `status: null` → `null !== 0` → block at `post-tool.mjs:133`). Per-run side-file storage is bounded by the

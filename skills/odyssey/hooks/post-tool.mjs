@@ -141,8 +141,8 @@ if (["Edit", "Write", "MultiEdit"].includes(toolName)) {
           // clean → non-zero: the file passed lint before this edit, so every diagnostic
           // in this output arrived with it. Inject the failure back to the executor.
           // PostToolUse hooks must not block, so exit 0; the JSON decision carries the reason.
-          const _stderr = _lint.stderr || "";
-          const _reason = `post-edit lint failed for ${_target}: ${String(_stderr).slice(0, 400)}. ` +
+          const _stderr = _lint.stderr || _lint.stdout || ""; // stdout fallback: eslint/ruff/tsc report there
+          const _reason = `post-edit lint failed for ${_target} (cmd: ${_lint.cmd}): ${String(_stderr).slice(0, 400)}. ` +
             `This file passed lint before this edit — these diagnostics are NEW to this edit; fix them before continuing.`;
           console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", decision: "block", reason: _reason } }));
         } else if (_entry === "failing") {

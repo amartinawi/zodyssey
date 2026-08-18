@@ -8,16 +8,17 @@
 // structurally impossible.
 //
 // API (every entry point NEVER throws — failures are data in the returned shape):
-//   lintTarget(repoRoot, target) → { spawned, status, timedOut, stderr }
+//   lintTarget(repoRoot, target) → { spawned, status, timedOut, stderr, stdout, cmd }
 //     Reads <repoRoot>/.zcode/toolchain.json (produced by probe-toolchain.mjs), takes
 //     lint_cmd, whitespace-splits it into an argv array, and runs
 //     [...argv, target] with cwd at repoRoot, shell:false (no interpolation → no
 //     injection surface) and the 5s cap. Absent toolchain.json or a null/blank
 //     lint_cmd → NOTHING is spawned and spawned:false says so. status is the exit
 //     code, or null when the run never produced one (spawn failure / kill). stderr
-//     is the captured standard error (string, possibly empty). Exit status + stderr
-//     are the ONLY outputs read — per-diagnostic parsing is a deliberately-unbuilt
-//     known limit.
+//     and stdout are the captured error/output (strings, possibly empty — stdout
+//     feeds ONLY the block reason; eslint/ruff/tsc report there). cmd is the
+//     resolved lint_cmd, null when nothing spawned. Exit status is the only output
+//     GRADED; per-diagnostic parsing stays a deliberately-unbuilt known limit.
 //   baselineKey(repoRoot, target) → string
 //     The repo-relative side-file key for a target, computed identically on both
 //     sides (byte-for-byte key agreement is what makes the lookup meaningful).
@@ -37,7 +38,7 @@ import { spawnSync } from "node:child_process";
 // The 5s cap, defined once so both hooks share it by construction.
 export const LINT_TIMEOUT_MS = 5000;
 
-const INERT_RESULT = { spawned: false, status: null, timedOut: false, stderr: "" };
+const INERT_RESULT = { spawned: false, status: null, timedOut: false, stderr: "", stdout: "", cmd: null };
 
 export function lintTarget(repoRoot, target) {
   try {
@@ -68,6 +69,8 @@ export function lintTarget(repoRoot, target) {
       status: r && typeof r.status === "number" ? r.status : null,
       timedOut,
       stderr: r && typeof r.stderr === "string" ? r.stderr : "",
+      stdout: r && typeof r.stdout === "string" ? r.stdout : "",
+      cmd,
     };
   } catch {
     return { ...INERT_RESULT };

@@ -80,6 +80,26 @@ import { fileURLToPath } from "node:url";
 try { appendFileSync(fileURLToPath(new URL("lint-spawns.log", import.meta.url)), "SLOW\\n"); } catch {}
 setTimeout(() => process.exit(1), 7000); // killed by the hook's 5s timeout before this fires
 `;
+// The stdout lint: identical marker semantics to the fixture lint, but reports via
+// console.log (the eslint/ruff/flake8/pylint/tsc shape — the common case for
+// scripts.lint-derived commands). Consult remediation round 1: b553da1's rewrite
+// dropped the block reason's stdout fallback, so these linters blocked with an
+// EMPTY diagnostic payload — and this suite could not see it because its marker
+// lint reports via console.error. Scenario (i) closes that blind spot.
+const LINT_STDOUT_SRC = `#!/usr/bin/env node
+// lint-stdout.mjs — a stdout-reporting marker lint for the paired suite.
+import { readFileSync, appendFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+const target = process.argv[2] || "";
+try { appendFileSync(fileURLToPath(new URL("lint-spawns.log", import.meta.url)), target + "\\n"); } catch {}
+let src = "";
+try { src = readFileSync(target, "utf8"); } catch { /* absent target: not a diagnostic */ }
+if (src.includes("FAIL-MARKER")) {
+  console.log("STDOUT-LINT: FAIL-MARKER present in " + target);
+  process.exit(1);
+}
+process.exit(0);
+`;
 
 // A tmpdir fixture repo, hermetic (never global ~/.zcode state; the state-auth key
 // is the per-install HMAC key the hooks themselves verify against).
@@ -101,6 +121,7 @@ function makeRepo(opts = {}) {
     JSON.stringify({ name: "lint-fixture-repo", private: true, scripts: { lint: lintCmd } }, null, 2) + "\n");
   writeFileSync(join(repo, "lint-fixture.mjs"), LINT_FIXTURE_SRC);
   writeFileSync(join(repo, "lint-slow.mjs"), LINT_SLOW_SRC);
+  writeFileSync(join(repo, "lint-stdout.mjs"), LINT_STDOUT_SRC);
   if (opts.toolchain !== false) {
     writeFileSync(join(repo, ".zcode", "toolchain.json"), JSON.stringify({ lint_cmd: lintCmd }) + "\n");
   }
@@ -314,6 +335,23 @@ for (const [label, opts] of [
   check("(h) <slug>.json + <slug>.lint-baseline.json → exactly ONE run discovered",
     runs.length === 1 && runs[0].state.slug === SLUG,
     `runs=${JSON.stringify(runs.map((r) => r.state.slug))}`);
+}
+
+// --- (i) stdout-reporting lint: its diagnostics AND the cmd clause reach the
+// block reason (consult remediation round 1 — the dropped stdout fallback made
+// eslint/ruff/tsc-shaped linters block with an EMPTY payload) ------------------
+{
+  const repo = makeRepo({ lintCmd: "node lint-stdout.mjs" });
+  writeFileSync(join(repo, "src", "probe.js"), "const a = 1;\n");
+  const p = editPayload(repo, "src/probe.js");
+  runPre(repo, p); // first touch: the stdout lint passes a clean file → clean baseline
+  writeFileSync(join(repo, "src", "probe.js"), "const a = 2; // FAIL-MARKER via a stdout reporter\n");
+  const post = runPost(repo, p);
+  check("(i) a stdout-reporting lint's message AND the (cmd: …) clause reach the block reason",
+    postBlocked(post)
+      && (post.stdout || "").includes("STDOUT-LINT: FAIL-MARKER present")
+      && (post.stdout || "").includes("(cmd: node lint-stdout.mjs)"),
+    `stdout=${excerpt(post.stdout)}`);
 }
 
 // --- unchanged controls: behaviour that must be identical on BOTH builds ------
