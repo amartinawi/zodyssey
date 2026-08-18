@@ -27,7 +27,7 @@ its own measurement date.
 | 03 | nonce-lane-minter-allowlist | — | **SHIPPED v0.5.5.** Security-class, grouped adjacently with 01/04 (same file cluster) but explicitly not merged — own release. The false header assertion at skills/odyssey/scripts/lib/capability-name.mjs:17 is corrected in the same change. | Only the declared minter can grant the nonce lane. |
 | 04 | ungate-bash-record-or-retire | — | **SHIPPED v0.6.2 (2026-08-18).** Decision: record every ungated call, not retirement — the affordance is documented (docs/INSTALL.md:152) and the v0.1.1/v0.2.0 gate-deletion history (CHANGELOG.md:499, CHANGELOG.md:664) is the causal evidence against removal. Security-class, own release. | Every `ZODYSSEY_UNGATE_BASH=1` call is recorded in run state. |
 | 05 | metrics-corpus-decontamination | — | **SHIPPED v0.6.1 (2026-08-17).** skills/odyssey/scripts/set-phase.mjs:450 appends every run to the trend log unconditionally: 153/184 records synthetic (83.2%, measured 2026-08-16). All measurement items are gated behind this. | The trend log holds real runs only; the synthetic share is measured, not guessed. |
-| 06 | token-telemetry-run-close | 05 | **SHIPPED v0.6.3 (2026-08-18).** The wiring already existed (set-phase auto-append, run-report collect); the defects were null reason-blindness (five null sites in skills/odyssey/scripts/lib/tokens.mjs flattened to one sentinel — measured 2026-08-18, 393-record operator lane: 8/8 real runs populated since telemetry went live, so the unobservability, not a broken mechanism, was the item) and estimate-grade attribution (skills/odyssey/scripts/lib/tokens.mjs:20-24). Fixed as inert-stamped reasons + session-exact attribution; docs/impl/06-token-telemetry-run-close.md is the build brief. | Token counts are populated or reason-stamped, never bare null; attribution is session-exact when the id was witnessed. |
+| 06 | token-telemetry-run-close | 05 | **SHIPPED v0.6.3 (2026-08-18).** The wiring already existed (set-phase auto-append, run-report collect); the defects were null reason-blindness (five null sites in skills/odyssey/scripts/lib/tokens.mjs flattened to one sentinel — measured 2026-08-18, 393-record operator lane: 8/8 real runs populated since telemetry went live, so the unobservability, not a broken mechanism, was the item) and estimate-grade attribution (skills/odyssey/scripts/lib/tokens.mjs:20-24). Fixed as inert-stamped reasons + session-exact attribution; docs/impl/06-token-telemetry-run-close.md is the build brief. Externally audited ACCEPT (round 2, zero gaps; round 1's four citation gaps remediated in 7d4d5b1); both close records populated through the fixed cached run-report (operator-lane populated 8 → 10). | Token counts are populated or reason-stamped, never bare null; attribution is session-exact when the id was witnessed. |
 | 07 | b10-pre-edit-lint-baseline | — | skills/odyssey/hooks/post-tool.mjs:122 lints post-edit only and blocks (skills/odyssey/hooks/post-tool.mjs:131) with no baseline to compare against. Independent of the other tracks. | Lint regressions are caught against a committed baseline. |
 | 08 | claim-assertion-coverage-ledger | 01, 02, 03, 04 | The registry wants the four fixes ahead of it so their claims land as rows rather than retrofits. Five scattered equivalents already exist (the four found at verification — skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:4, skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:2, scripts/version-consistency.test.mjs:15, scripts/smoke-gate.mjs:1 — plus a fifth found while writing prompt 08 itself: scripts/deploy-surface.test.mjs:2, commit 26af48b; corrected here 2026-08-16). | One ledger answers "is this claim asserted anywhere". |
 | 09 | two-arm-eval-baseline | 05 | skills/odyssey/scripts/judge.mjs:176 hardcoded the arm (fixed 2026-08-17 via lib/arm.mjs, row 19 rider; amendment in the 09 brief); skills/odyssey/scripts/harness.mjs:19 still has baseline = TODO. The settling experiment must draw from a decontaminated corpus or its first number is poisoned. | Both arms run through `judge.mjs --arm`; the baseline arm is automated. |
@@ -150,8 +150,9 @@ denominators now draw from an operator lane that no longer counts fixture runs.
 
 ## Candidates — surfaced 2026-08-18, not yet rows
 
-Two defects found while closing item 04. Recorded here rather than added to the DAG, because
-neither has a written prompt and this table's contract is one row = one `docs/impl/NN-<slug>.md`.
+Three defects found at run-close: C1 and C2 while closing item 04, C3 while closing item 06.
+Recorded here rather than added to the DAG, because none has a written prompt and this table's
+contract is one row = one `docs/impl/NN-<slug>.md`.
 
 **C1 — the retroactive-audit vehicle cannot reach `audited`.** The phase graph gives `audited`
 exactly two predecessors: `done` (skills/odyssey/scripts/set-phase.mjs:94) and `remediate`
@@ -182,3 +183,20 @@ and a live specimen sits in this file's own Observations block, where a bare `:6
 invisible to the checker since the day it was written. The fix is a second resolution pass binding
 a bare `:NNN` to the nearest preceding path on the same line, carrying forward the rule that makes
 15 trustworthy in the first place: where the binding is ambiguous, fail rather than guess.
+
+**C3 — the plugin cache directory no longer identifies its contents.** The cache path names the
+last marketplace Get; the contents track the last `--sync-cache` (scripts/install.mjs:34 — "what
+actually executes"). After v0.6.3 they diverged: `~/.zcode/cli/plugins/cache/zodyssey-local/
+zodyssey/0.6.2/.zcode-plugin/plugin.json` declares version 0.6.3, and the directory set (0.3.2,
+0.4.0, 0.4.1, 0.5.0, 0.5.1, 0.5.2, 0.6.0, 0.6.2 — no 0.5.3, 0.5.4, 0.5.5, 0.6.1, or 0.6.3) is an
+artifact of Gets, not releases. This is load-bearing, not cosmetic: the v0.6.3 CHANGELOG entry
+itself rests on "the auto-append executes the CACHED run-report", so "which cached copy executed?"
+is a provenance question this project asks on every close, and the version-named path now answers
+it wrong. Nothing shipped is broken — the content is current, which is why impl-06's `audited`
+close populated through the fixed collector — and the mismatch is already detected
+(scripts/smoke-gate.mjs:107 refuses "deployed version matches repo" on exactly this divergence).
+The narrow fix is to make the record, not the directory, answer the question: stamp the emitting
+run-report's own declared version into every appended trend-log record, so provenance survives
+both the sparse cache and a future `--sync-cache`; the fail-closed alternative (refusing
+version-mismatched syncs) trades a provenance hazard for a broken hotfix channel, and the
+smoke-gate check already covers the operator-facing half.
