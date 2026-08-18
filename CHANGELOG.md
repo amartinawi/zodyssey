@@ -2,6 +2,19 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] — 2026-08-17
+
+### Changed — the metrics corpus is decontaminated
+
+Fixture/synthetic runs append to `~/.zcode/orchestration/eval/results.synthetic.jsonl`; `results.jsonl` holds real runs only. Provenance is declared at source — `ZODYSSEY_EVAL_LANE=synthetic` (exact match; unset/misspelled = operator lane; never a gate) in the env of the process spawning `set-phase.mjs` — never guessed from slugs. The rolling cap applies to both lanes; `dashboard.mjs` needed zero changes (the design's point: the default read is clean with no consumer-side filter conventions). `run-tests.mjs` exports the lane for the whole suite run, so the repo's own suite stopped contaminating — including the four `t`-slug `done` transitions item 02's check-wiring suite drives, a polluter that postdated the brief that named only `add-truncate`. Paired probe, as this repo cites its probes: a full suite run before the fix grew the operator log by ~28 fixture records (observed live 137 → 143 during the v0.6 planning run; 359 → 387 across the release cycle); after — byte-identical operator log (387 → 387, both markers frozen across repeated runs), synthetic lane receiving the fixture records.
+
+**Known, not fixed:**
+- The historical synthetic records (211 `add-truncate` + 142 `"slug":"t"` = 91.2% at the 2026-08-17 cutover, 387 records) remain in `results.jsonl` — retained, not quarantined; flagged in `MEASUREMENT.md`'s corpus-hygiene block with the cutover date; aged out by the 1000-record cap. Deleting or moving them was rejected as history-rewriting by product code with an enumeration-shaped classifier.
+- `judged.jsonl` has no lane split — zero fixture writes today; queue item 09 must extend the lane mechanism when the baseline arm lands.
+- No permanent sentinel re-runs the whole suite against the live operator file on every commit; the guard is the hermetic lane suite plus the re-runnable marker invariant (`b=$(grep -c add-truncate results.jsonl); npm test; a=$(…); test "$b" -eq "$a"`).
+- `run-report.mjs`'s manual-append footer names `results.jsonl` only — a human hand-appending a synthetic report lands it in the operator log (docs caveat in the scripts reference; no code change).
+- The `"slug":"t"` records' original writer predates the current tree (2026-08-15 bursts) — unattributed archaeology, harmless under retention.
+
 ## [0.5.3] — 2026-08-17
 
 ### Fixed — the post-OKAY Edit-path containment escape
