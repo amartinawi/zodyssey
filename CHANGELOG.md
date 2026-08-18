@@ -1,6 +1,22 @@
 # Changelog
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+## [0.6.3] — 2026-08-18
+
+### Fixed — run-close token records are populated or reason-stamped (item 06)
+
+Every record the set-phase auto-append writes at `done|audited` now carries a `tokens` value that is populated or explains its absence — never a bare, unexplained null. Mechanism: the five null sites in `collectRunTokens` (`skills/odyssey/scripts/lib/tokens.mjs`) now stamp an inert object `{inert:true, reason, node_version, at}` with a closed reason set — `bad-args | db-missing | binding-unavailable | db-unreachable | no-usage-in-window` (`binding-unavailable` names the `node:sqlite` Node >= 22.5 floor against the engines floor >= 18) — and `run-report.mjs` passes the inert through unflattened instead of collapsing every absence into one sentinel. Attribution upgrades from estimate to exact whenever the run's orchestrator session id was witnessed: a new pass-through first-witness arm in `post-tool.mjs` stamps `state.session_id` on the existing locked-write pattern (only-if-absent, skip-fast, exit-0-always), and token collection then scopes by `(s.id = :sid OR s.parent_id = :sid)` reporting `attribution:"session"` / `confidence:"exact"`; runs without a witnessed id keep the (repo, window) heuristic with `confidence:"estimate"`, as before. The same change guards both inert-truthiness dereferences in `run-report.mjs` (`tokens_per_todo` and the text-mode block) — an inert object is truthy, and the unguarded code would have crashed run-report at close, silently writing no record at all (the exact defect class this item closes; found at consult, witnessed RED in the suite before the fix).
+
+Measured against the operator lane on 2026-08-18 (393 records: 356 fixture-marked — 87 field-absent + 269 retained-historical nulls — plus 37 real: 29 field-absent, 0 null, 8 populated): since telemetry went live, every real run populated, 8 for 8, and zero real runs have ever produced a bare null. The defect was never a broken mechanism — it was that the record could not express the difference between healthy and dead: five distinct null conditions flattened into one sentinel. That unobservability was the item; three greps over the trend log now partition every record into populated / inert-with-reason / historical, and the historical bucket is frozen by construction.
+
+Paired probe, as this repo cites its probes: probe A (degradation observability) returned indistinguishable nulls on the pre-fix build — nonexistent `dbPath` and the `globalThis.__zodysseySqlite = {}` Node-floor seam both `null`/exit 1 — and returns `{inert:true, reason:"db-missing"}` / `{inert:true, reason:"binding-unavailable"}` naming the Node floor after; probe B (attribution exactness) seeded a three-session database (orchestrator + child + unlinked interloper in one directory, one window): the pre-fix window heuristic counted all three (total 7700, `estimate`), the post-fix session scope excludes the interloper and includes the child (1650 vs 9350, `session`/`exact`), and the no-session-id fallback is byte-comparable to the old heuristic. Criterion 6's stash-dance keeps both directions re-provable on demand.
+
+**Known, not fixed:**
+- The 116 field-absent and pre-0.5.2 null records stay exactly as they are — historical nulls are not backfilled; the fraction command counts them as a frozen historical bucket.
+- The `engines` floor stays `>=18` (`package.json`); token telemetry requires Node >= 22.5 via `node:sqlite` and degrades to a stamped `binding-unavailable` inert below it. The floor is documented, not raised — telemetry is optional and its absence must never fail a run's close.
+- Exact attribution depends on a hook payload carrying `session_id`; a run whose events never did (headless, exotic harness) keeps `confidence:"estimate"`. Two concurrent runs in one repo remain inseparable in that fallback — unchanged except the record now names which mode it used.
+- The end-to-end new shape in the live trend log is only observable after this release reaches the plugin cache (the auto-append executes the CACHED run-report — the `truncate-roundto` pair is the standing proof that a dev-tree-only fix populates nothing); this run's own close record predates the stamp arm and reports `estimate`, by design.
+
 ## [0.6.2] — 2026-08-18
 
 ### Fixed — the ZODYSSEY_UNGATE_BASH hatch now testifies (item 04)

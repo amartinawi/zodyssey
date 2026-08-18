@@ -19,7 +19,7 @@ import.meta.url))`, with the in-code comment "so it is found from the plugin cac
 `skills/odyssey/scripts/run-report.mjs:114` calls `collectRunTokens`, which reads ZCode's durable
 telemetry — the SQLite DB at `~/.zcode/cli/db/db.sqlite` (`skills/odyssey/scripts/lib/tokens.mjs:36`,
 table `model_usage` joined to `session` at `:105-114`). Token accounting shipped in 0.5.2
-(`CHANGELOG.md:99` dated 2026-08-15, entry at `CHANGELOG.md:254`; commit `6b0b428`
+(`CHANGELOG.md:115` dated 2026-08-15, entry at `CHANGELOG.md:270`; commit `6b0b428`
 "feat(telemetry): real per-run token accounting").
 
 **The corpus says "2 of ~193 populated" — and that number decomposes into three eras, none of which
@@ -110,7 +110,7 @@ Stated as observable behaviour, not as a diff:
    (repo, window) heuristic with `confidence: "estimate"` — degrade, never block.
 4. **The orchestrator's session id is stamped into run state once, from a hook payload.**
    `post-tool.mjs` already holds the sanctioned locked state-write pattern (the capability
-   observation write at `skills/odyssey/hooks/post-tool.mjs:206-215`); the same channel stamps
+   observation write at `skills/odyssey/hooks/post-tool.mjs:207-216`); the same channel stamps
    `state.session_id = payload.session_id` on first witness (only if absent), best-effort,
    exit-0-always. Hook-payload `session_id` is shared across parallel sub-agents
    (`skills/odyssey/hooks/pre-tool.mjs:880-885`), so any event during the run yields the
@@ -323,7 +323,7 @@ Every doc that states the claim this change alters, each checked against the 202
   tokens-per-successful-todo headline): add the platform floor (token telemetry requires
   Node >= 22.5 via `node:sqlite`; on the engines floor >= 18 it records a stamped inert) and the
   canonical fraction command partitioning records into populated / inert-with-reason /
-  historical. The record-schema sketch at `docs/MEASUREMENT.md:148-153` gains the inert shape.
+  historical. The record-schema sketch at `docs/MEASUREMENT.md:161-166` gains the inert shape.
 - `CHANGELOG.md` — new version's **Fixed** (shape below) plus the *Known, not fixed* residuals.
 - `skills/odyssey/references/scripts.md:35` (the run-report entry): state the emitted `tokens`
   shapes (populated / inert-with-reason / historical null) and the two attribution modes

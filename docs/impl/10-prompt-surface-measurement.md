@@ -58,7 +58,7 @@ same task. Verified blocker chain (all re-derived 2026-08-16):
 
 The witnessed-activity substrate the measurement joins against also exists but is not yet populated
 in the eval runs: run state records hook-witnessed capability loads
-(`skills/odyssey/hooks/post-tool.mjs:171` and `:217` push
+(`skills/odyssey/hooks/post-tool.mjs:172` and `:218` push
 `{at, phase, capability, observed: true}` into `state.capabilities`), and each arm's run repo keeps
 its state at `runs/<slug>-live/.zcode/state/<slug>.json` under the eval dir (layout verified on
 disk). The two zodyssey-arm states on disk today carry `capabilities: []` (measured 2026-08-16) —

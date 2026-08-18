@@ -362,7 +362,7 @@ run and undecidable for a synthetic one (provenance cannot be guessed — see Mu
 Every doc that states the claim this change alters ("every completed run's scorecard lands in
 `results.jsonl`"), each checked against the 2026-08-16 tree:
 
-- `docs/MEASUREMENT.md:148` — the pipeline diagram's `APPEND to eval/results.jsonl ◄── the trend
+- `docs/MEASUREMENT.md:161` — the pipeline diagram's `APPEND to eval/results.jsonl ◄── the trend
   line` box gains the two-lane fact; `:196` — build-order item 4 ("`eval/results.jsonl` +
   `dashboard.mjs` — append-only trend log") likewise. Add a **corpus-hygiene block**: the
   cutover date, the stamped pre-cutover contamination (159/190 = 83.7% synthetic, measured

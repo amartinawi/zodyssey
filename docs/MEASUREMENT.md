@@ -33,7 +33,7 @@ toy. We measure both, and the ratio between them is the headline number.
 | **Tokens consumed** | cost; the variable that correlates with success | provider usage | per-intent budget |
 | **Wall-clock time** | latency the user feels | state started_at → done | standard <10min |
 | **Sub-agent dispatches** | parallelism efficiency; over-dispatch = waste | state checkpoints | ≤ plan-todo count +2 |
-| **Tokens / todo completed** | unit economics | tokens ÷ done todos | trending down |
+| **Tokens / todo completed** | unit economics | tokens ÷ done todos (telemetry needs Node >= 22.5 via `node:sqlite`; on the engines floor >= 18 the record carries a stamped inert, never a failure) | trending down |
 | **Review rounds used** | plan quality (1 = great, 3 = poor) | state.review.round | median 1 |
 | **Todo retries** (QA-fail → re-dispatch) | executor accuracy | state.todos[*].attempts | median 0 |
 | **Hook blocks triggered** | are gates biting usefully or noise? | ZCode log | low + justified |
@@ -43,6 +43,19 @@ toy. We measure both, and the ratio between them is the headline number.
 **The headline efficiency number: tokens-per-successful-todo.** That single ratio captures cost
 discipline better than any total. Anthropic found token usage explains ~80% of the variance in
 their eval success — so it's the lever that matters most.
+
+**Token population is a health signal (since 0.6.3).** Every appended record's `tokens` is
+populated, inert-with-reason (`{inert:true, reason, node_version, at}` — the closed reason set
+`bad-args | db-missing | binding-unavailable | db-unreachable | no-usage-in-window`), or
+historical (pre-0.5.2 field-absent/null, frozen). The canonical fraction command:
+
+```bash
+R=~/.zcode/orchestration/eval/results.jsonl
+echo "inert-with-reason: $(grep -c '"inert":true' $R)"
+echo "populated:          $(( $(grep -c '"tokens":{' $R) - $(grep -c '"inert":true' $R) ))"
+echo "historical-null:    $(grep -c '"tokens":null' $R)"
+echo "field-absent:       $(( $(wc -l < $R) - $(grep -c '"tokens"' $R) ))"
+```
 
 ## 2. Quality metrics (judged — LLM-as-judge + end-state checks)
 
@@ -151,6 +164,9 @@ to publish — it's a regression gate: did the last change make things better or
    │   (declared-synthetic runs)     │      Operator lane holds real runs only.
    │ {run_id, task_id, efficiency,   │
    │  quality_score, tokens, time}   │
+   │  tokens = totals (populated)    │
+   │         | {inert:true, reason,  │
+   │           node_version, at}     │
    └────────────────────────────────┘
 ```
 

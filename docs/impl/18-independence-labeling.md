@@ -152,7 +152,7 @@ inconvenient. Prevented by: the test asserting both grades, the fallback, and th
 
 ## Docs to update
 
-- `docs/MEASUREMENT.md:59` — the §2 table row naming the field (done in this change).
+- `docs/MEASUREMENT.md:72` — the §2 table row naming the field (done in this change).
 - `docs/impl/00-INDEX.md` — DAG row 18.
 
 ## CHANGELOG entry shape
