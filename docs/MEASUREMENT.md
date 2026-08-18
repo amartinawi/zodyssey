@@ -16,6 +16,18 @@ toy. We measure both, and the ratio between them is the headline number.
 
 ## 1. Efficiency metrics (quantitative — auto-collected from state.json + logs)
 
+> **Corpus hygiene (cutover 2026-08-17).** Until this date, `set-phase.mjs`'s terminal-phase
+> auto-append had no notion of provenance, so the repo's own test suite polluted the operator's
+> trend log on every run. Stamped contamination: 159/190 = 83.7% synthetic (16 `"slug":"t"` +
+> 143 `add-truncate`, measured 2026-08-16 during the v0.6 queue's authoring); 387 records /
+> 91.2% (211 + 142, measured 2026-08-17 at cutover — the file compounded with every
+> `npm test`). The fix routes declared-synthetic runs to `results.synthetic.jsonl`; the
+> **historical synthetic records are retained, not quarantined** — product code must never edit
+> the operator's telemetry history — and age out naturally under the 1000-record rolling cap.
+> Consequence for readers: any `dashboard.mjs` number drawn from `results.jsonl` before the
+> pre-cutover tail fully ages out is computed over a mixed corpus; attribute post-cutover shifts
+> to the lane split, not to code changes.
+
 | Metric | What it tells us | Source | Target (v1) |
 |---|---|---|---|
 | **Tokens consumed** | cost; the variable that correlates with success | provider usage | per-intent budget |
@@ -133,9 +145,12 @@ to publish — it's a regression gate: did the last change make things better or
    └────────────┬───────────────────┘
                 ▼
    ┌────────────────────────────────┐
-   │ APPEND to eval/results.jsonl    │  ◄── the trend line
-   │ {run_id, task_id, efficiency,   │      compare runs over time;
-   │  quality_score, tokens, time}   │      spot regressions on changes
+   │ APPEND to eval/results.jsonl    │  ◄── the trend line (real runs;
+   │   (real runs) — or to           │      compare runs over time;
+   │   results.synthetic.jsonl       │      spot regressions on changes.
+   │   (declared-synthetic runs)     │      Operator lane holds real runs only.
+   │ {run_id, task_id, efficiency,   │
+   │  quality_score, tokens, time}   │
    └────────────────────────────────┘
 ```
 
@@ -178,7 +193,7 @@ with what state.json already gives us, add the judge last.
 2. **`eval/seed.jsonl`** — your ~20 tasks in the format above. You bring the tasks; I structure them.
 3. **`judge.mjs`** — dispatches oracle to score a completed run's diff against the rubric. The
    quality half.
-4. **`eval/results.jsonl` + `dashboard.mjs`** — append-only trend log + the dashboard renderer.
+4. **`eval/results.jsonl` + `dashboard.mjs`** — append-only trend log + the dashboard renderer. Two lanes since 2026-08-17: real runs append to `results.jsonl`; runs that declare themselves synthetic at source (`ZODYSSEY_EVAL_LANE=synthetic`, set by the spawning fixture/harness) append to `results.synthetic.jsonl` — identical record format, identical rolling cap, `dashboard.mjs` reads the operator lane unmodified.
 5. **(optional) cross-eval** — run omo on the same seed set for the head-to-head number.
 
 Items 1–2 give immediate value (you see efficiency per run). 3 adds quality. 4 gives the trend.

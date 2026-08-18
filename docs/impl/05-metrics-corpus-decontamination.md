@@ -16,18 +16,18 @@ this one change.
 **The mechanism.** When any orchestration run reaches a terminal phase, `set-phase.mjs`
 unconditionally appends its scorecard to the operator's live trend log:
 `skills/odyssey/scripts/set-phase.mjs:430` — `if (phase === "done" || phase === "audited") {`;
-`:225` — `const resultsPath = join(env.HOME || "", ".zcode", "orchestration", "eval",
-"results.jsonl");`; `:226` — `appendFileSync(resultsPath, report.trim() + "\n");`; `:228` —
+`:447` — `const resultsPath = join(env.HOME || "", ".zcode", "orchestration", "eval",
+"results.jsonl");`; `:450` — `appendFileSync(resultsPath, report.trim() + "\n");`; `:452` —
 `capJsonl(resultsPath, 1000)`. There is no guard of any kind in the block: no fixture check, no
 env opt-out, no slug filter (grep `fixture|skip|eval` across `set-phase.mjs` hits only the
-final-wave `--skip`/`--force` semantics, unrelated). The block's own header (`:213-216`, tagged
+final-wave `--skip`/`--force` semantics, unrelated). The block's own header (`:426-429`, tagged
 CRIT-4a) explains why: the auto-append was built so that "NO run can complete unmeasured" — which
 is precisely what makes a fixture run indistinguishable from a real one at this write site.
 
 **The contamination, anchored.** The repo's own integration fixture drives a full synthetic run
-to a successful `done`: `skills/odyssey/scripts/pipeline-integration.test.mjs:56` —
-`const SLUG = "add-truncate";` — and `:256` invokes the real `set-phase.mjs <fixture-repo>
-add-truncate done`, which hits `:226` and appends a fixture scorecard to the **live operator
+to a successful `done`: `skills/odyssey/scripts/pipeline-integration.test.mjs:61` —
+`const SLUG = "add-truncate";` — and `:267` invokes the real `set-phase.mjs <fixture-repo>
+add-truncate done`, which hits `:450` and appends a fixture scorecard to the **live operator
 log** (the run's `run()` helper at `:33` inherits `process.env`; nothing reroutes `HOME`).
 Sixteen further records carry `"slug":"t"` — the fixture slug used across the hook/script suites
 (`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:173,185`; `skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:236`;
@@ -72,7 +72,7 @@ source — via the environment variable `ZODYSSEY_EVAL_LANE=synthetic`, set by t
 process that spawns `set-phase.mjs` — appends its done/audited scorecard to
 `~/.zcode/orchestration/eval/results.synthetic.jsonl` instead of `results.jsonl`. Same directory,
 same record format (the untouched `run-report.mjs --json` line), same rolling cap, same stderr
-notice (`set-phase.mjs:442` already prints the destination path — it now names the lane file,
+notice (`set-phase.mjs:453` already prints the destination path — it now names the lane file,
 free observability).
 
 **2. Real runs are bit-for-bit unchanged.** With the variable unset — the state of every real
@@ -87,7 +87,7 @@ criteria), while `results.synthetic.jsonl` grows by the fixture records.
 **4. Migration stance — retention, not quarantine, argued explicitly.** The ~159 historical
 synthetic records already in `results.jsonl` **stay there**. They are flagged, not deleted:
 `docs/MEASUREMENT.md` records the cutover date and the stamped pre-cutover contamination
-(159/190 = 83.7%, 2026-08-16), and `capJsonl(resultsPath, 1000)` at `:228` ages the contaminated
+(159/190 = 83.7%, 2026-08-16), and `capJsonl(resultsPath, 1000)` at `:452` ages the contaminated
 tail out naturally. Quarantine — a one-time migration moving fixture-slug records out of the
 live file — is rejected for three reasons: (a) product code rewriting the operator's telemetry
 history is silent-history-editing, the exact class this repo's append-only ledger conventions
@@ -109,7 +109,7 @@ reads both files. Structure over enumeration.
 log); it does not authenticate anyone and grants no privilege: `set-phase.mjs` remains invocable
 by every agent with the same argv/env surface the operator has, and the lane value never gates,
 blocks, or unlocks a transition (telemetry is best-effort by the block's own contract,
-`:213-216`). Contrast `ZODYSSEY_UNGATE_BASH`, which removes a *gate* — this removes a write
+`:426-429`). Contrast `ZODYSSEY_UNGATE_BASH`, which removes a *gate* — this removes a write
 destination, and only for runs that declare themselves synthetic. A real run that sets it merely
 opts its own telemetry out of the trend log — an operator-visible data-loss tradeoff, not a
 security boundary. Lane resolution is exact-match: the only recognized synthetic marker is the
@@ -118,10 +118,10 @@ semantics — a typo'd lane must not fail a phase transition; the guard criterio
 tripwire, not the router).
 
 Mechanism notes, secondary to the behaviour: resolve the lane where `resultsPath` is built
-(`:225`); add `mkdirSync(dirname(resultsPath), { recursive: true })` before the append (today
+(`:447`); add `mkdirSync(dirname(resultsPath), { recursive: true })` before the append (today
 the eval dir exists only because `scripts/install.mjs:925` created it — a hermetic test or a
-fresh machine degrades to the catch-and-warn at `:230`, which would silently mask the very
-behaviour under test); `capJsonl` applies to whichever lane file was written (`:228`'s twin).
+fresh machine degrades to the catch-and-warn at `:455`, which would silently mask the very
+behaviour under test); `capJsonl` applies to whichever lane file was written (`:452`'s twin).
 `judged.jsonl` is deliberately NOT split: it has zero fixture writes today (5 records, stable;
 `skills/odyssey/scripts/judge.mjs:13`) — extending the lane to it is queue item 09's call, named
 under *Known, not fixed*.
@@ -130,16 +130,16 @@ under *Known, not fixed*.
 
 The declared editable set — this becomes the fix-run plan's `Files:` list, verbatim and complete:
 
-- `skills/odyssey/scripts/set-phase.mjs` — the append site (`:217-231`): lane resolution, mkdir,
+- `skills/odyssey/scripts/set-phase.mjs` — the append site (`:430-457`): lane resolution, mkdir,
   cap twin.
-- `skills/odyssey/scripts/harness.mjs` — the sweep summary at `:145` prints the record count of
+- `skills/odyssey/scripts/harness.mjs` — the sweep summary at `:149` prints the record count of
   `results.jsonl` only; post-split it must report both lanes (operator + synthetic) or it
   silently under-reports — a miniature of the vacuous-dashboard problem this change exists to
   close. Harness also grows the lane declaration surface for 09 (its runs are real and stay
   operator-lane by default).
 - `skills/odyssey/scripts/pipeline-integration.test.mjs` — the fixture writer: declare the lane
-  for the fixture's child processes. The `run()` helper at `:33` and the `dispatch()` helper at
-  `:64-68` already sculpt child env (`ZODYSSEY_UNGATE_BASH: ""` at `:67` is the in-file
+  for the fixture's child processes. The `run()` helper at `:33-38` and the `dispatch()` helper at
+  `:68-72` already sculpt child env (`ZODYSSEY_UNGATE_BASH: ""` at `:71` is the in-file
   precedent) — add `ZODYSSEY_EVAL_LANE: "synthetic"` there, so the whole fixture run is
   synthetic at source, including any future `done`/`audited` invocation added to this test.
 - `skills/odyssey/scripts/set-phase.eval-lane.test.mjs` (new — no such suite exists today;
@@ -163,7 +163,7 @@ the gated run — do not widen the set to include them by default.
   must keep working unmodified except the harness summary line. Both lane files carry the
   identical record format.
 - **Do not make the lane a gate.** An unset, misspelled, or unrecognized lane value never
-  blocks or fails a transition — telemetry stays best-effort (`:213-216`, `:230`'s catch). Fail
+  blocks or fails a transition — telemetry stays best-effort (`:426-429`, `:455`'s catch). Fail
   closed applies to enforcement state, not to where a scorecard lands.
 - **No argv flag for lane selection.** Env-only, and no argv-surface change to `set-phase.mjs`
   at all — **No argv flag authenticates anyone**; the lane declares provenance, it does not
@@ -323,7 +323,7 @@ radius beyond that:
   fixed*). `skills/odyssey/scripts/recall-corrections.mjs:32` — aspirational comment only.
   `skills/odyssey/scripts/dashboard.test.mjs:65` — already isolated in a temp dir; unaffected,
   and it is the generalization pattern this change follows.
-- **The stderr notice changes text for synthetic runs** (`:229` now prints the synthetic path) —
+- **The stderr notice changes text for synthetic runs** (`:453` now prints the synthetic path) —
   nothing in the repo greps that message (grep: no consumers), humans only.
 - **Downstream queue items 06, 09, 10** — gated on this by design (INDEX DAG); each reads the
   operator lane and needs no retrofit. 09 additionally inherits the lane mechanism for
@@ -362,8 +362,8 @@ run and undecidable for a synthetic one (provenance cannot be guessed — see Mu
 Every doc that states the claim this change alters ("every completed run's scorecard lands in
 `results.jsonl`"), each checked against the 2026-08-16 tree:
 
-- `docs/MEASUREMENT.md:123` — the pipeline diagram's `APPEND to eval/results.jsonl ◄── the trend
-  line` box gains the two-lane fact; `:167` — build-order item 4 ("`eval/results.jsonl` +
+- `docs/MEASUREMENT.md:148` — the pipeline diagram's `APPEND to eval/results.jsonl ◄── the trend
+  line` box gains the two-lane fact; `:196` — build-order item 4 ("`eval/results.jsonl` +
   `dashboard.mjs` — append-only trend log") likewise. Add a **corpus-hygiene block**: the
   cutover date, the stamped pre-cutover contamination (159/190 = 83.7% synthetic, measured
   2026-08-16, run impl-prompts-v0-6 todo 10), the retention stance, and the cap-aging note —
@@ -373,7 +373,7 @@ Every doc that states the claim this change alters ("every completed run's score
   `results.synthetic.jsonl`, and the rule that fixture harnesses declare the lane at spawn.
 - `docs/DESIGN.md` — the queue's docs pointer named "§6", but §6 is the hooks table
   (`docs/DESIGN.md:245`) and states nothing about the corpus; the sections that carry the claim
-  are **§11 Observability & evaluation** (`:384`) and **§12's component row 12** (`:412`,
+  are **§11 Observability & evaluation** (`:384`) and **§12's component row 12** (`:416`,
   "results.jsonl + judged.jsonl"). Update those two; record the pointer correction in the
   change's notes rather than silently editing §6 (a doc edit in the wrong section is the next
   doc-code drift).
@@ -435,10 +435,37 @@ it only if it is actually loaded, after the fact, never in anticipation.
 
 ## Estimated size
 
-~10-15 lines in `skills/odyssey/scripts/set-phase.mjs` (lane resolution at the `:225` site, the
+~10-15 lines in `skills/odyssey/scripts/set-phase.mjs` (lane resolution at the `:447` site, the
 mkdir guard, the cap twin); ~3 lines in `skills/odyssey/scripts/pipeline-integration.test.mjs`
 (one env key in each child-spawn helper); ~5 lines in `skills/odyssey/scripts/harness.mjs`
 (both-lane summary); ~110-140 lines of new test (`set-phase.eval-lane.test.mjs`: four hermetic
 cases plus controls); ~25 lines of docs. **Minor release** — rides the v0.6 minor with
 non-security items, never with 01/03/04. Gates queue items 06 and 09 the moment it lands: the
 first honest corpus number is the one drawn after this change ships.
+
+## Amendment — 2026-08-17, item shipped (v0.6.1)
+
+Shipped on `feat/eval-lane-decontamination`. Deviations from the brief as written, both forced
+by the tree having moved since 2026-08-16 (the brief's own header instruction: verify every
+anchor against the standing tree):
+
+1. **The fixture declaration outgrew `pipeline-integration.test.mjs`.** Item 02's landing gave
+   `set-phase.check-wiring.test.mjs` four successful `done` transitions (slug `t`) with no lane
+   declaration — a polluter the brief could not name because it predates item 02's suite
+   (the brief's own finding: "no test in today's tree successfully drives `t` → done"). Per-helper
+   edits would be enumeration — the exact reintroduction class the brief warns against — so the
+   declaration lives at the ONE spawner every suite shares: `run-tests.mjs` exports
+   `ZODYSSEY_EVAL_LANE=synthetic` for the whole suite run. The lane suite deletes/sets the var
+   explicitly per case, so an inherited lane can never contaminate its operator-lane assertions.
+   Net effect: criterion 5's invariant holds on BOTH markers — `add-truncate` (pipeline) and `t`
+   (check-wiring) — not just the brief's marker.
+2. **The mkdir guard is inside the lane change** (the brief's mechanism note), which also fixes
+   the hermetic-HOME ENOENT the red-direction run exposed: pre-fix, a fresh HOME degraded to
+   the catch-and-warn, silently producing zero records anywhere.
+
+Citations above were re-anchored to the current tree on shipment (the bare-continuation dialect
+this file's "What is broken" used heavily is checker-invisible — see `docs/impl/15`'s 2026-08-17
+note); quoted code lines in "What is broken" describe the pre-lane tree and are preserved as the
+historical record. Stamped at cutover: 387 records / 91.2% synthetic (211 `add-truncate` +
+142 `t`); suite-run guard after the fix: operator log byte-identical (387 → 387), synthetic lane
++4 fixture records on the first post-fix run.

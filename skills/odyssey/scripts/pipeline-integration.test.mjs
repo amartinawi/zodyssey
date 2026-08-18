@@ -30,7 +30,12 @@ const script = (n) => join(S, n);
 
 let pass = 0, fail = 0;
 const check = (n, c, d = "") => c ? (console.log(`  ✓ ${n}`), pass++) : (console.log(`  ✗ ${n} ${d}`), fail++);
-const run = (args, opts = {}) => spawnSync(process.execPath, args, { encoding: "utf8", ...opts });
+// Item 05: declare this whole fixture run synthetic at source, so the terminal-phase scorecard
+// appends to results.synthetic.jsonl instead of the operator's live results.jsonl. Precedent:
+// dispatch()'s sculpted child env below. Placed BEFORE ...opts so a caller can still override.
+const run = (args, opts = {}) => spawnSync(process.execPath, args, {
+  encoding: "utf8", env: { ...process.env, ZODYSSEY_EVAL_LANE: "synthetic" }, ...opts,
+});
 const git = (repo, ...a) => spawnSync("git", ["-C", repo, ...a], { encoding: "utf8" });
 
 // ---------------------------------------------------------------------------
@@ -64,7 +69,7 @@ function dispatch(subagent) {
   return spawnSync(process.execPath, [HOOK], {
     input: JSON.stringify({ tool_name: "Task", tool_input: { subagent_type: subagent, prompt: "review it" } }),
     encoding: "utf8",
-    env: { ...process.env, CLAUDE_PROJECT_DIR: repo, ZODYSSEY_UNGATE_BASH: "" },
+    env: { ...process.env, CLAUDE_PROJECT_DIR: repo, ZODYSSEY_UNGATE_BASH: "", ZODYSSEY_EVAL_LANE: "synthetic" },
   });
 }
 

@@ -204,7 +204,7 @@ Verdicts from the code inventory (notepad 2); citations are `file:line`.
 | Verification | **STRONG** | criteria executed not trusted, `--trust-argv` required (`skills/odyssey/scripts/record-verify.mjs:69-107`), regression gate three-way semantics (`skills/odyssey/scripts/regression-gate.mjs:2-29`), F1 fails closed (`record-final-wave.mjs:6-7,178-198`); one soft spot — `check-imports.mjs` unwired (`skills/odyssey/references/scripts.md:45` prose-only) |
 | Context/memory | **THIN — WEAKEST** | see the three pieces of evidence below |
 | Guardrails | **STRONG** | review gate (`pre-tool.mjs:797`), fail-closed scope isolation (`:847`), hook-minted nonces (`:1355-1382`), plan-tamper guard (`:811,959`), HMAC run discovery (`:30,506`) — the project's center of mass |
-| Observability | **MEDIUM** | real DB-backed token accounting (`skills/odyssey/scripts/lib/tokens.mjs:35,83-92`), 177-record longitudinal store, 5 genuinely judged runs, dashboard + written methodology (`docs/MEASUREMENT.md:3-30`) — but telemetry populated 1/177 and the baseline arm never measured (`skills/odyssey/scripts/harness.mjs:19`) |
+| Observability | **MEDIUM** | real DB-backed token accounting (`skills/odyssey/scripts/lib/tokens.mjs:35,83-92`), 177-record longitudinal store, 5 genuinely judged runs, dashboard + written methodology (`docs/MEASUREMENT.md:3-42`) — but telemetry populated 1/177 and the baseline arm never measured (`skills/odyssey/scripts/harness.mjs:19`) |
 
 **WEAKEST: context/memory. Runner-up: observability.** The three strongest pieces of code
 evidence for that verdict:
@@ -422,7 +422,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B4) F1 converse (declared-but-untouched) | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:45,231,300-302 | `--allow-untouched` flag; ORCH-1 extended it to waive all files for read-only runs |
 | (b-B5) Test files read-only at hook layer | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:789,1200-1204 | Edit path "test files are read-only during phase=…"; Bash path "test files are FROZEN" |
 | (b-B6) Criteria must invoke toolchain.test_cmd | CONFIRMED shipped (conditional) | skills/odyssey/scripts/parse-plan.mjs:370-373 | enforced only when .zcode/toolchain.json declares one (bare repo exempt) |
-| (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:313-327; skills/odyssey/scripts/pipeline-integration.test.mjs:93 | scaffold invokes it at run start; integration test asserts the wiring |
+| (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:313-327; skills/odyssey/scripts/pipeline-integration.test.mjs:98 | scaffold invokes it at run start; integration test asserts the wiring |
 | (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:339 | auto-snapshot entering execute; done blocked on regression |
 | (b-B9-3) Phase B item B9 shipped | CONFIRMED shipped as standalone script, NOT phase-wired | CHANGELOG.md:478; skills/odyssey/references/scripts.md:45 | shipped v0.3.2; pipeline presence is prompt-convention only |
 | (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:60-88 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |

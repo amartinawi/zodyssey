@@ -342,7 +342,7 @@ tested"), each re-anchored against the tree at build time:
 
 - `docs/ROADMAP.md:158-161` — A4 must stop describing the registry as missing: name the three
   files, the nine seed rows, and the command that answers the question.
-- `docs/MEASUREMENT.md:49-54` — the "Honest status" block gains the registry as a mechanism line:
+- `docs/MEASUREMENT.md:61-66` — the "Honest status" block gains the registry as a mechanism line:
   "which documented guarantee has no test?" is answerable by `node scripts/check-claims.mjs`;
   stamp the initial coverage (9 rows, measured at build time).
 - `docs/DESIGN.md:245` (§6) — each §6 load-bearing guarantee gains its ledger id where bound;

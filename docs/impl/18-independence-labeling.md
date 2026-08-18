@@ -19,7 +19,7 @@ they are **one origin**; the external auditor is the only second origin a run ca
 (`state.consult.history`, written by `skills/odyssey/scripts/consult.mjs:1096`; phase `audited`,
 set per `skills/odyssey/SKILL.md:267`) but nothing reports it: `run-report.mjs`'s `--json` record —
 auto-appended to the trend corpus on every done|audited transition
-(`skills/odyssey/scripts/set-phase.mjs:430-446`) — carries `success: true|false` with no statement
+(`skills/odyssey/scripts/set-phase.mjs:430-457`) — carries `success: true|false` with no statement
 of **what verified it**. A corpus consumer reading `success: true` cannot tell an audited run from
 an in-session-only one.
 
@@ -152,7 +152,7 @@ inconvenient. Prevented by: the test asserting both grades, the fallback, and th
 
 ## Docs to update
 
-- `docs/MEASUREMENT.md:47` — the §2 table row naming the field (done in this change).
+- `docs/MEASUREMENT.md:59` — the §2 table row naming the field (done in this change).
 - `docs/impl/00-INDEX.md` — DAG row 18.
 
 ## CHANGELOG entry shape

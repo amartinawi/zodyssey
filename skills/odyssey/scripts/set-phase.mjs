@@ -435,11 +435,22 @@ if (phase === "done" || phase === "audited") {
       fileURLToPath(new URL("./run-report.mjs", import.meta.url)),
       repo, slug, "--json",
     ], { encoding: "utf8", shell: false });
-    const resultsPath = join(env.HOME || "", ".zcode", "orchestration", "eval", "results.jsonl");
-    appendFileSync(resultsPath, report.trim() + "\n");
+    // Item 05 (metrics-corpus-decontamination): a run that DECLARES itself synthetic at source —
+    // ZODYSSEY_EVAL_LANE=synthetic, exact match, set by the spawning fixture/harness process —
+    // appends to a separate lane file so the operator's trend log holds real runs only. The lane
+    // is a write destination, never a gate: unset, misspelled, or wrong-case values mean operator
+    // lane, and telemetry stays best-effort — a typo'd lane must never fail a phase transition.
+    const evalDir = join(env.HOME || "", ".zcode", "orchestration", "eval");
+    // Fresh machine / hermetic HOME: the eval dir must not need to pre-exist, or this degrades
+    // to the catch-and-warn below, silently masking the append (the exact defect item 05 found).
+    mkdirSync(evalDir, { recursive: true });
+    const lanePath = env.ZODYSSEY_EVAL_LANE === "synthetic"
+      ? join(evalDir, "results.synthetic.jsonl")
+      : join(evalDir, "results.jsonl");
+    appendFileSync(lanePath, report.trim() + "\n");
     // PERF (memory fix 3b): rolling cap so the cross-run ledger can't grow unbounded across eval sweeps.
-    capJsonl(resultsPath, 1000);
-    process.stderr.write(`ZOdyssey: run ${slug} reached ${phase} — scorecard appended to ${resultsPath}\n`);
+    capJsonl(lanePath, 1000);
+    process.stderr.write(`ZOdyssey: run ${slug} reached ${phase} — scorecard appended to ${lanePath}\n`);
   } catch (e) {
     process.stderr.write(`ZOdyssey: WARNING — could not auto-append run-report for ${slug} (${(e.message || "").slice(0, 120)}). Run record manually.\n`);
   }

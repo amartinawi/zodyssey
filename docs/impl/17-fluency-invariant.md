@@ -9,7 +9,7 @@ below were derived on 2026-08-17 and this repo moves fast. Do exactly this one c
 
 ## What is broken
 
-`docs/MEASUREMENT.md:35` defines the quality rubric as five dimensions — correctness, scope
+`docs/MEASUREMENT.md:47` defines the quality rubric as five dimensions — correctness, scope
 fidelity, verification rigor, code quality, efficiency — none of which scores HOW the output is
 written. The judge prompt implements exactly that:
 `skills/odyssey/scripts/judge.mjs:106` (`## Scoring rubric`, weights 0.4/0.2/0.2/0.1/0.1) and the

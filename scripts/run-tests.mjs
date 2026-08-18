@@ -71,7 +71,15 @@ const started = process.hrtime.bigint();
 for (const suite of suites) {
   const rel = relative(ROOT, suite);
   const t0 = process.hrtime.bigint();
-  const r = spawnSync(process.execPath, [suite], { encoding: "utf8", timeout: 10 * 60 * 1000 });
+  // Item 05: declare the WHOLE test run synthetic at source — one declaration point for every
+  // current and future fixture that drives set-phase to a terminal phase, so suite runs never
+  // append to the operator's live results.jsonl. Suites testing the lane itself override this
+  // per spawn (set-phase.eval-lane.test.mjs deletes/sets it explicitly per case); fixtures
+  // wanting a hermetic corpus set HOME per spawn (dashboard.test.mjs pattern).
+  const r = spawnSync(process.execPath, [suite], {
+    encoding: "utf8", timeout: 10 * 60 * 1000,
+    env: { ...process.env, ZODYSSEY_EVAL_LANE: "synthetic" },
+  });
   const ms = Number((process.hrtime.bigint() - t0) / 1000000n);
   if (r.status === 0) {
     console.log(`  ✓ ${rel} (${ms}ms)`);

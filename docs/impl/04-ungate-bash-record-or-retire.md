@@ -96,7 +96,7 @@ Stated as observable behaviour, not as a diff:
    present and emits an integer field `ungated_bash_calls` in its `--json` object (0 when the file
    is absent) plus one scorecard line, following the exact precedent of `hook_blocks`
    (`skills/odyssey/scripts/run-report.mjs:72-79`, report field at `:124`). Because
-   `skills/odyssey/scripts/set-phase.mjs:430-439` already pipes `run-report --json` into the trend
+   `skills/odyssey/scripts/set-phase.mjs:430-450` already pipes `run-report --json` into the trend
    log at `done`/`audited`, the count lands in `results.jsonl` with no `set-phase.mjs` change.
 4. Recording is never itself gated: no second environment variable, flag, or phase condition may
    enable, disable, or filter the ledger write. If the variable is set and a run is active, the
@@ -135,7 +135,7 @@ The declared editable set — this becomes the fix-run plan's `Files:` list, ver
 - `skills/odyssey/hooks/pre-tool.bash-gate.test.mjs`
 
 Nothing else. `set-phase.mjs` is deliberately absent: the trend-log surface comes free through the
-existing `run-report --json` pipe (`skills/odyssey/scripts/set-phase.mjs:430-439`). The docs listed
+existing `run-report --json` pipe (`skills/odyssey/scripts/set-phase.mjs:430-450`). The docs listed
 under "Docs to update" belong to the release pass, not the gated run: a post-OKAY executor cannot
 edit files outside this declared set, so the doc edits either ride the release commit outside the
 run, or the plan is deliberately widened to list each doc literally. Do not widen it by default.
@@ -291,7 +291,7 @@ Operators who relied on **totally silent** ungating — the documented personal 
 file under `.zcode/state/` (one JSON line per Bash call — bounded by the run's Bash call count,
 gitignored with all of `.zcode/`, and small next to the transcript itself), an
 `ungated_bash_calls` integer on every scorecard, and that same integer in every trend-log record
-via the existing auto-append (`skills/odyssey/scripts/set-phase.mjs:430-439`). No exit code changes
+via the existing auto-append (`skills/odyssey/scripts/set-phase.mjs:430-450`). No exit code changes
 for anyone — not the operator with the variable set (still 0), not anyone without it (gates
 unchanged), and the existing hatch assertion at `:157-158` still passes untouched.
 

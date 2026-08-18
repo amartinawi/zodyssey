@@ -121,7 +121,7 @@ the one that matters.
 
 ### 1.1 Context/memory — weakest, and inert rather than thin
 
-`set-phase.mjs:458-466` writes a fixed two-line template on every terminal transition. The entire
+`set-phase.mjs:469-477` writes a fixed two-line template on every terminal transition. The entire
 production corpus, `.zcode/memory/outcomes.jsonl`, is 8 lines of
 `"run <slug> reached done at <iso>"` / `"transition: done"`. Exactly one entry carries content —
 the `v0-3-1-audit` review-gate deadlock — because a human passed `--note`.
@@ -134,7 +134,7 @@ A memory system with no writer of substance and no enforced reader.
 
 ### 1.2 Observability — not thin, actively misleading
 
-`set-phase.mjs:430-439` appends every terminal run's scorecard to
+`set-phase.mjs:430-450` appends every terminal run's scorecard to
 `$HOME/.zcode/orchestration/eval/results.jsonl` unconditionally — **including from the hermetic
 test suite**. The corpus:
 

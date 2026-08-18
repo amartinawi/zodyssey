@@ -12,7 +12,7 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 ## What is broken
 
 **The wiring already exists and, since one specific moment, works.** When a run reaches
-`done|audited`, `skills/odyssey/scripts/set-phase.mjs:430-439` auto-appends a run-report record to
+`done|audited`, `skills/odyssey/scripts/set-phase.mjs:430-450` auto-appends a run-report record to
 `~/.zcode/orchestration/eval/results.jsonl` by executing run-report from the **plugin cache**
 (`skills/odyssey/scripts/set-phase.mjs:433-437` — `fileURLToPath(new URL("./run-report.mjs",
 import.meta.url))`, with the in-code comment "so it is found from the plugin cache install").
@@ -70,7 +70,7 @@ already exists). The residual defects are three, all verified:
    (repo, time-window) — `skills/odyssey/scripts/lib/tokens.mjs:20-23` states "Two concurrent runs
    in one repo cannot be separated. Reported honestly as confidence:'estimate' — stamping the
    harness session id into state would make it exact, which is the follow-up";
-   `:115`/`:121` carry the marks. The exact form is mechanizable today, verified against the live
+   `:126`/`:132` carry the marks. The exact form is mechanizable today, verified against the live
    DB: the `session` table has a `parent_id` column and all 9 sub-agent sessions of the
    `ideation-v0-6` run link to its orchestrator session (`sess_2924301d…`), so
    `WHERE (s.id = :sid OR s.parent_id = :sid)` scopes a run exactly — the window then stops being
@@ -295,7 +295,7 @@ readers are humans and `docs/MEASUREMENT.md`. The blast radius is therefore:
   shape — both additive; the backward-compat rule (`|| {}` discipline for every new state field)
   applies and old states must load unchanged (criterion 5's suite covers state round-trips).
 - `post-tool.mjs` gains a best-effort state write. It already writes state under lock for
-  capability observation (`:157-166`), so the new write rides an exercised path; the invariant
+  capability observation (`:171-180`), so the new write rides an exercised path; the invariant
   that must not move is exit-0-always (criterion 4), because PostToolUse hooks must not block.
 
 ## The class it closes
@@ -319,11 +319,11 @@ re-deriving this prompt's forensics.
 
 Every doc that states the claim this change alters, each checked against the 2026-08-16 tree:
 
-- `docs/MEASUREMENT.md:24` (the `Tokens / todo completed` metric row) and `:31` (the
+- `docs/MEASUREMENT.md:36` (the `Tokens / todo completed` metric row) and `:43` (the
   tokens-per-successful-todo headline): add the platform floor (token telemetry requires
   Node >= 22.5 via `node:sqlite`; on the engines floor >= 18 it records a stamped inert) and the
   canonical fraction command partitioning records into populated / inert-with-reason /
-  historical. The record-schema sketch at `docs/MEASUREMENT.md:125-130` gains the inert shape.
+  historical. The record-schema sketch at `docs/MEASUREMENT.md:148-153` gains the inert shape.
 - `CHANGELOG.md` — new version's **Fixed** (shape below) plus the *Known, not fixed* residuals.
 - `skills/odyssey/references/scripts.md:35` (the run-report entry): state the emitted `tokens`
   shapes (populated / inert-with-reason / historical null) and the two attribution modes

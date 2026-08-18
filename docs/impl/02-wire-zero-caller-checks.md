@@ -14,11 +14,11 @@ them has a single code caller**. Census re-measured 2026-08-16 (this run, not an
 number): grep for each script's name across `skills/`, `scripts/`, `agents/`, `commands/`
 (`*.mjs`, `*.bash`), excluding the script itself and its `.test.mjs` → **zero hits for all three**.
 Every remaining reference is doc prose: `check-imports` at
-`skills/odyssey/references/scripts.md:45`, `docs/MEASUREMENT.md:51`, `README.md:129`;
+`skills/odyssey/references/scripts.md:45`, `docs/MEASUREMENT.md:63`, `README.md:129`;
 `resolve-capabilities` at `skills/odyssey/SKILL.md:378`,
 `skills/odyssey/references/capabilities.md:106`,
 `skills/odyssey/references/scripts.md:48`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
-`docs/DESIGN.md:418`; `coverage-delta` at `CHANGELOG.md:643` only (it has no
+`docs/DESIGN.md:422`; `coverage-delta` at `CHANGELOG.md:643` only (it has no
 `references/scripts.md` entry at all). The three detectors:
 
 - `skills/odyssey/scripts/check-imports.mjs` — exits **9** on an import that resolves against
@@ -39,7 +39,7 @@ enforcement: `skills/odyssey/scripts/set-phase.mjs:330-332` — "Wired here rath
 instruction on purpose: an instruction to a conductor is the prompt-convention 'enforcement' this
 project exists to replace." v0.3.2 shipped these as "the three gates `MEASUREMENT.md` promised and
 never had" (`CHANGELOG.md:475`) — and shipped them unwired:
-`docs/MEASUREMENT.md:49-53` still lists `check-imports.mjs` among "the mechanisms behind" the
+`docs/MEASUREMENT.md:61-65` still lists `check-imports.mjs` among "the mechanisms behind" the
 factual-accuracy target, a claim with no mechanism behind it. Both ideation passes found this
 independently (`docs/ideation-report.md:38`, `:263`, `:308` — "convention measurably failed to
 fire"); this run's census is the third.
@@ -332,7 +332,7 @@ checked against the 2026-08-16 tree:
   `final` note that the checks fire automatically (a conductor sentence that no longer needs to
   exist is the win; keep them to one clause each). `:377`'s diagnostics mention of
   `resolve-capabilities` stays true — manual invocation remains possible.
-- `docs/MEASUREMENT.md:49-53` — the "Honest status" block: the `check-imports.mjs` clause now
+- `docs/MEASUREMENT.md:61-65` — the "Honest status" block: the `check-imports.mjs` clause now
   carries its enforcement clause ("invoked at verify entry, enforced at `done`, inert without a
   manifest") matching the regression-gate clause's form.
 - `README.md:128-129` — comparison-table rows: "Imports resolve" (`:129`) can now name the

@@ -384,6 +384,10 @@ extension once we have an eval harness telling us which lessons are worth keepin
 ## 11. Observability & evaluation
 
 - **Every run produces:** the plan file, state.json, per-todo notepads, a run log.
+- **Telemetry is two-lane:** terminal-phase scorecards append to `eval/results.jsonl` (real
+  runs) or `eval/results.synthetic.jsonl` (runs that declared `ZODYSSEY_EVAL_LANE=synthetic` at
+  source — the fixture/harness's declaration, never guessed from slugs). Same format, same
+  rolling cap; consumers of the operator lane get real runs only with zero filter conventions.
 - **End-state evaluation** (Anthropic's method): because paths are non-deterministic, we judge
   whether the *final state* satisfies the success criteria — not the sequence of steps.
 - **LLM-as-judge stub:** a `momus`-style review of the completed work against `Success criteria`,
@@ -409,7 +413,7 @@ extension once we have an eval harness telling us which lessons are worth keepin
 | 9 | Verify + Final-wave evidence scripts | `scripts/{record-verify,record-final-wave}.mjs` | done |
 | 10 | Team mode (mailbox + tasklist + worktree) | `scripts/team/*.mjs` | deferred (v2) |
 | 11 | Model-routing config table | `scripts/models.json` | deferred (v2) |
-| 12 | **Eval harness** (run-report + record-todo + record-capability + **harness + judge + resolve-capabilities + recall-outcomes** + 18 seed tasks + 4 fixtures + results.jsonl + judged.jsonl) | `scripts/{run-report,record-todo,record-capability,harness,judge,resolve-capabilities,recall-outcomes,status}.mjs` + `eval/` | **done** |
+| 12 | **Eval harness** (run-report + record-todo + record-capability + **harness + judge + resolve-capabilities + recall-outcomes** + 18 seed tasks + 4 fixtures + results.jsonl + results.synthetic.jsonl lane + judged.jsonl) | `scripts/{run-report,record-todo,record-capability,harness,judge,resolve-capabilities,recall-outcomes,status}.mjs` + `eval/` | **done** |
 | 13 | AGENTS.md rules | `~/.zcode/AGENTS.md` | done |
 | 14 | **External consult/audit gate** (fail-closed, secret-redacting, scope-aware, generated-path-filtered) | `scripts/consult.mjs` + `references/auditor-prompt.md` | done |
 | 15 | Env overrides (`ZODYSSEY_PARALLEL_CAP`, `ZODYSSEY_STALE_HOURS`, `CLAUDE_CLI`) | documented in SKILL.md; consumed by hooks + consult | done |

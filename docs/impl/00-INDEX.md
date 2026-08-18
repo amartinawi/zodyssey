@@ -22,11 +22,11 @@ its own measurement date.
 
 | id | slug | depends-on | why-here | outcome |
 |---|---|---|---|---|
-| 01 | edit-path-containment-escape | — | Cheapest and most severe open defect; the escape is post-OKAY-only (pre-OKAY targets outside PROJECT_DIR are already blocked at skills/odyssey/hooks/pre-tool.mjs:798). Own release, shipped alone. | No edit path skips the scope gate; the `if (rel)` branch is gone. |
-| 02 | wire-zero-caller-checks | — | check-imports, coverage-delta and resolve-capabilities have zero code callers (re-confirmed this run); wiring follows the B8 precedent at skills/odyssey/scripts/set-phase.mjs:334. Ahead of 08 so the wired checks land as registry rows. | The three checks fire from phase transitions instead of by hand. |
-| 03 | nonce-lane-minter-allowlist | — | Security-class, grouped adjacently with 01/04 (same file cluster) but explicitly not merged — own release. The false header assertion at skills/odyssey/scripts/lib/capability-name.mjs:17 is corrected in the same change. | Only the declared minter can grant the nonce lane. |
+| 01 | edit-path-containment-escape | — | **SHIPPED v0.5.3.** Cheapest and most severe open defect; the escape is post-OKAY-only (pre-OKAY targets outside PROJECT_DIR are already blocked at skills/odyssey/hooks/pre-tool.mjs:798). Own release, shipped alone. | No edit path skips the scope gate; the `if (rel)` branch is gone. |
+| 02 | wire-zero-caller-checks | — | **SHIPPED v0.6.0.** check-imports, coverage-delta and resolve-capabilities have zero code callers (re-confirmed this run); wiring follows the B8 precedent at skills/odyssey/scripts/set-phase.mjs:334. Ahead of 08 so the wired checks land as registry rows. | The three checks fire from phase transitions instead of by hand. |
+| 03 | nonce-lane-minter-allowlist | — | **SHIPPED v0.5.5.** Security-class, grouped adjacently with 01/04 (same file cluster) but explicitly not merged — own release. The false header assertion at skills/odyssey/scripts/lib/capability-name.mjs:17 is corrected in the same change. | Only the declared minter can grant the nonce lane. |
 | 04 | ungate-bash-record-or-retire | — | Decision: record every ungated call, not retirement — the affordance is documented (docs/INSTALL.md:152) and the v0.1.1/v0.2.0 gate-deletion history (CHANGELOG.md:453, CHANGELOG.md:618) is the causal evidence against removal. Security-class, own release. | Every `ZODYSSEY_UNGATE_BASH=1` call is recorded in run state. |
-| 05 | metrics-corpus-decontamination | — | skills/odyssey/scripts/set-phase.mjs:439 appends every run to the trend log unconditionally: 153/184 records synthetic (83.2%, measured 2026-08-16). All measurement items are gated behind this. | The trend log holds real runs only; the synthetic share is measured, not guessed. |
+| 05 | metrics-corpus-decontamination | — | **SHIPPED v0.6.1 (2026-08-17).** skills/odyssey/scripts/set-phase.mjs:450 appends every run to the trend log unconditionally: 153/184 records synthetic (83.2%, measured 2026-08-16). All measurement items are gated behind this. | The trend log holds real runs only; the synthetic share is measured, not guessed. |
 | 06 | token-telemetry-run-close | 05 | Wiring already exists (skills/odyssey/scripts/set-phase.mjs:430, skills/odyssey/scripts/run-report.mjs:95); the defects are the null population (2/184, measured 2026-08-16) and attribution (skills/odyssey/scripts/lib/tokens.mjs:150). Telemetry numbers are corpus metrics — after 05. | Token counts are populated and attributed per run. |
 | 07 | b10-pre-edit-lint-baseline | — | skills/odyssey/hooks/post-tool.mjs:72 lints post-edit only and blocks (skills/odyssey/hooks/post-tool.mjs:81) with no baseline to compare against. Independent of the other tracks. | Lint regressions are caught against a committed baseline. |
 | 08 | claim-assertion-coverage-ledger | 01, 02, 03, 04 | The registry wants the four fixes ahead of it so their claims land as rows rather than retrofits. Five scattered equivalents already exist (the four found at verification — skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:4, skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:2, scripts/version-consistency.test.mjs:15, scripts/smoke-gate.mjs:1 — plus a fifth found while writing prompt 08 itself: scripts/deploy-surface.test.mjs:2, commit 26af48b; corrected here 2026-08-16). | One ledger answers "is this claim asserted anywhere". |
@@ -78,7 +78,7 @@ or `set-phase.mjs` (29).
 
 | candidate | reason (file:line) |
 |---|---|
-| Per-test regression granularity | Concession confirmed: per-test granularity needs runner-specific parsing that would rot (docs/MEASUREMENT.md:56). Both ideation passes say do not build. Left out. |
+| Per-test regression granularity | Concession confirmed: per-test granularity needs runner-specific parsing that would rot (docs/MEASUREMENT.md:68). Both ideation passes say do not build. Left out. |
 | OS-level process confinement (full) | Hooks observe tool calls, not process trees — the boundary is codified at agents/sisyphus-junior.md:89. The in-constraint remainder (write-capable Bash targeting) already exists and is folded into 01. |
 
 ## Out-of-rank positions
@@ -98,3 +98,20 @@ or `set-phase.mjs` (29).
 - build-capsules.mjs is a fourth zero-caller script (zero references of any kind, measured 2026-08-16). Outside the Step-2 candidate set — recorded here, not added as a 15th prompt.
 - results.jsonl drift across this task's lifetime: 172 (map, 08-15) → 177 (report, 08-15) → 181 (metis consult, 08-16 early) → 184 (notepad 2, 2026-08-16T03:05:00Z) → 185 (during todo 3, 08-16). Every prompt quoting the file stamps its own count and date.
 - CORRECTED during the run (wave 6): an earlier bullet here claimed `docs/ADAPT.md` does not exist — that was wrong. The file exists (committed in 6039199, v0.1.0) and `docs/ADAPT.md:48` is the live, canonical anchor for the ZODYSSEY_UNGATE_BASH affordance ("set ZODYSSEY_UNGATE_BASH=1 if you want the lower-friction ungated behavior"). docs/INSTALL.md:152 and CHANGELOG.md:453/:618 are additional live anchors also used in row 04. Prompt 04 may cite any of these. The false-absence claim was caught by the prompt-04 executor and re-verified by the conductor against the working tree — the exact drift class this INDEX exists to prevent, caught inside the same run that wrote it.
+
+## Amendment — 2026-08-17, item 05 shipped + bookkeeping catch-up
+
+Item 05 (metrics-corpus-decontamination) shipped on `feat/eval-lane-decontamination` → v0.6.1:
+two-lane telemetry (`ZODYSSEY_EVAL_LANE=synthetic` declared at source routes terminal-phase
+scorecards to `results.synthetic.jsonl`; `run-tests.mjs` exports the lane for the whole suite
+run, so the guard holds on both fixture markers, not just `add-truncate`). Stamped at cutover:
+387 records / 91.2% synthetic, retained (not quarantined) per the brief's migration stance.
+Deviations + the bare-cite reconciliation this sweep required: see the amendment appended to
+the item-05 brief itself.
+
+Bookkeeping catch-up (found during the 2026-08-17 external verification of the release state):
+rows 01/02/03/15/16 had shipped without shipped-markers in this table (the tags and CHANGELOGs
+were the only record). Rows now carry their release stamps: 01 → v0.5.3, 16 → v0.5.4,
+03 → v0.5.5, 02 (+ the ISNAD rows 17-20) → v0.6.0, 15 → pre-v0.5.3 (`a9b4cf0`).
+Remaining queue: 04, 06, 07, 08, 09, 10, 11, 12, 13, 14 — 06 and 09 are now unblocked (their
+depends-on 05 is shipped); 06 is the natural next (its denominators draw from the operator lane).

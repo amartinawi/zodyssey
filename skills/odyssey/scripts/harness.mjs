@@ -142,7 +142,12 @@ for (const seed of selected) {
 
 console.log("\n=== harness summary ===");
 for (const r of results) console.log(`  ${r.id}: ${r.status}${r.repo ? " → " + r.repo : ""}`);
-console.log(`\nresults.jsonl: ${existsSync(RESULTS) ? readFileSync(RESULTS, "utf8").split("\n").filter((l) => l.trim()).length + " records" : "empty (will populate as runs complete)"}`);
+// Item 05: both lanes, or the summary silently under-reports — the miniature of the
+// vacuous-dashboard problem the lane split exists to close.
+const SYNTH = join(env.HOME || "", ".zcode", "orchestration", "eval", "results.synthetic.jsonl");
+const count = (p) => (existsSync(p) ? readFileSync(p, "utf8").split("\n").filter((l) => l.trim()).length + " records" : "empty");
+console.log(`\nresults.jsonl (operator lane): ${count(RESULTS)}${existsSync(RESULTS) ? "" : " (will populate as runs complete)"}`);
+console.log(`results.synthetic.jsonl (synthetic lane): ${count(SYNTH)}`);
 
 // A run in which EVERY seed skipped is not a successful run. Exiting 0 here is what let the eval
 // look healthy for its entire existence: it "completed", printed a summary, and measured nothing.
