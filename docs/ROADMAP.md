@@ -162,7 +162,7 @@ broke stays honest.
 
 Catches *absence*, not *wrongness*. It would have caught the deleted gate; it would not catch a
 gate that exists but is subtly wrong. A smoke alarm, not a fire inspection — worth building
-because every fire found so far was smoke-alarm-detectable.
+because every fire found so far was smoke-alarm-detectable. **Landed 2026-08-19:** the registry exists — `scripts/claims-ledger.mjs` (the rows) + `scripts/check-claims.mjs` (the checker) + `scripts/check-claims.test.mjs` (the pin that keeps the registry itself from silently dying), nine seed rows: BASH-GATE-REGRESSION, GATE-SURFACE-INVARIANTS, VERSION-CONSISTENCY, SMOKE-GATE-LIVE, DEPLOY-SURFACE-COVERAGE, EDIT-PATH-CONTAINMENT, CHECKS-WIRED-AT-TRANSITIONS, NONCE-MINTER-EXACT, UNGATED-CALLS-RECORDED. The command that answers "which documented guarantee has no test?" is `node scripts/check-claims.mjs` (exit 0 = every row resolves).
 
 ### A5 · The red set
 Assertions for claims the code currently violates. These fail on arrival and constitute Phase B.

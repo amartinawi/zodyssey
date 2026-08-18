@@ -33,7 +33,7 @@ Set the local git identity (don't rely on global) so commits are attributed corr
 
 ## Publishing a release
 
-When main has accumulated enough changes:
+When main has accumulated enough changes: *(a release runs all three repo-level invariant checks — `version-consistency.test.mjs` (step 3), the claims ledger via `node scripts/check-claims.mjs` (its suite runs inside the same `npm test`, by discovery), and `scripts/smoke-gate.mjs` (step 7).)*
 
 1. Bump the version in **all three** files that declare it — they are read by different consumers and nothing else keeps them in sync:
    - `.zcode-plugin/plugin.json` — the LOADER (identity, namespace, hooks)
@@ -99,6 +99,7 @@ F2/F4 checked that a reviewer was summoned, not what it said).
 - `git log --oneline -5` → what changed recently?
 - For hook weirdness: the hook disarms entirely if no active run exists in `<cwd>/.zcode/state/`. Check phase first.
 - For install issues: run `node scripts/install.mjs --dry-run` (preview) or `--verify` (health-check); flags are `--dry-run`, `--verify`, `--uninstall`, `--sync-cache`.
+- For claim coverage: `node scripts/check-claims.mjs` (exit 0 = every ledger row in `scripts/claims-ledger.mjs` resolves; 1 = findings naming the row id) — the third repo-level invariant check beside version-consistency and the smoke gate; a release runs all three.
 
 ## Conventions
 

@@ -94,7 +94,7 @@ Because paths are non-deterministic, we judge the **end state**, not the sequenc
 > red", not "47 passing tests became 46 while the suite still exits 0" — per-test granularity
 > needs runner-specific parsing that would rot. `check-imports.mjs` verifies a package is
 > *declared here*, not that it exists on any registry, and does not check whether an imported
-> *symbol* exists within a real package. Nothing type-checks or builds. Treat those as open.
+> *symbol* exists within a real package. Nothing type-checks or builds. Treat those as open. A fourth mechanism has since landed (2026-08-19) and **is** invoked: `scripts/check-claims.mjs` over the claim→assertion coverage ledger `scripts/claims-ledger.mjs`, run by `npm test` via test discovery. It answers the table's standing question — "which documented guarantee has no test?" — with `node scripts/check-claims.mjs` (exit 0 = every row resolves; 1 = findings, each naming its row id; `inert` when no ledger exists). Initial coverage: 9 rows, measured at build time (43/43 suites green).
 | **LLM-as-judge score (0.0–1.0)** | overall, rubric-weighted | oracle/judge on final diff + success criteria | ≥0.85 |
 
 **Rubric for the judge** (0.0–1.0 each, weighted mean):

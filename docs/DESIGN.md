@@ -271,7 +271,7 @@ host editing is never affected; (b) the review gate + scope boundary together im
 scope-isolation fix — the gate says "the plan is good enough to execute," the scope
 boundary says "execution stays inside the plan's declared files" (both are needed; neither alone
 is sufficient); (c) the scope boundary fails closed — an unreadable or empty plan refuses all
-product-code edits rather than allowing everything.
+product-code edits rather than allowing everything. **Ledger bindings** (`scripts/claims-ledger.mjs`, re-verified by `scripts/check-claims.mjs`): the Bash write-gate row binds BASH-GATE-REGRESSION and UNGATED-CALLS-RECORDED; the scope-boundary row binds EDIT-PATH-CONTAINMENT; the nonce-minting row binds NONCE-MINTER-EXACT; and the audit-found gate surface this table describes (review gate, scope boundary, Bash gate, phase gate) binds GATE-SURFACE-INVARIANTS. The §6 rows with neither a ledger binding nor a *Known, not fixed* name — file lock, parallel cap, capability recording, post-edit lint, checkpoint/lock-release — are the next doc-code drift in the making (bound-or-named rule: a new load-bearing claim gets a row; red is resolved by binding or by changing the doc, never by deleting the row).
 
 ### 6.1 The post-`done` consult gate and the `remediate` phase
 

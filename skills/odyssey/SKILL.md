@@ -362,7 +362,7 @@ On `/orchestrate resume <slug>`, read `state.json`, find the last checkpoint, an
 ## What you NEVER do
 
 - Never edit product code yourself in phases 1–3 (planning). The hook blocks it; you also have no reason to.
-- Never skip the review gate. Execution before `review.verdict == OKAY` is hook-blocked.
+- Never skip the review gate. Execution before `review.verdict == OKAY` is hook-blocked. (Gate-behaviour claims like this one are rows in `scripts/claims-ledger.mjs`, mechanically re-verified by `scripts/check-claims.mjs` inside `npm test` — a change that alters gated behaviour re-binds its row.)
 - Never declare a todo done unless its acceptance criteria passed (phase 5).
 - Never expand scope. If a worker reports out-of-scope observations, note them; don't action them mid-run.
 
