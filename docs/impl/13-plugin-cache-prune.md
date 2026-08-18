@@ -23,7 +23,7 @@ Which dir is live is not a guess and not a property of the tree — it is record
 marketplace-owned `cacheTransactionId`). `scripts/install.mjs` already reads exactly this truth:
 `PLUGINS_JSON_PATH` at `scripts/install.mjs:56`, `loadPluginsJson()` at `:140-151`,
 `findInstalledEntry()` at `:156-162`, `resolveInstallPath()` at `:164-169`. The repo manifest
-(`.zcode-plugin/plugin.json:4`) read `0.5.2` at measurement (0.6.0 since the 2026-08-17
+(`.zcode-plugin/plugin.json:4`) read `0.5.2` at measurement (0.6.x across the 2026-08-17/18
 releases), but that is coincidence of timing, not
 the mechanism — during a version bump the registry points at the OLD dir while the repo says the
 NEW one, so "matches the repo's VERSION" is exactly the wrong live-ness test.

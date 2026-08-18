@@ -1,6 +1,23 @@
 # Changelog
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+## [0.6.2] — 2026-08-18
+
+### Fixed — the ZODYSSEY_UNGATE_BASH hatch now testifies (item 04)
+
+`ZODYSSEY_UNGATE_BASH=1` still opens the Bash write-gate — the documented power-user hatch is deliberate and unchanged — but it is no longer silent. Every call that walks through the open gate appends one JSON line `{at, command}` to `.zcode/state/<slug>.ungated.jsonl` (read-only calls included: under the hatch the hook witnesses, it does not judge — filtering by write-capability would re-run the gate analysis the hatch exists to skip), and `run-report.mjs` counts the ledger as `ungated_bash_calls` on every scorecard and in every trend-log record via the existing set-phase auto-append. Recording is unconditional and best-effort by design — the one place in this repo where fail-open is correct: the operator has explicitly disabled enforcement, and a recording failure must not silently re-gate the call they ungated. A failed append degrades to one stderr line; exit 0 regardless.
+
+The silence, never the openness, was the failure mode: the Bash gate was deleted twice (v0.1.1, v0.2.0) by this variable's ambient presence in a private copy being mirrored verbatim into public releases — three external audits missed the second deletion (`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11` records the history) — and the same leakage fired live again during this queue's own probing (2026-08-16: an executor shell silently re-opened the gate mid-probe; only pinning the variable empty exposed it). A structural scan in the regression suite now enforces the class, not the instance: every `process.env.ZODYSSEY_*` read whose branch guards an early `exit(0)` must route through the recorder between read and exit, so a second bypass variable added without a witness fails the suite the day it lands, not two releases later.
+
+Paired probe, as this repo cites its probes: an ungated write-capable call was exit 0 with no record anywhere before, and is exit 0 with exactly one ledger row and `ungated_bash_calls: 1` after; the gated control (variable pinned empty, write-capable, undeclared target) is exit 2 with no record on both builds; read-only passthrough, trusted-script invokes, and the no-active-run no-op are unchanged in both directions.
+
+**Known, not fixed:**
+- Recording is append-only audit, not prevention: the ungated call still executes before any row exists. The ledger is evidence, not a barrier; the barrier is leaving the variable unset.
+- The ledger records raw command strings — a command carrying a secret is persisted to `.zcode/state/<slug>.ungated.jsonl` (gitignored with all of `.zcode/`, bounded by the run's Bash call count). Deliberate: redaction would re-run gate analysis inside the hatch; an operator who shells secrets with the gate open accepts the ledger as part of the documented tradeoff.
+- The best-effort append degrades to a stderr line and never blocks the call — a recording failure must not silently revoke a documented affordance.
+- The variable still bypasses the whole gate — verdict, tamper guard, and scope together, no per-check granularity. Deliberate, same reason.
+- Bash calls with the variable set but no active run remain unrecorded (the hook is a no-op without a run; there is no run state to audit into).
+- The regression suite's bypass-site scan uses a six-line proximity window between an env read and its guarded `exit(0)`; a future env read legitimately sitting within six lines of an unrelated early exit would false-positive as a bypass site. Fail-closed brittleness, deliberate: when it fires, extend the scan deliberately rather than loosening it.
 
 ## [0.6.1] — 2026-08-17
 

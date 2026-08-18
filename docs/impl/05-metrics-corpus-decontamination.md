@@ -119,7 +119,7 @@ tripwire, not the router).
 
 Mechanism notes, secondary to the behaviour: resolve the lane where `resultsPath` is built
 (`:447`); add `mkdirSync(dirname(resultsPath), { recursive: true })` before the append (today
-the eval dir exists only because `scripts/install.mjs:925` created it — a hermetic test or a
+the eval dir exists only because `scripts/install.mjs:926` created it — a hermetic test or a
 fresh machine degrades to the catch-and-warn at `:455`, which would silently mask the very
 behaviour under test); `capJsonl` applies to whichever lane file was written (`:452`'s twin).
 `judged.jsonl` is deliberately NOT split: it has zero fixture writes today (5 records, stable;
