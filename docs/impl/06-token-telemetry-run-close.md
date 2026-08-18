@@ -16,7 +16,7 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 `~/.zcode/orchestration/eval/results.jsonl` by executing run-report from the **plugin cache**
 (`skills/odyssey/scripts/set-phase.mjs:433-437` — `fileURLToPath(new URL("./run-report.mjs",
 import.meta.url))`, with the in-code comment "so it is found from the plugin cache install").
-`skills/odyssey/scripts/run-report.mjs:99` calls `collectRunTokens`, which reads ZCode's durable
+`skills/odyssey/scripts/run-report.mjs:112` calls `collectRunTokens`, which reads ZCode's durable
 telemetry — the SQLite DB at `~/.zcode/cli/db/db.sqlite` (`skills/odyssey/scripts/lib/tokens.mjs:35`,
 table `model_usage` joined to `session` at `:83-92`). Token accounting shipped in 0.5.2
 (`CHANGELOG.md:82` dated 2026-08-15, entry at `CHANGELOG.md:237`; commit `6b0b428`
@@ -50,7 +50,7 @@ already exists). The residual defects are three, all verified:
    conditions — missing args (`skills/odyssey/scripts/lib/tokens.mjs:67`), DB file absent (`:68`),
    the `node:sqlite` binding unavailable (`:71-72`), DB open/query failure incl. locked (`:75`,
    `:143-144`), and zero usage rows in the window (`:94`) — and
-   `skills/odyssey/scripts/run-report.mjs:127` flattens all five into the single sentinel
+   `skills/odyssey/scripts/run-report.mjs:141` flattens all five into the single sentinel
    `"tokens":null`. A record cannot say whether null means "fixture run, correctly empty" or
    "telemetry silently dead". It took live DB forensics (this prompt's own re-derivation) to
    establish the mechanism works at all; the populated fraction is not measurable as a health

@@ -13,7 +13,7 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 ## What is broken
 
 One environment variable disables the entire Bash write-gate with no audit trail. At
-`skills/odyssey/hooks/pre-tool.mjs:988` the check
+`skills/odyssey/hooks/pre-tool.mjs:1007` the check
 
 `if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1") exit(0);`
 

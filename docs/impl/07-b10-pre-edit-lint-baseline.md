@@ -19,7 +19,7 @@ edited file — AFTER the edit (`spawnSync` at `:72`, 5s timeout at `:75`). Any 
 injects a `decision: "block"` reason back to the executor (`:79-85`). That is the whole
 mechanism, and it has no "before": nothing anywhere captures the file's lint state prior to the
 edit. `pre-tool.mjs` never lints a file — its single `spawnSync` call site is the momus
-plan-lint at `skills/odyssey/hooks/pre-tool.mjs:1470` (`parse-plan --lint`; verified by grep
+plan-lint at `skills/odyssey/hooks/pre-tool.mjs:1489` (`parse-plan --lint`; verified by grep
 against the whole file). So the comparison at `:79` is against nothing: a file that was already
 failing lint before the run started produces the same block as a file the edit just broke.
 "Did this edit introduce new diagnostics" — the question the arm exists to answer — is
