@@ -70,7 +70,7 @@ is a per-run side-file in the state dir, the same pattern as `<slug>.inflight.js
 a given target during an active run whose phase is `execute`, `verify`, or `final` — the same
 phase guard the existing arm applies (`skills/odyssey/hooks/post-tool.mjs:99-102`; edits during
 `plan`/`review`/`consult` are never linted or baselined, for the reason the guard's own comment
-gives at `:95-97`: planner/reviewer scratch is not a product edit) — `pre-tool.mjs`, on the
+gives at `:96-98`: planner/reviewer scratch is not a product edit) — `pre-tool.mjs`, on the
 allow path just before `exit(0)` (`:937` is the allow exit today), runs the target repo's
 `lint_cmd` against the target and records the exit status in
 `.zcode/state/<slug>.lint-baseline.json`, keyed by repo-relative target path, written with the

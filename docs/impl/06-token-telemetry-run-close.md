@@ -70,7 +70,7 @@ already exists). The residual defects are three, all verified:
    (repo, time-window) — `skills/odyssey/scripts/lib/tokens.mjs:20-24` stated (pre-0.6.3) "Two concurrent runs
    in one repo cannot be separated. Reported honestly as confidence:'estimate' — stamping the
    harness session id into state would make it exact, which is the follow-up";
-   `:126`/`:132` carry the marks. The exact form is mechanizable today, verified against the live
+   `:137`/`:149` carry the marks. The exact form is mechanizable today, verified against the live
    DB: the `session` table has a `parent_id` column and all 9 sub-agent sessions of the
    `ideation-v0-6` run link to its orchestrator session (`sess_2924301d…`), so
    `WHERE (s.id = :sid OR s.parent_id = :sid)` scopes a run exactly — the window then stops being
@@ -230,8 +230,8 @@ not a criterion.
 Failure-mode check (Step 6): audited against the five ways this project has actually failed —
 
 1. **Enumeration instead of structure.** No deny-list, no pattern round. The inert reasons are a
-   closed set derived from the actual null sites in `collectRunTokens` (`:67`, `:68`, `:71-72`,
-   `:75`/`:143`, `:94`), and attribution is a structural predicate (`id OR parent_id`), not a
+   closed set derived from the actual null sites in `collectRunTokens` (`:84`, `:85`, `:88-89`,
+   `:92`/`:171-173`, `:116`), and attribution is a structural predicate (`id OR parent_id`), not a
    name-shape heuristic. If a sixth degenerate condition appears, the catch-all stamps
    `db-unreachable` rather than passing silently.
 2. **A check that cannot detect the class of failure it exists for.** This is the defect being
