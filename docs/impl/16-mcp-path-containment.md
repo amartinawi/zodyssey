@@ -95,7 +95,7 @@ where "is this MCP call a write" does not.
 
 ### Resolve the install root self-relatively
 
-`skills/odyssey/hooks/pre-tool.mjs:1013` already establishes the technique for the trusted-script
+`skills/odyssey/hooks/pre-tool.mjs:1032` already establishes the technique for the trusted-script
 allowlist: `SCRIPTS_DIR` is derived from `import.meta.url`, so it is correct in a repo checkout, in
 the legacy `~/.zcode/skills/` layout, and in the plugin cache, and it cannot drift when the install
 layout changes. Derive the protected install root the same way — from the running hook's own
