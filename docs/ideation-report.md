@@ -85,7 +85,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 - **Evidence:** `skills/odyssey/scripts/lib/tokens.mjs:35` (reads `~/.zcode/cli/db/db.sqlite`),
   `:83-92` (SQL over `model_usage JOIN session` scoped by repo + time window), `:13-18`
   (double-counting arithmetic rules), `:121` (`confidence: "estimate"`); `skills/odyssey/scripts/
-  run-report.mjs:95-100` wires it in; results.jsonl inspected directly: 177 records, 1 populated
+  run-report.mjs:108-113` wires it in; results.jsonl inspected directly: 177 records, 1 populated
   `tokens` object, 60 explicit `null` (notepad 2, observability). **no published outcome evidence**
   for telemetry-wiring as an intervention — the defect is internal and directly measured.
 - **Cost:** low (invoke collection where runs already close — the terminal transition — using the
@@ -396,7 +396,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | CLAIM | VERDICT | file:line | one-line evidence |
 |---|---|---|---|
 | (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:278-281); hook gates at pre-tool.mjs:798,1086 |
-| (a2) Non-forgeable verdicts via nonce chain | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1381-1407; skills/odyssey/scripts/record-review.mjs:113-124,130-141 | hook mints one-time nonce; record-review refuses verdicts whose nonce is not bound to artifact path+sha256+round; plan-sha mandatory |
+| (a2) Non-forgeable verdicts via nonce chain | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1400-1426; skills/odyssey/scripts/record-review.mjs:113-124,130-141 | hook mints one-time nonce; record-review refuses verdicts whose nonce is not bound to artifact path+sha256+round; plan-sha mandatory |
 | (a3) Authenticated run discovery (HMAC) | CONFIRMED | skills/odyssey/scripts/lib/state-auth.mjs:26,65; skills/odyssey/hooks/lib/find-run.mjs:21 | createHmac over run identity; dropped/copied state files are inert |
 | (a4) Bash/Edit write gate with declared-file scope | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:954,1085-1086 | write-capable Bash requires OKAY + declared Files:; Edit path same at :788 (boundary behavior of the Edit path — see Reconciliation M1) |
 | (a5) Append-only notepads (hook-enforced) | CONFIRMED — enforced by PRE-TOOL | skills/odyssey/hooks/pre-tool.mjs:759-767 | Write on existing `.zcode/notepads/*` blocked: "notepads are APPEND-ONLY" |
@@ -430,7 +430,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (c-G) Interpreter deny-list unbounded by construction | CONFIRMED (posture inverted; names still enumerated) | CHANGELOG.md:121; skills/odyssey/hooks/pre-tool.mjs:126,140-154 | gawk/mawk/pypy/perl6/raku/jshell/ts-node ungated; posture inverted to allowlist-of-gated-names, but the NAME list remains unbounded |
 | (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:102; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
 | (c-head-allowlist) Head-allowlist inversion unshipped | CONFIRMED | CHANGELOG.md:104; skills/odyssey/hooks/pre-tool.mjs:100-199 | "deliberately **not** in this release: it wants its own release and its own paired run"; code remains a deny-list |
-| (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:133; skills/odyssey/hooks/pre-tool.mjs:1402 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
+| (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:133; skills/odyssey/hooks/pre-tool.mjs:1421 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
 | (c-cache) Five stale cache versions, no pruning | CONFIRMED (5 stale + 1 live) | ~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/ (6 dirs); package.json:3 (0.5.2 at measurement; 0.6.0 since the 2026-08-17 releases, cache follows on re-Get); scripts/install.mjs:686 | 0.3.2–0.5.1 stale, 0.5.2 live; install.mjs only warns, never prunes |
 
 **Phase B scorecard (code-derived):** B1–B9 shipped (B9 standalone-only — its invocation is
@@ -562,7 +562,7 @@ closing this (~5 lines, converging the Edit path with its Bash twin) would compe
 §1. Nothing in this report's blind ranking supersedes it; in a merged queue it goes first.**
 
 **M2 — `ZODYSSEY_UNGATE_BASH` escape hatch (map item #6). Verified.**
-`skills/odyssey/hooks/pre-tool.mjs:988` — `if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1")
+`skills/odyssey/hooks/pre-tool.mjs:1007` — `if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1")
 exit(0);` — one environment variable disables the entire Bash gate, and `scripts/install.mjs:883`
 advertises it in every user's AGENTS.md. The map's causal note (mirroring the author's local
 UNGATE copy is how v0.1.1 shipped the gate deleted) is consistent with the twice-deleted history
@@ -571,11 +571,11 @@ constraint-compatible.
 
 **M3 — Nonce-lane name tolerance (map item #12). Verified at the time; FIXED by impl item 03
 (2026-08-17).** The momus/F2/F4 nonce lanes had gated on `isAgent(...)` — final-segment matching
-via `isAgent = (want) => sameName(want, subagent)` at `skills/odyssey/hooks/pre-tool.mjs:1268`,
+via `isAgent = (want) => sameName(want, subagent)` at `skills/odyssey/hooks/pre-tool.mjs:1287`,
 from `sameName` in `skills/odyssey/scripts/lib/capability-name.mjs` — so any `*:momus`-suffixed
 agent dispatch minted review nonces, while the matcher's own header asserted it is "not a
 security boundary." The header's exemption was false in code for the lanes; the map's finding
-stood. Item 03 closed it: the mint sites at `skills/odyssey/hooks/pre-tool.mjs:1497-1525` now
+stood. Item 03 closed it: the mint sites at `skills/odyssey/hooks/pre-tool.mjs:1516-1544` now
 require the exact declared minter type per lane (`NONCE_MINTERS`), a lookalike dispatches but
 mints nothing and warns on stderr, and the header states the matcher is routing-grade only.
 

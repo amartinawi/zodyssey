@@ -34,7 +34,7 @@ party independent of the model — never confirms them.** The chain, anchored:
   (`agents/prometheus.md:61` — "Never 'user manually verifies' or 'user confirms'").
 - Every downstream consumer of the criteria is then a model or a machine: `parse-plan --lint`
   checks runnability only (`skills/odyssey/scripts/parse-plan.mjs:20`; dispatched pre-momus at
-  `skills/odyssey/hooks/pre-tool.mjs:1470`), `record-verify` executes them, momus reviews the
+  `skills/odyssey/hooks/pre-tool.mjs:1489`), `record-verify` executes them, momus reviews the
   verdict, oracle is an LLM. That is the self-grading failure mode in the project's own list
   (`docs/ideation-prompt.md:77` — "the planner writes the criteria; the reviewer declines to judge
   them"). A run today reaches `execute` with criteria no human ever saw.
