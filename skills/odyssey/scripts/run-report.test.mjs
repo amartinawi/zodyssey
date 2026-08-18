@@ -20,6 +20,10 @@
 //   (f) text mode prints the origin line for both grades
 //   (g) legacy state (no final, no consult, phase done) still reports and exits 0
 //   (h) no crash output (no SyntaxError / stack) in any successful invocation
+//   (i)/(j) item 06: a tiny far-past-window tmpdir fixture makes tokens deterministically inert —
+//       tokens.inert true with a non-empty reason (never bare null), tokens_per_todo null, exit 0
+//       in both --json and text mode, no crash output (an inert is truthy; unguarded
+//       tokens.totals.total would crash run-report — the defect class item 06 closes)
 //
 // Run:  node run-report.test.mjs   (exit 0 = pass, 1 = fail)
 
@@ -146,6 +150,40 @@ console.log("run-report.mjs — verify_origin (ISNAD R4 independence labeling)\n
     const j = JSON.parse(r.stdout);
     check('(g) legacy grades "in-session-only"', j.verify_origin === "in-session-only");
     check("(h) no crash output", !/SyntaxError|node:internal|\n {4}at /.test(r.stdout + r.stderr));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+// --- token inert invariants (item 06) --------------------------------------------
+// Machine-independent by construction: the fixture's started_at/last checkpoint span a tiny window
+// far in the past (2020-01-01), so collectRunTokens finds zero usage rows on EVERY machine (or no
+// DB at all) — post-fix that deterministically yields an inert object, never a bare null and never
+// a crash: tokens_per_todo stays null and text mode prints no stack. Pre-fix (todo 1, RED) these
+// fail because tokens === null. Post-fix WITHOUT the :113/:176 guards they fail because an inert
+// object is TRUTHY, reaches tokens.totals.total, and run-report dies — exactly the consult-found
+// defect class item 06 closes. No live-DB rows, no real-session data, no row counts are asserted.
+{
+  const dir = makeRepo();
+  try {
+    writeState(dir, "inert", baseState({
+      started_at: "2020-01-01T00:00:00.000Z",
+      updated_at: "2020-01-01T00:05:00.000Z",
+      checkpoints: [{ at: "2020-01-01T00:05:00.000Z", note: "done" }],
+    }));
+    const r = run([dir, "inert", "--json"]);
+    check("(i) inert fixture exits 0 (--json)", r.code === 0, `got ${r.code}`);
+    let j = null;
+    try { j = JSON.parse(r.stdout); } catch { /* leave null — the checks below report it */ }
+    check("(i) tokens.inert === true (populated or stamped, never bare null)",
+      j !== null && j.tokens !== null && typeof j.tokens === "object" && j.tokens.inert === true,
+      `got ${JSON.stringify(j && j.tokens)}`);
+    check("(i) tokens.reason is a non-empty string",
+      j !== null && typeof j.tokens?.reason === "string" && j.tokens.reason.length > 0,
+      `got ${JSON.stringify(j && j.tokens && j.tokens.reason)}`);
+    check("(i) tokens_per_todo === null when tokens are inert", j !== null && j.tokens_per_todo === null, `got ${JSON.stringify(j && j.tokens_per_todo)}`);
+    check("(h) no crash output (--json)", !/SyntaxError|node:internal|\n {4}at /.test(r.stdout + r.stderr));
+    const txt = run([dir, "inert"]);
+    check("(j) inert fixture exits 0 (text mode)", txt.code === 0, `got ${txt.code}`);
+    check("(h) no crash output (text mode — an inert must never reach tokens.totals)", !/SyntaxError|node:internal|\n {4}at /.test(txt.stdout + txt.stderr));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 

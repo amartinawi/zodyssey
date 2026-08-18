@@ -107,10 +107,14 @@ const caps = { ...capsDeclared, ...capsObserved };
 
 // --- token accounting (was a null placeholder: "populated when ZCode exposes per-run token
 // counts"). ZCode does expose them — every model request is recorded in its own SQLite DB — so
-// this was waiting on plumbing, not a platform feature. collectRunTokens returns null (never
-// throws) when the DB is absent, so a report never fails on missing telemetry.
-const tokens = collectRunTokens({ repoRoot, startMs: start, endMs: end });
-const tokensPerTodo = tokens ? Math.round(tokens.totals.total / Math.max(1, done)) : null;
+// this was waiting on plumbing, not a platform feature. collectRunTokens returns a reason-stamped
+// inert object (never null, never throws) when the DB is absent or yields nothing, so a report
+// never fails on missing telemetry. state.session_id is witnessed by post-tool's stamp arm; absent
+// (pre-item-06 runs), the || null degrades to the (repo, window) heuristic.
+const tokens = collectRunTokens({ repoRoot, startMs: start, endMs: end, sessionId: state.session_id || null });
+// An inert object is TRUTHY — `tokens ?` alone would dereference .totals on it and crash the
+// report (and with it the auto-append). Inert means no numbers exist, so per-todo stays null.
+const tokensPerTodo = tokens && !tokens.inert ? Math.round(tokens.totals.total / Math.max(1, done)) : null;
 
 const report = {
   slug,
@@ -138,7 +142,9 @@ const report = {
   ungated_bash_calls: ungatedBashCalls,
   capabilities_used: caps,
   tokens_per_todo: tokensPerTodo,
-  tokens, // null when telemetry is unavailable; see lib/tokens.mjs for the arithmetic rules
+  tokens, // two shapes: populated (see lib/tokens.mjs for the arithmetic rules) or a
+  // reason-stamped inert {inert:true, reason, node_version, at} when telemetry is unavailable —
+  // passed through UNCHANGED, never flattened to null, so the record says why numbers are absent
 
   generated_at: new Date().toISOString(),
 };
@@ -173,11 +179,15 @@ console.log(`  ${"─".repeat(48)}`);
 const capStr = Object.entries(caps).map(([k, v]) => `${k}×${v}`).join(" · ");
 console.log(`  capabilities used ${capStr || "(none recorded)"}`);
 console.log(`  tokens/todo       ${tokensPerTodo ?? "n/a (no telemetry for this window)"}`);
-if (tokens) {
+if (tokens && !tokens.inert) {
   const k = (n) => n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n);
   console.log(`  tokens total      ${k(tokens.totals.total)}  (billable input ${k(tokens.totals.billable_input)}, cache read ${k(tokens.totals.cache_read)}, output ${k(tokens.totals.output)})`);
   console.log(`  cache hit ratio   ${(tokens.cache_hit_ratio * 100).toFixed(1)}%   [${tokens.confidence} — attributed by ${tokens.attribution}]`);
   console.log(`  orchestrator/sub  ${k(tokens.by_role.orchestrator.total)} / ${k(tokens.by_role.subagent.total)}`);
+} else if (tokens) {
+  // Inert: no numbers exist, only the recorded reason (an inert is truthy — the guard above is
+  // what keeps .totals out of reach). One line; the reason set is closed in lib/tokens.mjs.
+  console.log(`  tokens n/a        (${tokens.reason})`);
 }
 console.log(`  ${"─".repeat(48)}`);
 console.log(`  append to trend:  run-report.mjs <repo> ${slug} --json >> ~/.zcode/orchestration/eval/results.jsonl\n`);

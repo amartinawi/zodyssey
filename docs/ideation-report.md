@@ -82,10 +82,10 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 - **Claim:** token accounting is real, DB-backed, and verified — and populated in exactly **1 of
   177** run records. The machinery degrades silently by design, which is precisely why nobody is
   alarmed. Observability's runner-up-layer status is half caused by this.
-- **Evidence:** `skills/odyssey/scripts/lib/tokens.mjs:35` (reads `~/.zcode/cli/db/db.sqlite`),
-  `:83-92` (SQL over `model_usage JOIN session` scoped by repo + time window), `:13-18`
-  (double-counting arithmetic rules), `:121` (`confidence: "estimate"`); `skills/odyssey/scripts/
-  run-report.mjs:108-113` wires it in; results.jsonl inspected directly: 177 records, 1 populated
+- **Evidence:** `skills/odyssey/scripts/lib/tokens.mjs:36` (reads `~/.zcode/cli/db/db.sqlite`),
+  `:105-114` (SQL over `model_usage JOIN session` scoped by repo + time window), `:13-18`
+  (double-counting arithmetic rules), `:149` (`confidence: "estimate"`); `skills/odyssey/scripts/
+  run-report.mjs:108-117` wires it in; results.jsonl inspected directly: 177 records, 1 populated
   `tokens` object, 60 explicit `null` (notepad 2, observability). **no published outcome evidence**
   for telemetry-wiring as an intervention — the defect is internal and directly measured.
 - **Cost:** low (invoke collection where runs already close — the terminal transition — using the
@@ -143,7 +143,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 
 - **Claim:** `post-tool.mjs` lints the edited file **after** the edit with no baseline capture, so
   pre-existing lint noise is attributed to the edit that happened to land on the file.
-- **Evidence:** `skills/odyssey/hooks/post-tool.mjs:38-94` (Edit arm, no before-reading;
+- **Evidence:** `skills/odyssey/hooks/post-tool.mjs:87-143` (Edit arm, no before-reading;
   `lint-untrusted.mjs` is prompt-injection scanning — a different mechanism); no CHANGELOG entry
   ships a B10 baseline (notepad 1, rows b-B10/b-B10-2). **no published outcome evidence** — the
   reasoning is mechanism-internal.
@@ -200,11 +200,11 @@ Verdicts from the code inventory (notepad 2); citations are `file:line`.
 
 | Layer | Verdict | Load-bearing evidence |
 |---|---|---|
-| Tool orchestration | **STRONG** | parallel cap hook-enforced (`skills/odyssey/hooks/pre-tool.mjs:43,1281`), per-file locks with owner identity (`pre-tool.mjs:875,905-930`), capability routing cross-checked at F5 (`skills/odyssey/scripts/record-final-wave.mjs:468`), dispatch observation feed (`skills/odyssey/hooks/post-tool.mjs:148-168`) |
+| Tool orchestration | **STRONG** | parallel cap hook-enforced (`skills/odyssey/hooks/pre-tool.mjs:43,1281`), per-file locks with owner identity (`pre-tool.mjs:875,905-930`), capability routing cross-checked at F5 (`skills/odyssey/scripts/record-final-wave.mjs:468`), dispatch observation feed (`skills/odyssey/hooks/post-tool.mjs:197-217`) |
 | Verification | **STRONG** | criteria executed not trusted, `--trust-argv` required (`skills/odyssey/scripts/record-verify.mjs:69-107`), regression gate three-way semantics (`skills/odyssey/scripts/regression-gate.mjs:2-29`), F1 fails closed (`record-final-wave.mjs:6-7,178-198`); one soft spot — `check-imports.mjs` unwired (`skills/odyssey/references/scripts.md:45` prose-only) |
 | Context/memory | **THIN — WEAKEST** | see the three pieces of evidence below |
 | Guardrails | **STRONG** | review gate (`pre-tool.mjs:797`), fail-closed scope isolation (`:847`), hook-minted nonces (`:1355-1382`), plan-tamper guard (`:811,959`), HMAC run discovery (`:30,506`) — the project's center of mass |
-| Observability | **MEDIUM** | real DB-backed token accounting (`skills/odyssey/scripts/lib/tokens.mjs:35,83-92`), 177-record longitudinal store, 5 genuinely judged runs, dashboard + written methodology (`docs/MEASUREMENT.md:3-42`) — but telemetry populated 1/177 and the baseline arm never measured (`skills/odyssey/scripts/harness.mjs:19`) |
+| Observability | **MEDIUM** | real DB-backed token accounting (`skills/odyssey/scripts/lib/tokens.mjs:36,105-114`), 177-record longitudinal store, 5 genuinely judged runs, dashboard + written methodology (`docs/MEASUREMENT.md:3-42`) — but telemetry populated 1/177 and the baseline arm never measured (`skills/odyssey/scripts/harness.mjs:19`) |
 
 **WEAKEST: context/memory. Runner-up: observability.** The three strongest pieces of code
 evidence for that verdict:
@@ -402,16 +402,16 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (a5) Append-only notepads (hook-enforced) | CONFIRMED — enforced by PRE-TOOL | skills/odyssey/hooks/pre-tool.mjs:759-767 | Write on existing `.zcode/notepads/*` blocked: "notepads are APPEND-ONLY" |
 | (a6) Test-integrity guard | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:131,253-256 | SKIP_MARKER regex + `git diff --numstat` flags deleted/net-weakened test files |
 | (a7) Pass-to-pass regression gate | CONFIRMED | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:339 | auto-snapshot entering execute; exit 8 on pass→fail; done blocked while regressed |
-| (a8) F1–F5 incl. behavioural capability cross-check | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:86,468-481,500-503; skills/odyssey/hooks/post-tool.mjs:148-168 | F5 cross-checks declared `routed:` tokens against hook-witnessed state.capabilities[] |
+| (a8) F1–F5 incl. behavioural capability cross-check | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:86,468-481,500-503; skills/odyssey/hooks/post-tool.mjs:197-217 | F5 cross-checks declared `routed:` tokens against hook-witnessed state.capabilities[] |
 | (a9) Segment-tolerant capability matching | CONFIRMED | skills/odyssey/scripts/lib/capability-name.mjs:13; skills/odyssey/scripts/record-final-wave.mjs:61 | exact match wins, else final name segment — bare matches namespaced and vice versa |
-| (a10) Real token accounting from the session DB | CONFIRMED — at skills/odyssey/scripts/lib/tokens.mjs, reading ~/.zcode/cli/db/db.sqlite | skills/odyssey/scripts/lib/tokens.mjs:35,66,83-92; skills/odyssey/scripts/run-report.mjs:18,90 | node:sqlite read-only; SQL over model_usage JOIN session by repo+time-window; attribution honestly "estimate" |
+| (a10) Real token accounting from the session DB | CONFIRMED — at skills/odyssey/scripts/lib/tokens.mjs, reading ~/.zcode/cli/db/db.sqlite | skills/odyssey/scripts/lib/tokens.mjs:36,83,105-114; skills/odyssey/scripts/run-report.mjs:18,90 | node:sqlite read-only; SQL over model_usage JOIN session by repo+time-window; attribution honestly "estimate" |
 | (a11) "32 test suites" | CONFIRMED (re-measured) | package.json test script; npm test 2026-08-15 | `npm test` → "32/32 suite(s) passed in 59318ms" |
 | (a12) "~98 gate-surface cases" | CONFIRMED (re-measured; exactly 98 — not approximate) | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:1; CHANGELOG.md:125 | standalone run: "98 passed, 0 failed"; CHANGELOG v0.5.2: "Gate-surface is 98 cases (was 80)" |
 | (a13) Paired old/new probes | CONFIRMED | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:6; CHANGELOG.md:101,108; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17 | "Every case below fails on the pre-v0.5.0 code"; v0.5.2 paired run against v0.5.1 |
 | (b-A4) Doc-code invariant registry "never built" (ROADMAP.md:158) | PARTIAL — named artifact absent, four equivalents exist | docs/ROADMAP.md:158; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17; scripts/version-consistency.test.mjs:15; scripts/smoke-gate.mjs:1 | no `invariants.test.mjs` anywhere (zero find hits), but bash-gate/gate-surface/version-consistency/smoke-gate deliver the function domain-by-domain without a unified registry |
 | (b-B9-1) Package-existence checking "absent" | REFUTED — code wins | skills/odyssey/scripts/check-imports.mjs:1-23; CHANGELOG.md:508 | check-imports.mjs exists (shipped v0.3.2): offline import resolution JS/TS + Python; exit 9 on unresolved import |
 | (b-B9-2) check-imports has a test and is wired into a phase | PARTIAL | skills/odyssey/scripts/check-imports.test.mjs:1; skills/odyssey/references/scripts.md:45 | test passes (part of 32/32), but the ONLY caller is documentation — prose instructs the conductor; zero code callers repo-wide |
-| (b-B10) Pre-edit lint baseline "absent" | CONFIRMED | skills/odyssey/hooks/post-tool.mjs:38-94; skills/odyssey/scripts/lint-untrusted.mjs:1 | post-tool lints AFTER the edit, no baseline capture; lint-untrusted is injection scanning (different mechanism) |
+| (b-B10) Pre-edit lint baseline "absent" | CONFIRMED | skills/odyssey/hooks/post-tool.mjs:87-143; skills/odyssey/scripts/lint-untrusted.mjs:1 | post-tool lints AFTER the edit, no baseline capture; lint-untrusted is injection scanning (different mechanism) |
 | (b-judge-1) judge.mjs:176 hardcodes `arm: "zodyssey"` | CONFIRMED | skills/odyssey/scripts/judge.mjs:176 | literal in the record constructor |
 | (b-judge-2) judge.mjs "never reads --arm" | CONFIRMED for judge.mjs (nuance: harness parses it) | skills/odyssey/scripts/judge.mjs:46; skills/odyssey/scripts/harness.mjs:41-42,19,128-131 | judge parses only `--double`; harness parses `--arm` but baseline is TODO and prints instructions |
 | (b-judge-3) "The eval has never produced a number" | REFUTED — code/filesystem wins | ~/.zcode/orchestration/eval/judged.jsonl:1-5; ~/.zcode/orchestration/eval/results.jsonl (177 lines) | judged.jsonl holds 5 real scored records (2026-08-01); results.jsonl 177 run records. Narrower true statement: the arm FIELD never records baseline (judge.mjs:176) and the harness cannot run the baseline arm (harness.mjs:19) — see Reconciliation D1 for the slug-derived baseline records |
@@ -425,7 +425,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:313-327; skills/odyssey/scripts/pipeline-integration.test.mjs:98 | scaffold invokes it at run start; integration test asserts the wiring |
 | (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:339 | auto-snapshot entering execute; done blocked on regression |
 | (b-B9-3) Phase B item B9 shipped | CONFIRMED shipped as standalone script, NOT phase-wired | CHANGELOG.md:508; skills/odyssey/references/scripts.md:45 | shipped v0.3.2; pipeline presence is prompt-convention only |
-| (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:60-88 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |
+| (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:109-137 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |
 | (c-F) Shell-escaping splits command tokens | CONFIRMED | CHANGELOG.md:117; skills/odyssey/hooks/pre-tool.mjs:184,249-272 | `p\ython -c`, `py''thon -c` defeat regex tokenization; no shell-grammar parser |
 | (c-G) Interpreter deny-list unbounded by construction | CONFIRMED (posture inverted; names still enumerated) | CHANGELOG.md:118; skills/odyssey/hooks/pre-tool.mjs:126,140-154 | gawk/mawk/pypy/perl6/raku/jshell/ts-node ungated; posture inverted to allowlist-of-gated-names, but the NAME list remains unbounded |
 | (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:119; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
@@ -475,7 +475,7 @@ settled by code, never by preference or seniority.
    same conclusion, and the union strengthens it.
 3. **The eval has produced numbers** (map §0.3 ≡ notepad 1 b-judge-3): both REFUTE the brief's
    "never produced a number" from the same 5-record `judged.jsonl` (re-read during synthesis).
-4. **B10 absent** (map item #11 ≡ §1 entry 6): `post-tool.mjs:38-94`, no baseline mechanism.
+4. **B10 absent** (map item #11 ≡ §1 entry 6): `post-tool.mjs:87-143`, no baseline mechanism.
 5. **Phase B scorecard** (map §0.5 ≡ notepad 1 rows b-B1..b-B10-2): B1–B9 shipped (B9
    standalone-only), B10 unshipped — identical tables.
 6. **Context/memory weakest** (map §1.1 ≡ §2): both argue it from `compact.mjs`'s unwired
@@ -483,7 +483,7 @@ settled by code, never by preference or seniority.
    surface; the repo's own `outcomes.jsonl` corpus is 8 lines, nearly all contentless template
    entries (re-checked this run).
 7. **Observability not thin** (map §1.2 "not thin" ≡ notepad 2 MEDIUM): both disconfirm the
-   brief's "thin" via the same code (`skills/odyssey/scripts/lib/tokens.mjs:35,83-92`,
+   brief's "thin" via the same code (`skills/odyssey/scripts/lib/tokens.mjs:36,105-114`,
    `dashboard.mjs`, `docs/MEASUREMENT.md`).
 8. **§4 stance** (map §4 ≡ notepad 4 POSITION): a blind pass and the prior pass independently
    concluded that enforced guarantees, not breadth, are the differentiator — convergence from
@@ -512,7 +512,7 @@ checks live in scripts (convention)"). This report §2 / notepad 2: context/memo
 **Winner: this report, by code.** The orchestration layer's load-bearing mechanisms are
 hook-enforced — parallel cap (`skills/odyssey/hooks/pre-tool.mjs:43`), per-file locks
 (`:875-936`), routing cross-check (`skills/odyssey/scripts/record-final-wave.mjs:468`),
-dispatch observation (`skills/odyssey/hooks/post-tool.mjs:148-168`) — while the unwired scripts
+dispatch observation (`skills/odyssey/hooks/post-tool.mjs:197-217`) — while the unwired scripts
 the map counts against orchestration are members of other layers by their own function:
 `check-imports.mjs` is a verification check (notepad 2 files it under verification's soft spot),
 `compact.mjs` is context/memory machinery, `dashboard`/`status` are observability views. The map's

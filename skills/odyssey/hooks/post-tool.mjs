@@ -7,7 +7,7 @@
 //
 // NO-OP unless an orchestration run is active (same rule as pre-tool.mjs). Never blocks.
 //
-// stdin: the ZCode PostToolUse hook JSON (we read tool_name + tool_use_id).
+// stdin: the ZCode PostToolUse hook JSON (we read tool_name + tool_use_id + session_id).
 // exit: 0 always (PostToolUse hooks must not block).
 
 import { readFileSync, readdirSync, existsSync, writeFileSync, renameSync, unlinkSync, openSync, closeSync, statSync } from "node:fs";
@@ -34,6 +34,56 @@ try {
 }
 
 const toolName = payload.tool_name || payload.tool || "";
+
+// ─── NEW ARM: session-stamp (item 06, todo 4) — FIRST WITNESS, pass-through ──
+// Stamps the orchestrator's session id into run state so run-close token
+// attribution can be session-exact (lib/tokens.mjs scopes by s.id/parent_id)
+// instead of a (repo, window) guess. Fires for EVERY matcher event — hook-payload
+// session_id is shared across parallel sub-agents (pre-tool.mjs:885 already
+// consumes it as an owner fallback), so first witness is the orchestrator's id
+// regardless of which thread fired. STRICTLY pass-through: this arm NEVER exits,
+// so the owning later arm (Edit diagnostics, capability observation, ledger
+// drain) still runs exactly as before. Skip order is cheapest-first:
+//   (1) payload.session_id absent / not a non-empty string → silent fall-through;
+//   (2) findActiveRuns + mostRecent → no active run → fall-through;
+//   (3) state already carries session_id → skip-fast, NO lock acquisition
+//       (no lock churn on the hot path — every later matcher event takes this);
+//   (4) else stamp via the SAME locked-write pattern as the capability arms
+//       (openSync "wx" lockfile, 60s stale recovery, state re-read under the
+//       lock, same-dir tmp + rename — last-writer-safe vs stop/consult), with an
+//       only-if-absent re-check under the lock so a concurrent stamp can't
+//       overwrite. Writes state.session_id ONLY — NOT the dead scaffolded
+//       active_executor_session (scaffold.mjs:288; nothing ever writes it
+//       non-null, so pre-tool.mjs:885's owner-fallback read can never fire).
+//       All failures swallowed; exit-0-always is preserved by the existing arms.
+try {
+  const _ssSid = typeof payload.session_id === "string" ? payload.session_id.trim() : "";
+  if (_ssSid) {
+    const _ssRuns = findActiveRuns({ projectDir: PROJECT_DIR, staleMs: STALE_MS });
+    const _ssRun = mostRecent(_ssRuns);
+    if (_ssRun && _ssRun.state && _ssRun.state.slug && !_ssRun.state.session_id) {
+      const _ssStatePath = join(_ssRun.stateDir, `${_ssRun.state.slug}.json`);
+      const _ssLock = _ssStatePath + ".lock";
+      const _SS_LOCK_STALE = 60 * 1000;
+      let _ssLf = null;
+      try { _ssLf = openSync(_ssLock, "wx"); } catch {
+        try { if (Date.now() - statSync(_ssLock).mtimeMs > _SS_LOCK_STALE) { unlinkSync(_ssLock); _ssLf = openSync(_ssLock, "wx"); } } catch {}
+      }
+      if (_ssLf !== null) {
+        try {
+          let _ssCs; try { _ssCs = JSON.parse(readFileSync(_ssStatePath, "utf8")); } catch { _ssCs = _ssRun.state; }
+          if (!_ssCs.session_id) {
+            _ssCs.session_id = _ssSid;
+            _ssCs.updated_at = new Date().toISOString();
+            const _ssTmp = _ssStatePath + ".tmp." + process.pid;
+            writeFileSync(_ssTmp, JSON.stringify(_ssCs, null, 2) + "\n");
+            renameSync(_ssTmp, _ssStatePath);
+          }
+        } catch {} finally { try { closeSync(_ssLf); unlinkSync(_ssLock); } catch {} }
+      }
+    }
+  }
+} catch {}
 
 // ─── NEW ARM: post-edit diagnostics for Edit/Write/MultiEdit ─────────────────
 // (todo 12, "post-edit diagnostics hook as a new arm"). MUTUALLY EXCLUSIVE with

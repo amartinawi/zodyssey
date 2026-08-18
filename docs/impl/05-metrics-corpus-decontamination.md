@@ -317,7 +317,7 @@ radius beyond that:
   the purpose, but the historical tail remains mixed until `capJsonl` ages it out, so the
   pre-cutover window must be documented in `docs/MEASUREMENT.md` or the next reader attributes
   the shift to a code change. `skills/odyssey/scripts/harness.mjs:34,145` — updated in this
-  change to report both lanes. `skills/odyssey/scripts/run-report.mjs:183` — the manual-append
+  change to report both lanes. `skills/odyssey/scripts/run-report.mjs:193` — the manual-append
   footer still names `results.jsonl`; a human hand-appending a synthetic run's report would land
   it in the operator log — a one-clause docs caveat, no code change (named under *Known, not
   fixed*). `skills/odyssey/scripts/recall-corrections.mjs:32` — aspirational comment only.
@@ -406,7 +406,7 @@ release; this is not security-class).
     item 09 must extend the lane mechanism when the baseline arm lands.
   - No permanent sentinel re-runs the whole suite against the live operator file on every
     commit; the guard is the lane test plus criterion 5's re-runnable invariant.
-  - `run-report.mjs:183`'s manual-append footer names `results.jsonl` only — a human
+  - `run-report.mjs:193`'s manual-append footer names `results.jsonl` only — a human
     hand-appending a synthetic report lands it in the operator log (docs caveat, no code
     change).
   - The 16 `"slug":"t"` records' exact writer predates the current tree (2026-08-15 bursts; no

@@ -49,7 +49,7 @@ HTTP** export: `POST <endpoint>/v1/traces` with an
 built-in `fetch`, `node:crypto` for trace/span ids). The honest tradeoff: the SDK gives you
 batching, retries, resource detection, and semconv constants for free; hand-rolled gives you none
 of that, in exchange for zero dependency surface and ~120 lines you fully control. This repo has
-already chosen that side of the trade once — `skills/odyssey/scripts/lib/tokens.mjs:150-163` reads
+already chosen that side of the trade once — `skills/odyssey/scripts/lib/tokens.mjs:179-192` reads
 SQLite through `process.getBuiltinModule` rather than taking a dependency — and this change makes
 the same choice. No-SDK is the path; do not propose the SDK.
 
@@ -91,7 +91,7 @@ Stated as observable behaviour, not as a diff:
    per-dispatch data that exists today is none: state records todo *status*, not timing, and hook
    events are not logged as time series. Per-todo or per-dispatch spans would therefore carry
    fabricated or absent timestamps — dishonest telemetry, and this repo does not fake measurements
-   (`skills/odyssey/scripts/lib/tokens.mjs:25-28` states the rule for tokens; it holds for spans).
+   (`skills/odyssey/scripts/lib/tokens.mjs:26-29` states the rule for tokens; it holds for spans).
    Run-level timing is real (`state.started_at` → checkpoint tail), so run-level is the honest
    granularity. The full `invoke_agent` → `chat`/`execute_tool` per-dispatch tree remains the named
    follow-up (CHANGELOG *Known, not fixed*) and would require per-dispatch timestamp capture first.

@@ -17,10 +17,11 @@
 //      the count. Use model_usage only.
 //   3. retry_count is folded into a row; it is not extra requests. Do not sum it as such.
 //
-// ATTRIBUTION is repo-exact but run-heuristic: sessions record their directory, not the ZOdyssey
-// slug, so a run is identified by (repo, time-window). Two concurrent runs in one repo cannot be
-// separated. Reported honestly as confidence:"estimate" — stamping the harness session id into
-// state would make it exact, which is the follow-up.
+// ATTRIBUTION has two modes. Default is repo-exact but run-heuristic: sessions record their
+// directory, not the ZOdyssey slug, so a run is identified by (repo, time-window) — two concurrent
+// runs in one repo cannot be separated, reported honestly as confidence:"estimate". When the
+// caller passes the run's witnessed session id, the scope narrows to that session and its children
+// (s.id = sid OR s.parent_id = sid): confidence:"exact", concurrent unlinked sessions excluded.
 //
 // COST is opt-in. The provider here (builtin:zai-coding-plan, GLM-*) is a FLAT-RATE subscription
 // whose local catalog lists cost:0 for these models, so a dollar figure would be a shadow price
@@ -57,27 +58,48 @@ const cost = (a, rate) => rate
     + a.cache_write * (rate.cache_write || 0) + a.output * (rate.output || 0)) / 1e6
   : null;
 
+// Degraded arms return a STAMPED inert, never a bare null: a null hid "the DB was locked" behind
+// the same value as "nothing was measured", and the trend log could not tell them apart. The
+// reason set is closed on purpose (bad-args | db-missing | binding-unavailable | db-unreachable |
+// no-usage-in-window) so records partition without parsing free-form text.
+const inert = (reason) => ({ inert: true, reason, node_version: process.version, at: new Date().toISOString() });
+
+// The binding arm names its floor because the absence is EXPECTED on the engines floor, not an
+// anomaly: node:sqlite requires Node >= 22.5 while this package supports >= 18, so a Node-18
+// machine closes runs and records exactly why telemetry is absent.
+const BINDING_UNAVAILABLE = "binding-unavailable: node:sqlite requires Node >= 22.5; the engines floor is >= 18";
+
 /**
- * Collect token usage for one run. Returns null (never throws) when the DB is missing, locked, or
- * the node:sqlite binding is unavailable — run-report must not fail because telemetry is absent.
+ * Collect token usage for one run. Returns a reason-stamped inert object (never null, never
+ * throws) when the DB is missing, locked, the node:sqlite binding is unavailable, or no usage
+ * falls in the window — run-report must not fail because telemetry is absent, but it must be able
+ * to say WHY the numbers are absent.
  *
- * @param {{repoRoot: string, startMs: number, endMs: number, rates?: object, dbPath?: string}} o
+ * @param {{repoRoot: string, startMs: number, endMs: number, rates?: object, dbPath?: string,
+ *          sessionId?: string}} o  sessionId, when a non-empty string, scopes usage to that
+ *          session and its children (attribution "session", confidence "exact"); absent falls
+ *          back to the (repo, time-window) heuristic (confidence "estimate").
  */
-export function collectRunTokens({ repoRoot, startMs, endMs, rates = null, dbPath = DEFAULT_DB } = {}) {
-  if (!repoRoot || !Number.isFinite(startMs)) return null;
-  if (!existsSync(dbPath)) return null;
+export function collectRunTokens({ repoRoot, startMs, endMs, rates = null, dbPath = DEFAULT_DB, sessionId = null } = {}) {
+  if (!repoRoot || !Number.isFinite(startMs)) return inert("bad-args");
+  if (!existsSync(dbPath)) return inert("db-missing");
 
   let DatabaseSync;
-  try { ({ DatabaseSync } = require$sqlite()); } catch { return null; }
-  if (!DatabaseSync) return null;
+  try { ({ DatabaseSync } = require$sqlite()); } catch { return inert(BINDING_UNAVAILABLE); }
+  if (!DatabaseSync) return inert(BINDING_UNAVAILABLE);
 
   let db;
-  try { db = new DatabaseSync(dbPath, { readOnly: true }); } catch { return null; }
+  try { db = new DatabaseSync(dbPath, { readOnly: true }); } catch { return inert("db-unreachable"); }
+  const sid = typeof sessionId === "string" && sessionId.length > 0 ? sessionId : null;
   try {
     const aliases = repoAliases(repoRoot);
-    if (aliases.length === 0) return null;
+    if (aliases.length === 0) return inert("bad-args");
     const end = Number.isFinite(endMs) ? endMs : Date.now();
     const placeholders = aliases.map(() => "?").join(",");
+    // Session mode: the run's own session plus its sub-agent children (parent_id linkage) —
+    // concurrent sessions in the same repo are excluded. The window stays as a sanity bound in
+    // both modes: it can only narrow, never widen, what the lineage already scopes.
+    const sessionPredicate = sid ? " AND (s.id = ? OR s.parent_id = ?)" : "";
     // status='completed' drops error/cancelled rows, which carry 0 tokens anyway.
     // Rule 2: model_usage ONLY — turn_usage is the same data rolled up per turn.
     const rows = db.prepare(
@@ -88,10 +110,10 @@ export function collectRunTokens({ repoRoot, startMs, endMs, rates = null, dbPat
          JOIN session s ON s.id = mu.session_id
         WHERE s.directory IN (${placeholders})
           AND mu.started_at >= ? AND mu.started_at <= ?
-          AND mu.status = 'completed'`
-    ).all(...aliases, startMs, end);
+          AND mu.status = 'completed'${sessionPredicate}`
+    ).all(...aliases, startMs, end, ...(sid ? [sid, sid] : []));
 
-    if (!rows || rows.length === 0) return null;
+    if (!rows || rows.length === 0) return inert("no-usage-in-window");
 
     const totals = blank();
     const byModel = {}, byAgent = {}, byRole = { orchestrator: blank(), subagent: blank() };
@@ -112,13 +134,19 @@ export function collectRunTokens({ repoRoot, startMs, endMs, rates = null, dbPat
     const withCost = (a) => ({ ...a, cost_usd: cost(a, rates && (rates.default || null)) });
     return {
       source: "zcode-db",
-      attribution: "time-window",
-      // The two scoping keys, echoed back. Attribution is (repo x window), so a figure quoted
-      // without both is not reproducible — two readers comparing "the audit run" landed on
-      // 10.8M and 24.3M and neither was wrong. repo is the normalized path actually matched.
+      attribution: sid ? "session" : "time-window",
+      // Session mode echoes its third scoping key (the sid the lineage is anchored to); the
+      // heuristic mode adds nothing, so its shape stays byte-comparable to the pre-session output.
+      ...(sid ? { session_id: sid } : {}),
+      // The scoping keys, echoed back. Attribution is (repo x window), or (repo x window x
+      // session lineage) when a sid was supplied, so a figure quoted without all of them is not
+      // reproducible — two readers comparing "the audit run" landed on 10.8M and 24.3M and
+      // neither was wrong. repo is the normalized path actually matched.
       repo: aliases[0],
       repo_aliases: aliases,
-      confidence: "estimate", // exact once the harness session id is stamped into run state
+      // Exact only under session scoping — every counted row's session IS the run or its child.
+      // The heuristic mode can say no more than "this repo, this window".
+      confidence: sid ? "exact" : "estimate",
       window: { start_ms: startMs, end_ms: end },
       sessions: { total: sessions.size, subagent: subSessions.size },
       totals: withCost(totals),
@@ -141,7 +169,8 @@ export function collectRunTokens({ repoRoot, startMs, endMs, rates = null, dbPat
       rates_source: rates ? "user" : null,
     };
   } catch {
-    return null;
+    // Query/bind failure incl. a locked DB — reachable is not the same as readable.
+    return inert("db-unreachable");
   } finally {
     try { db.close(); } catch {}
   }

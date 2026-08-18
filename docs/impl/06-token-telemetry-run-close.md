@@ -16,9 +16,9 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 `~/.zcode/orchestration/eval/results.jsonl` by executing run-report from the **plugin cache**
 (`skills/odyssey/scripts/set-phase.mjs:433-437` — `fileURLToPath(new URL("./run-report.mjs",
 import.meta.url))`, with the in-code comment "so it is found from the plugin cache install").
-`skills/odyssey/scripts/run-report.mjs:112` calls `collectRunTokens`, which reads ZCode's durable
-telemetry — the SQLite DB at `~/.zcode/cli/db/db.sqlite` (`skills/odyssey/scripts/lib/tokens.mjs:35`,
-table `model_usage` joined to `session` at `:83-92`). Token accounting shipped in 0.5.2
+`skills/odyssey/scripts/run-report.mjs:114` calls `collectRunTokens`, which reads ZCode's durable
+telemetry — the SQLite DB at `~/.zcode/cli/db/db.sqlite` (`skills/odyssey/scripts/lib/tokens.mjs:36`,
+table `model_usage` joined to `session` at `:105-114`). Token accounting shipped in 0.5.2
 (`CHANGELOG.md:99` dated 2026-08-15, entry at `CHANGELOG.md:254`; commit `6b0b428`
 "feat(telemetry): real per-run token accounting").
 
@@ -33,7 +33,7 @@ stamp your own count, never relay this one):
   `skills/odyssey/scripts/lib/tokens.mjs:3-5`).
 - **75 records carry an explicit `"tokens":null`** — every one a harness-fixture run
   (`"slug":"t…"`, `add-truncate`) that makes no model requests, so the window query matches zero
-  rows and `skills/odyssey/scripts/lib/tokens.mjs:94` returns null. Correct degradation.
+  rows and `skills/odyssey/scripts/lib/tokens.mjs:116` returned null (pre-0.6.3). Correct degradation.
 - **2 records are populated** — and they date the moment telemetry went live. The live 0.5.2 cache
   was refreshed 2026-08-15T18:39Z (mtime of the cached
   `…/0.5.2/skills/odyssey/scripts/run-report.mjs`); slug `truncate-roundto` closed 16:17:02Z with
@@ -46,11 +46,11 @@ exists … the defects are the null population … and attribution") — it was 
 documents that missed the wiring (both passes proposed "wire at close" against a mechanism that
 already exists). The residual defects are three, all verified:
 
-1. **A null is reason-blind.** `collectRunTokens` returns null from at least five distinct
-   conditions — missing args (`skills/odyssey/scripts/lib/tokens.mjs:67`), DB file absent (`:68`),
-   the `node:sqlite` binding unavailable (`:71-72`), DB open/query failure incl. locked (`:75`,
-   `:143-144`), and zero usage rows in the window (`:94`) — and
-   `skills/odyssey/scripts/run-report.mjs:141` flattens all five into the single sentinel
+1. **A null is reason-blind.** `collectRunTokens` returned null (pre-0.6.3) from at least five
+   distinct conditions — missing args (`skills/odyssey/scripts/lib/tokens.mjs:84`), DB file absent
+   (`:85`), the `node:sqlite` binding unavailable (`:88-89`), DB open/query failure incl. locked
+   (`:92`, `:171-173`), and zero usage rows in the window (`:116`) — and
+   `skills/odyssey/scripts/run-report.mjs:145` flattened all five (pre-0.6.3) into the single sentinel
    `"tokens":null`. A record cannot say whether null means "fixture run, correctly empty" or
    "telemetry silently dead". It took live DB forensics (this prompt's own re-derivation) to
    establish the mechanism works at all; the populated fraction is not measurable as a health
@@ -58,16 +58,16 @@ already exists). The residual defects are three, all verified:
    it exists for.
 2. **The declared Node floor silently disables telemetry — a latent mismatch, NOT the cause of the
    observed 2/193** (this machine runs Node v25.9.0, where the path works). `package.json:9`
-   declares `"engines": { "node": ">=18" }`, but `skills/odyssey/scripts/lib/tokens.mjs:163` reaches
+   declares `"engines": { "node": ">=18" }`, but `skills/odyssey/scripts/lib/tokens.mjs:192` reaches
    SQLite only via `process.getBuiltinModule("node:sqlite")` — `process.getBuiltinModule` was added
    in Node 22.3.0 (backported to 20.16.0; absent on 18) and `node:sqlite` itself arrived in 22.5.0.
    On the declared floor runtime every record is null with nothing recording that the platform,
    not the run, is the cause. The degradation is by design
-   (`skills/odyssey/scripts/lib/tokens.mjs:150-151` — "an older runtime degrades to 'no telemetry'
+   (`skills/odyssey/scripts/lib/tokens.mjs:179-180` — "an older runtime degrades to 'no telemetry'
    rather than crashing the caller") but it is silent, and the repo's own rule (Step 5) is that an
    absent optional capability degrades to a **recorded** `inert`, never to an unrecorded nothing.
 3. **Attribution is a heuristic the file itself names as estimate-grade.** Runs are identified by
-   (repo, time-window) — `skills/odyssey/scripts/lib/tokens.mjs:20-23` states "Two concurrent runs
+   (repo, time-window) — `skills/odyssey/scripts/lib/tokens.mjs:20-24` stated (pre-0.6.3) "Two concurrent runs
    in one repo cannot be separated. Reported honestly as confidence:'estimate' — stamping the
    harness session id into state would make it exact, which is the follow-up";
    `:126`/`:132` carry the marks. The exact form is mechanizable today, verified against the live
@@ -105,12 +105,12 @@ Stated as observable behaviour, not as a diff:
    sessions in the same repo and window that are not descended from the run's session** — while
    including every sub-agent child session (the `parent_id` linkage verified above). The `repo`,
    `repo_aliases`, and `window` echo fields stay: a figure quoted without its scoping keys is
-   unfalsifiable (`skills/odyssey/scripts/lib/tokens.mjs:116-119`). When no session id was
+   unfalsifiable (`skills/odyssey/scripts/lib/tokens.mjs:141-145`). When no session id was
    witnessed (headless run, payload without the field), behaviour falls back to today's
    (repo, window) heuristic with `confidence: "estimate"` — degrade, never block.
 4. **The orchestrator's session id is stamped into run state once, from a hook payload.**
    `post-tool.mjs` already holds the sanctioned locked state-write pattern (the capability
-   observation write at `skills/odyssey/hooks/post-tool.mjs:157-166`); the same channel stamps
+   observation write at `skills/odyssey/hooks/post-tool.mjs:206-215`); the same channel stamps
    `state.session_id = payload.session_id` on first witness (only if absent), best-effort,
    exit-0-always. Hook-payload `session_id` is shared across parallel sub-agents
    (`skills/odyssey/hooks/pre-tool.mjs:880-885`), so any event during the run yields the
@@ -136,7 +136,7 @@ docs listed under "Docs to update" belong to the release pass, not the gated run
 
 - **Do not fake or synthesize token numbers.** When the source is absent the value is a stamped
   inert, never an estimate, a guess, or a zero dressed as a measurement. Tokens are the honest
-  unit (`skills/odyssey/scripts/lib/tokens.mjs:25-28`); an inert is honest absence.
+  unit (`skills/odyssey/scripts/lib/tokens.mjs:26-29`); an inert is honest absence.
 - **Do not hard-require `node:sqlite`** — no `"engines"` bump to >= 22.5, no install-time check
   that fails, no npm SQLite dependency. The no-optional-tool rule cuts both ways: the optional
   tool may be absent, and its absence degrades to a *recorded* inert. Over-blocking is a new
@@ -255,8 +255,8 @@ Three probes, each with both directions stated:
   `null`** — indistinguishable from every other null. **After: returns
   `{inert: true, reason: "db-missing", …}`**. The `binding-unavailable` arm of the same probe uses
   the injection seam the module already exposes — `globalThis.__zodysseySqlite`
-  (`skills/odyssey/scripts/lib/tokens.mjs:152-155` reads the global first by design): set it to
-  `{}` before calling and the `:72` site fires. Before: null. After: inert with
+  (`skills/odyssey/scripts/lib/tokens.mjs:181-184` reads the global first by design): set it to
+  `{}` before calling and the `:89` site fires. Before: null. After: inert with
   `reason: "binding-unavailable"` naming the Node floor. This is how the Node-18 behaviour is
   tested on a Node-25 machine without owning a Node-18 install.
 - **Probe B — attribution exactness.** Seed a temp DB (created with `node:sqlite` inside the test,
@@ -264,7 +264,7 @@ Three probes, each with both directions stated:
   `parent_id` = orchestrator, and an interloper with no linkage — all with `model_usage` rows
   inside the same window. **Before (current HEAD): the window query counts all three** — the
   interloper's tokens pollute the run's totals, which is the estimate-grade contamination
-  `tokens.mjs:21-22` concedes. **After, with the orchestrator id supplied: the interloper is
+  `tokens.mjs:21-23` concedes. **After, with the orchestrator id supplied: the interloper is
   excluded, the child is included, `attribution` is `"session"`, `confidence` is `"exact"`**.
   Control: with NO session id supplied, the result is byte-comparable to today's heuristic output
   (`confidence: "estimate"`) — the fallback must not change.
