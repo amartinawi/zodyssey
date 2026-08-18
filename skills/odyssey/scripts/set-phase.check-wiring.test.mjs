@@ -84,8 +84,18 @@ function baseState(extra = {}) {
     ...extra,
   };
 }
+// Item 05: declare this suite's phase transitions synthetic at source — the `done` scorecards
+// must land in results.synthetic.jsonl, not the operator's live results.jsonl, even on direct
+// `node set-phase.check-wiring.test.mjs` dev-loop runs (run-tests.mjs blankets suite runs; this
+// covers everything else). Pattern: pipeline-integration.test.mjs's run(). Placed BEFORE ...opts
+// so default calls inherit it. Metis nit: a caller passing opts.env replaces the sculpted env
+// wholesale and silently drops the lane — the two such callers today (the ZCAP `final` sculpt
+// below and the PATH-stripped `verify` degrade probe) drive no terminal phase, so this is safe;
+// any future terminal-phase caller passing env must re-include ZODYSSEY_EVAL_LANE.
 function phase(repo, target, opts = {}) {
-  return spawnSync(process.execPath, [SET_PHASE, repo, "t", target], { encoding: "utf8", ...opts });
+  return spawnSync(process.execPath, [SET_PHASE, repo, "t", target], {
+    encoding: "utf8", env: { ...process.env, ZODYSSEY_EVAL_LANE: "synthetic" }, ...opts,
+  });
 }
 const HALLUCINATION = `import x from "zodyssey-hallucination-probe";\nexport const probe = x;\n`;
 
