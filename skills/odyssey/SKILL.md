@@ -385,6 +385,7 @@ The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY n
 
 - `ZODYSSEY_PARALLEL_CAP` — the execute-phase parallel-dispatch cap (default 4; non-integer/≤0 → 4).
 - `ZODYSSEY_STALE_HOURS` — a run not updated in this many hours is treated as abandoned (hooks disarm; default 24; non-finite/≤0 → 24).
+- `ZODYSSEY_UNGATE_BASH` — set to `1` to bypass the Bash write-gate entirely (documented power-user hatch; Edit/Write tools stay gated). Every ungated call is witnessed — one JSON line in `.zcode/state/<slug>.ungated.jsonl`, counted as `ungated_bash_calls` by `run-report.mjs` — the hatch opens, but never silently.
 - `ZODYSSEY_RECURSION_CAP` — the SEC-1s recursion-guard cap (default 1). Reserved for a future real depth counter; today the guard is a payload-pattern match against embedded nested dispatches, not a depth ledger (the harness tool-grant boundary is the primary control).
 - `ZODYSSEY_REGRESSION_TIMEOUT_MS` — timeout (ms) for the regression-gate suite (default 600000).
 - `CLAUDE_CLI` — the binary `consult.mjs` spawns as the external auditor (default `claude`). Receives the full repo diff + plan, so point this only at a trusted CLI.

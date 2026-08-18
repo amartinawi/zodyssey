@@ -880,7 +880,8 @@ When an orchestration run is active, the PreToolUse hook blocks:
 - **edits to product code before \`review.verdict == OKAY\`** (the gate omo leaves unenforced)
 - **edits outside the plan's declared \`Files:\` scope** (fail-closed on unreadable/empty plan)
 - **write-capable Bash** before OKAY or outside declared scope (secure by default; set
-  \`ZODYSSEY_UNGATE_BASH=1\` to disable if you trust your agents)
+  \`ZODYSSEY_UNGATE_BASH=1\` to disable if you trust your agents — every ungated call is
+  recorded in run state and counted on the run report)
 - **Task dispatches beyond the parallel cap** (default 4, override via \`ZODYSSEY_PARALLEL_CAP\`)
 These hooks are NO-OPS when no run is active, so normal editing is never affected.
 

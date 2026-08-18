@@ -118,7 +118,7 @@ flowchart TD
 | **Executor stays in declared scope** | not enforced | hook parses the plan's `Files:` union; blocks edits outside it. **Fails closed** on unreadable/empty plan |
 | **No edit collisions between agents** | not enforced | hook checks a file-lock ledger |
 | **Parallel dispatch within bounds** | not enforced | hook counts in-flight Tasks; blocks beyond cap (default 4) |
-| **Bash write-escape before review** | n/a | hook gates write-capable Bash (`sed -i`, `>`, `git apply`, …) the same as Edit. Secure by default; `ZODYSSEY_UNGATE_BASH=1` disables |
+| **Bash write-escape before review** | n/a | hook gates write-capable Bash (`sed -i`, `>`, `git apply`, …) the same as Edit. Secure by default; `ZODYSSEY_UNGATE_BASH=1` disables (every ungated call is recorded in run state) |
 | **Embedded-dispatch injection** (SEC-1s, [v0.2.0](CHANGELOG.md#020---2026-08-11)) | n/a | hook blocks a `Task()` dispatch whose prompt payload embeds a serialized nested tool call — both `{"tool_name":"Task"}` and Claude-native `{"type":"tool_use","name":"Task"}` shapes. Defense-in-depth behind the harness tool-grant boundary. |
 | **Review verdicts are read, not assumed** | prompt convention | F2/F4 parse the artifact's verdict. Ambiguous or absent → `missing` → **fails**. The nonce is minted only for the exact declared minter type, never for a lookalike namespace. Previously they confirmed a nonce and never opened the file |
 | **Tests can't be weakened to pass** | not enforced | F1 fails on a deleted test file, a net-negative test-file line count, or a newly added `skip`/`only`/`xfail`. Test files are read-only during `verify`/`final` |
