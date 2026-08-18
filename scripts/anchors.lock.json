@@ -4,7 +4,7 @@
     "src/auth.ts:42"
   ],
   "citations": {
-    ".zcode-plugin/plugin.json:4": "3a0545c3c005",
+    ".zcode-plugin/plugin.json:4": "291aea68c561",
     ".zcode-plugin/plugin.json:44": "f353593347eb",
     "AGENTS.md:43": "601208f7d2ae",
     "agents/prometheus.md:55": "1d803c65f978",
@@ -75,7 +75,7 @@
     "docs/ROADMAP.md:63": "bc42c8f95dac",
     "docs/ROADMAP.md:89": "49cc55ed81ba",
     "package.json:12": "0bf2a38266d4",
-    "package.json:3": "3a0545c3c005",
+    "package.json:3": "291aea68c561",
     "package.json:9": "1e6c92a2ebcf",
     "README.md:118": "3e508f21b62d",
     "README.md:121": "dd1102846d27",

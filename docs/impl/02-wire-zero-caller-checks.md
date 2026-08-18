@@ -18,7 +18,7 @@ Every remaining reference is doc prose: `check-imports` at
 `resolve-capabilities` at `skills/odyssey/SKILL.md:378`,
 `skills/odyssey/references/capabilities.md:106`,
 `skills/odyssey/references/scripts.md:48`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
-`docs/DESIGN.md:422`; `coverage-delta` at `CHANGELOG.md:643` only (it has no
+`docs/DESIGN.md:422`; `coverage-delta` at `CHANGELOG.md:656` only (it has no
 `references/scripts.md` entry at all). The three detectors:
 
 - `skills/odyssey/scripts/check-imports.mjs` — exits **9** on an import that resolves against
@@ -38,7 +38,7 @@ files." — an imperative addressed to the conductor. The repo's B8 comment expl
 enforcement: `skills/odyssey/scripts/set-phase.mjs:330-332` — "Wired here rather than as a SKILL.md
 instruction on purpose: an instruction to a conductor is the prompt-convention 'enforcement' this
 project exists to replace." v0.3.2 shipped these as "the three gates `MEASUREMENT.md` promised and
-never had" (`CHANGELOG.md:475`) — and shipped them unwired:
+never had" (`CHANGELOG.md:585`) — and shipped them unwired:
 `docs/MEASUREMENT.md:61-65` still lists `check-imports.mjs` among "the mechanisms behind" the
 factual-accuracy target, a claim with no mechanism behind it. Both ideation passes found this
 independently (`docs/ideation-report.md:38`, `:263`, `:308` — "convention measurably failed to
@@ -296,7 +296,7 @@ after the fix, not a bypass flag.
 
 **A check that exists, passes its own tests, and cannot fire from the pipeline** — ceremony
 without mechanism, failure mode 3. Three instances shipped together on 2026-08-11 under the
-heading "the three gates `MEASUREMENT.md` promised and never had" (`CHANGELOG.md:475`), each
+heading "the three gates `MEASUREMENT.md` promised and never had" (`CHANGELOG.md:585`), each
 documented with an imperative sentence addressed to a conductor
 (`skills/odyssey/references/scripts.md:45`) that no mechanism ever executed. The class has a
 finer-grained member this run found: a check wired on ONE side only — invoke without consumer, or
