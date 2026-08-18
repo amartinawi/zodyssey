@@ -14,11 +14,11 @@ them has a single code caller**. Census re-measured 2026-08-16 (this run, not an
 number): grep for each script's name across `skills/`, `scripts/`, `agents/`, `commands/`
 (`*.mjs`, `*.bash`), excluding the script itself and its `.test.mjs` → **zero hits for all three**.
 Every remaining reference is doc prose: `check-imports` at
-`skills/odyssey/references/scripts.md:45`, `docs/MEASUREMENT.md:85`, `README.md:132`;
+`skills/odyssey/references/scripts.md:46`, `docs/MEASUREMENT.md:85`, `README.md:132`;
 `resolve-capabilities` at `skills/odyssey/SKILL.md:378`,
 `skills/odyssey/references/capabilities.md:106`,
-`skills/odyssey/references/scripts.md:48`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
-`docs/DESIGN.md:422`; `coverage-delta` at `CHANGELOG.md:689` only (it has no
+`skills/odyssey/references/scripts.md:49`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
+`docs/DESIGN.md:423`; `coverage-delta` at `CHANGELOG.md:703` only (it has no
 `references/scripts.md` entry at all). The three detectors:
 
 - `skills/odyssey/scripts/check-imports.mjs` — exits **9** on an import that resolves against
@@ -33,12 +33,12 @@ Every remaining reference is doc prose: `check-imports` at
   `capabilities.lock.json` (grep: zero consumers).
 
 The failure mode is **ceremony without mechanism**, in the repo's own words.
-`skills/odyssey/references/scripts.md:45` ends: "Run it during verify on the run's changed
+`skills/odyssey/references/scripts.md:46` ends: "Run it during verify on the run's changed
 files." — an imperative addressed to the conductor. The repo's B8 comment explains why that is not
 enforcement: `skills/odyssey/scripts/set-phase.mjs:330-332` — "Wired here rather than as a SKILL.md
 instruction on purpose: an instruction to a conductor is the prompt-convention 'enforcement' this
 project exists to replace." v0.3.2 shipped these as "the three gates `MEASUREMENT.md` promised and
-never had" (`CHANGELOG.md:521`) — and shipped them unwired:
+never had" (`CHANGELOG.md:535`) — and shipped them unwired:
 `docs/MEASUREMENT.md:74-78` still lists `check-imports.mjs` among "the mechanisms behind" the
 factual-accuracy target, a claim with no mechanism behind it. Both ideation passes found this
 independently (`docs/ideation-report.md:38`, `:263`, `:308` — "convention measurably failed to
@@ -58,7 +58,7 @@ the design bar for this change: **the wiring precedent itself is half-wired.**
 (`skills/odyssey/scripts/regression-gate.mjs:179`) — has **no code caller either**, and
 `skills/odyssey/SKILL.md` never mentions it (its only regression mention is the env var at
 `:388`). The `done` refusal at `skills/odyssey/scripts/set-phase.mjs:131` therefore fires only if
-a conductor happens to follow the prose in `references/scripts.md:44`. This change wires **both
+a conductor happens to follow the prose in `references/scripts.md:45`. This change wires **both
 sides — invoke and consume — as mechanism**, and leaves the regression-gate gap itself out of
 scope (named under *Known, not fixed*).
 
@@ -242,7 +242,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
    the wiring assertions are demonstrated failing against the unwired code, so a silently-skipped
    or never-run assertion cannot pass unnoticed. Criterion 9 catches silent unhooking after land.
 3. **Ceremony without mechanism.** This is the change's own subject: it replaces three
-   conductor-addressed imperatives (`references/scripts.md:45`) with transition invokes recorded
+   conductor-addressed imperatives (`references/scripts.md:46`) with transition invokes recorded
    in state and consumed by a precondition — mechanism, not convention.
 4. **Self-grading.** Every criterion is machine-executed with a recorded exit code; the paired
    probe runs against both builds. Nobody grades prose.
@@ -296,9 +296,9 @@ after the fix, not a bypass flag.
 
 **A check that exists, passes its own tests, and cannot fire from the pipeline** — ceremony
 without mechanism, failure mode 3. Three instances shipped together on 2026-08-11 under the
-heading "the three gates `MEASUREMENT.md` promised and never had" (`CHANGELOG.md:521`), each
+heading "the three gates `MEASUREMENT.md` promised and never had" (`CHANGELOG.md:535`), each
 documented with an imperative sentence addressed to a conductor
-(`skills/odyssey/references/scripts.md:45`) that no mechanism ever executed. The class has a
+(`skills/odyssey/references/scripts.md:46`) that no mechanism ever executed. The class has a
 finer-grained member this run found: a check wired on ONE side only — invoke without consumer, or
 consumer without invoke (`regression-gate.mjs --snapshot` is wired at
 `skills/odyssey/scripts/set-phase.mjs:339`; `--check`, the only writer of the `regressed` status
@@ -319,11 +319,11 @@ correctness-check entry must name the transition that invokes it, never an instr
 Every doc that states the claim this change alters ("these checks run during the pipeline"), each
 checked against the 2026-08-16 tree:
 
-- `skills/odyssey/references/scripts.md:45` — replace "Run it during verify on the run's changed
+- `skills/odyssey/references/scripts.md:46` — replace "Run it during verify on the run's changed
   files." with the mechanism sentence, mirroring the regression-gate entry's own phrasing at `:44`:
   invoked automatically by `set-phase.mjs` on entering `verify`; `done` refuses while
   `state.imports.status === "unresolved"`; inert without a manifest/git.
-- `skills/odyssey/references/scripts.md:48` — `resolve-capabilities` gains the final-entry
+- `skills/odyssey/references/scripts.md:49` — `resolve-capabilities` gains the final-entry
   invocation and the `state.capabilities` lane; note `--drift-check` remains a manual diagnostic.
 - `skills/odyssey/references/scripts.md` — **add** the missing `coverage-delta.mjs` entry (it has
   none today; the check is about to be wired before it is documented, which would be a fresh
@@ -362,7 +362,7 @@ this change is not security-class; it may share the v0.6 minor with other non-se
     (`skills/odyssey/scripts/set-phase.mjs:339`) but the comparison — the only writer of the
     `regressed` status the `done` gate consumes (`skills/odyssey/scripts/regression-gate.mjs:179`,
     consumer at `set-phase.mjs:131`) — is invoked by prose convention only
-    (`references/scripts.md:44`). Deliberately out of this change; wiring it is a follow-up using
+    (`references/scripts.md:45`). Deliberately out of this change; wiring it is a follow-up using
     this change's pattern.
   - `capabilities.lock.json` still has no consumer; the header's dispatch-time read
     (`skills/odyssey/scripts/resolve-capabilities.mjs:12-13`) remains aspirational. F5 consuming

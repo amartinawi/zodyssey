@@ -224,7 +224,7 @@ gap audit.
 | B7 | Call `probe-toolchain.mjs` in the pipeline | 5 | Revives the post-edit lint arm and the toolchain-aware criterion lint, both dead by default |
 | B8 | Pass-to-pass regression gate | 120 | Snapshot passing tests at `phase→execute`, re-run at verify, any pass→fail is a hard failure. **Net-new in the ecosystem** |
 | B9 | Package-existence check | 20 | 19.7% hallucination rate across 576k samples; closes the slopsquatting class |
-| B10 | Pre-edit lint baseline | 35 | `post-tool.mjs` has no baseline, so pre-existing lint noise is attributed to the edit |
+| B10 | Pre-edit lint baseline | ~210 + suite | **Shipped v0.6.4.** First-touch pre-edit baseline (frozen per target per run) + attributed comparison: blocks only diagnostics NEW to the edit; pre-existing noise and capability failures record `inert` |
 
 B1–B4 total ~75 lines and each closes a confirmed hole.
 
@@ -302,7 +302,7 @@ stays valid. Fourteen citations across `docs/ideation-report.md`, `docs/impl/07`
 broken all of them. (That is not hypothetical — it was done, measured, and reverted to produce this
 form. The check that would have caught it is queued as `docs/impl/15-anchor-drift-check.md`.)
 
-**Most of Phase B shipped** across v0.3.2–v0.5.2. B1–B7 and B9 landed; B10 did not. §7 is therefore
+**All of Phase B shipped** across v0.3.2–v0.6.4. B1–B7 and B9 landed by v0.5.2; B10 (the pre-edit lint baseline) landed in v0.6.4. §7 is therefore
 a *proposal table*, not a status table — do not read a row in it as a claim that the item is
 unbuilt, and do not read it as a claim that a shipped item works.
 

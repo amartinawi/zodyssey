@@ -76,9 +76,9 @@ dialects in live use:
 
 | written as | resolves to |
 |---|---|
-| `skills/odyssey/references/scripts.md:45` | itself (repo-root-relative) |
-| `references/scripts.md:45` | `skills/odyssey/references/scripts.md` |
-| `scripts.md:45`, `capabilities.md:10` | `skills/odyssey/references/` |
+| `skills/odyssey/references/scripts.md:46` | itself (repo-root-relative) |
+| `references/scripts.md:46` | `skills/odyssey/references/scripts.md` |
+| `scripts.md:46`, `capabilities.md:10` | `skills/odyssey/references/` |
 | `SKILL.md:355` | `skills/odyssey/SKILL.md` |
 | `trusted-invoke.test.mjs:105` | `skills/odyssey/hooks/pre-tool.trusted-invoke.test.mjs` (basename suffix match) |
 | `.zcode-plugin/plugin.json:44` | itself — **leading dot; a naive `[A-Za-z]`-anchored regex drops it** |
@@ -293,7 +293,7 @@ the filename before the line number, and CHANGELOG.md keys are exempt from the l
   that carries no
   filename, so a shifted file leaves it stale while the suite stays green (found by external
   audit round 2; reconciled via git-hunk-derived shift bands, commit `7b33454`).
-- **comma/slash continuations** — `CHANGELOG.md:483, :605`, `:415/:554`, `md:33,31` — same
+- **comma/slash continuations** — `CHANGELOG.md:497, :605`, `:415/:554`, `md:33,31` — same
   blindness inside the exempt CHANGELOG target (found by round 3).
 - **path-then-parenthetical-range** — the file named with no `:NNN` while the claim's range rides
   inside parentheses later in the entry, like `docs/impl/05`'s append-site cite `` (`:430-457`) ``

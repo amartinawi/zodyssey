@@ -1,6 +1,20 @@
 # Changelog
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+## [0.6.4] — 2026-08-19
+
+### Fixed — post-edit lint failures are attributed against a pre-edit baseline (item 07 / B10)
+
+The post-edit lint arm ran the repo's own lint on an edited file AFTER the edit and blocked on any non-zero exit — comparing against nothing. Pre-existing lint noise on a file the run touched was reported to the executor as this edit's failure (the executor then paid to "fix" or argue with noise it inherited), a timed-out lint (`spawnSync` → `status: null`) was graded as a diagnostic, and the arm's true positive (an edit that actually introduced diagnostics) was byte-indistinguishable from its false one. Fixed by giving the arm a "before": on the run's FIRST edit to each file, `pre-tool.mjs` (allow path, Edit-family, `execute`/`verify`/`final` phases — mirroring the post arm's existing phase guard) runs the same lint command and freezes the exit status into `.zcode/state/<slug>.lint-baseline.json` (per-target keys `clean`/`failing`/`inert`, atomic tmp+rename, first-touch frozen for the run; a `Write` creating a new file records an implicit clean baseline). The post arm then blocks only on diagnostics NEW to the edit — clean baseline + non-zero now → block whose reason names the target and states the diagnostics are new to this edit; failing baseline + non-zero → no block, recorded seen-not-new; absent entry or `inert` → no block. Pre and post invoke one shared module (`hooks/lib/lint-invocation.mjs`: whitespace-split argv, `spawnSync` argv-array `shell:false`, 5s cap) so the comparison can never measure two different invocations, and `find-run.mjs` explicitly skips the side-file so run discovery never parses it.
+
+Paired probe, as this repo cites its probes: in a fixture repo whose lint exits 1 iff the target contains `FAIL-MARKER`, a benign edit to a pre-failing file produced a byte-identical block to an edit introducing the marker before the fix — after, the benign edit sails through (recorded seen-not-new) and the marker-introducing edit blocks with attribution. The 39-case suite was demonstrated RED against the unmodified hooks before any hook edit (13 failing assertions, scenario (a) = the live defect); criterion 8's stash-dance keeps both directions re-provable on demand, and criterion 9's tripwire greps guard against one-sided unhooking. Two riding fixes ship in the same entry: a timed-out lint now records `inert` instead of blocking (a capability failure is never a diagnostic, on either side), and runs created before this change (no side-file) degrade to `inert` rather than misattribute — strictly fewer blocks, never more. Unchanged controls verified on both builds: no-`lint_cmd` repos spawn nothing, `plan`-phase edits lint nothing, the Task ledger drain, the `Skill` capability arm, and every pre-tool gate are byte-identical, and item 06's session-stamp arm + 15-case suite are untouched. 73 shifted citations were reconciled at the source and the C2 bare-continuation halves hand-swept before the anchor lock re-pinned.
+
+**Known, not fixed:**
+- Attribution is exit-code-level. Per-diagnostic diffing (which message is new) is deliberately unbuilt — runner-specific output parsing is the conceded-to-rot class (`skills/odyssey/scripts/regression-gate.mjs:15-21` carries the principle).
+- The baseline is per-run, frozen at first touch. Cross-file induced diagnostics (editing A changes what B's lint reports) are baselined at B's first touch, not at run start — chosen to bound cost; a full-repo lint at execute entry was rejected as too slow for big repos.
+- `lint_cmd` comes from `package.json` `scripts.lint` only: a repo with an eslint config but no lint script records `inert`. Extending detection is probe-side work, out of scope.
+- First-touch capture adds one pre-edit lint run per file per run — bounded by the 5s cap on both sides, the accepted latency cost.
+
 ## [0.6.3] — 2026-08-18
 
 ### Fixed — run-close token records are populated or reason-stamped (item 06)

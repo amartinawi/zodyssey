@@ -112,7 +112,7 @@ deliberately widened to list each doc literally. Do not widen it by default.
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; new
   checks are additive siblings.
 - Do not fix the adjacent named residuals (new-file lexical-resolution symlink redirect,
-  `CHANGELOG.md:183`; the unlocked state writes) — separate releases.
+  `CHANGELOG.md:197`; the unlocked state writes) — separate releases.
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — every verification
   in this change is an exit code.
 
@@ -242,7 +242,7 @@ path only, which is the very Class A shape this release exists to close — a gu
 path and not its Bash twin" (full account at `CHANGELOG.md:224-226`, including that the suite did
 NOT catch it — a re-verification against 0.4.1 did); and v0.5.1 shipped the same shape again in the
 nonce lane — exact-match guard on one site, segment-tolerant matching on its twin
-(`CHANGELOG.md:160`). This instance is the shape inverted in origin but identical in effect: the
+(`CHANGELOG.md:174`). This instance is the shape inverted in origin but identical in effect: the
 Bash path's classifier never returns an empty `rel` for a real target (`:298-299`), while the Edit
 path's does (`:677` init, assignment only inside guarded branches) — so every guard hanging off
 `if (rel)` exists on one path and not the other.
@@ -282,7 +282,7 @@ Every doc that states the claim this change alters ("an executor may only edit d
 ## CHANGELOG entry shape
 
 New version `0.5.3` (patch). **One security change per release, shipped alone** — the repo rule,
-with its own precedent at `CHANGELOG.md:121` (a structural gate change "wants its own release and
+with its own precedent at `CHANGELOG.md:135` (a structural gate change "wants its own release and
 its own paired run"). Do NOT batch queue items 03 or 04 into this release even though they touch
 the same file.
 
@@ -297,7 +297,7 @@ the same file.
   - Root-equality edge: a target exactly equal to the run repo or `PROJECT_DIR` returns `rel: ""`
     on both twins; the tools reject directory targets themselves.
   - Pre-existing residuals this change does not touch: the new-file lexical fallback / symlink
-    redirect (`CHANGELOG.md:183`), the unlocked state writes.
+    redirect (`CHANGELOG.md:197`), the unlocked state writes.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   re-Get/Update the plugin so the marketplace cache picks up the hook — a fix that stays only in
   the repo protects no run.

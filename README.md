@@ -260,7 +260,7 @@ zodyssey/
 │   ├── INSTALL.md           # detailed install + config + troubleshooting
 │   ├── diagrams.md          # every architecture diagram (Mermaid, no build step)
 │   ├── impl/                # the v0.6 build queue: 00-INDEX.md + one brief per item
-│   └── ECOSYSTEM_GRAPH.md, MEASUREMENT.md, RESUME.md, ROADMAP.md, deep-audit-prompt.md
+│   └── ISNAD.md, ECOSYSTEM_GRAPH.md, MEASUREMENT.md, RESUME.md, ROADMAP.md, deep-audit-prompt.md
 ├── examples/                # one anonymized example run
 └── scripts/install.mjs      # the installer
 ```
@@ -286,6 +286,23 @@ ZOdyssey is a synthesis of published multi-agent systems research, not an invent
 The `rlm(...)` admission-handle pattern also shaped `sisyphus-junior`'s return contract (`{status, files-changed, acceptance-evidence, notepad-path}`) — a sub-agent returns a *handle to evidence*, not a claim about its own work.
 
 **Since taken:** prime-agent's no-progress stall detector (`captureGitWorktreeSnapshot` in `core/autonomous.ts`) now lives in `record-verify.mjs`. If a criterion failed and the worktree is byte-identical at the next attempt, the criterion is **not re-run** — the attempt is counted (so the cap still converges), and the run reports *"NOT RERUN: the workspace is unchanged since this criterion last failed"* instead of spinning. It needed no daemon, which is exactly why it fit where the other five did not.
+
+### The ISNAD adaptation
+
+The third source, studied 2026-08-17 and shipped as v0.6.0. An **isnād engine** is a provenance/trust layer derived from hadith authentication, where a report is judged by its chain of narrators rather than by how convincing it reads — which is what ZOdyssey already does when the review gate reads the verdict artifact instead of believing the executor. Seven domains were mapped against existing machinery to avoid duplicating it; four were missing.
+
+**Taken:**
+
+| Rule | Where it landed |
+|---|---|
+| Source-trust registry (R2) | `registry-report.mjs` — cross-run reliability keyed on `sha256(agents/<name>.md)`, so editing a prompt starts a new narrator at the cold-start prior instead of inheriting its predecessor's record. Laplace-smoothed, `n` always shown, advisory-only |
+| Independence-weighted corroboration (R4) | `verify_origin` + `consult_rounds` on every run record — an externally audited run and a self-graded one used to be indistinguishable in the corpus |
+| Span-entailment attribution (R5, *tadlīs*) | executor and reviewer prompts must cite the span that witnessed each claim; "based on the codebase" is unverified by definition |
+| Fluency exclusion (R8) | `judge-rubric.test.mjs` pins the five weighted judge dimensions so no prose-quality dimension can enter trust scoring |
+
+**Already covered, deliberately not duplicated** — atomic claims (the plan's per-todo executable acceptance criteria) and conflict handling (`--multi-auditor` flags auditor disagreement rather than picking a winner). **Not adopted:** expert sampling. R2 shipped the measurement half; routing work away from a low-trust narrator would be a gate, and the roadmap forbids new gates. The registry can tell you a config is unreliable at n=9; nothing acts on it.
+
+Every adopted capability is advisory or labeling — no new gates, no new LLM opinion layers. Full mapping, the limits of the record, and the rule-numbering collision with this repo's unrelated `R2`/`R3` remediation rounds: [`docs/ISNAD.md`](docs/ISNAD.md).
 
 ## License
 

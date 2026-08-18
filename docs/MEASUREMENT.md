@@ -83,7 +83,7 @@ Because paths are non-deterministic, we judge the **end state**, not the sequenc
 >   callers**. The baseline is taken; the comparison never runs; the refusal reads a field nothing
 >   populates.
 > - **`check-imports.mjs`** (imports must resolve against the repo's declared dependencies) —
->   **built, never invoked from code.** Its only caller is prose (`references/scripts.md:45`).
+>   **built, never invoked from code.** Its only caller is prose (`references/scripts.md:46`).
 >
 > All three landed 2026-08-11 as *scripts*. Two of the three were never wired to anything, which is
 > why this section previously read as though the targets were met. A mechanism that exists is not a

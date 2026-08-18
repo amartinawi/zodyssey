@@ -1,7 +1,7 @@
 # 03 — Allowlist the nonce-lane minters
 
 Build order **03** · depends-on **—** (no build edge; sequenced after 01's release only by the
-one-security-change-per-release cadence, `CHANGELOG.md:121` — grouped adjacently with 01/04 because
+one-security-change-per-release cadence, `CHANGELOG.md:135` — grouped adjacently with 01/04 because
 all three touch `skills/odyssey/hooks/pre-tool.mjs`, explicitly NOT merged with either) · queue
 row: [`docs/impl/00-INDEX.md`](00-INDEX.md) `03 nonce-lane-minter-allowlist` · security-class ·
 patch · shipped alone.
@@ -134,7 +134,7 @@ exactly that). Do not widen the set by default.
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; new
   checks are additive siblings.
 - Do not batch this into 01's or 04's release in the CHANGELOG shape — one security change per
-  release (`CHANGELOG.md:121`: a structural gate change "wants its own release and its own paired
+  release (`CHANGELOG.md:135`: a structural gate change "wants its own release and its own paired
   run").
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — the warning is a
   deterministic stderr line, and every verification in this change is an exit code or a state-file
@@ -219,7 +219,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
 
 1. **Enumeration instead of structure.** Not a deny-list of lookalike names: it is an identity
    allowlist of the three declared minter types — the same direction as the v0.5.2 terminus at
-   `CHANGELOG.md:121` (classify by known-safe identity, not by denied shapes). There is no shape to
+   `CHANGELOG.md:135` (classify by known-safe identity, not by denied shapes). There is no shape to
    bypass because nothing is matched loosely.
 2. **A check that cannot detect the class of failure it exists for.** Criterion 7 is the tripwire:
    the flipped assertions are demonstrated failing against the broken code. Note the twist this
@@ -260,7 +260,7 @@ over-blocked or over-tightened.
 
 Legitimate non-zodyssey momus-named agents: **none exist to break.** `momus` is ZOdyssey's own
 reviewer, defined in this repo (`agents/momus.md`), dispatched as `zodyssey:momus`
-(`skills/odyssey/SKILL.md:376`, `skills/odyssey/references/scripts.md:56`). The only
+(`skills/odyssey/SKILL.md:376`, `skills/odyssey/references/scripts.md:57`). The only
 "legitimate third-party momus" instances in the tree are the Class C fixtures that assert the
 tolerance itself — this change flips them deliberately. No agent loses the ability to be
 *dispatched*; a lookalike loses only a credential it should never have had, and it is told so on
@@ -278,7 +278,7 @@ point: reviewer identity becomes an explicit declaration, not a substring accide
 
 **Authority granted by name-segment tolerance** — a loose matcher built for routing (F5, phase
 gates) consumed by an authority-bearing check (nonce minting). This is the same class family as
-the v0.5.2 head-allowlist inversion named at `CHANGELOG.md:121`: identity questions ("who may
+the v0.5.2 head-allowlist inversion named at `CHANGELOG.md:135`: identity questions ("who may
 execute", "who may grant") answered by tolerant matching instead of exact identity, where the
 structural fix is to invert to an allowlist of declared identities. The direct in-lane prior is
 v0.5.1 audit-3 finding 7 (`CHANGELOG.md:158-160`): the round-cap twin and the minter disagreed, and
@@ -312,7 +312,7 @@ nonce"), each checked against the 2026-08-16 tree:
 - `skills/odyssey/SKILL.md:376-382` — the review-gate chain description: the sentence "the nonce
   only exists after a real `Task(zodyssey:momus)` call the hook witnessed" becomes enforced by
   exact type; add the minter-allowlist fact and the lookalike warning.
-- `skills/odyssey/references/scripts.md:56-67` — review-lane walkthrough, step 1: state that only
+- `skills/odyssey/references/scripts.md:57-68` — review-lane walkthrough, step 1: state that only
   the exact `subagent_type` mints and that a lookalike dispatch warns and mints nothing.
 
 A fix that leaves any of these asserting the old behaviour has created the next doc-code drift.
@@ -321,7 +321,7 @@ A fix that leaves any of these asserting the old behaviour has created the next 
 
 New patch version — the next free patch at ship time (`0.5.3` if nothing has shipped since
 `0.5.2`; 01 and 02 each claim their own release ahead of this one in build order). **One security
-change per release, shipped alone** — the repo rule with its precedent at `CHANGELOG.md:121`. Do
+change per release, shipped alone** — the repo rule with its precedent at `CHANGELOG.md:135`. Do
 NOT batch queue items 01 or 04 into this release even though all three touch
 `skills/odyssey/hooks/pre-tool.mjs`; that is a reason for adjacent sequencing, not for merging.
 

@@ -412,6 +412,7 @@ decision), ~40 in the new `skills/odyssey/hooks/lib/lint-invocation.mjs`, 1 line
 (`skills/odyssey/hooks/lint-baseline.test.mjs`: fixture-repo builder, the marker lint, scenarios
 a-h, the controls table). The ~35-line estimate carried by `docs/ROADMAP.md:227` and
 `docs/OPPORTUNITY-MAP.md:268` counted only the post-side diff — it ignored the pre-side capture
-and the pairing suite, which are the parts that make the fix real. Patch release as its own
+and the pairing suite, which are the parts that make the fix real. (Folded at ship, v0.6.4:
+both rows now read ~210 + suite; the mechanism landed at ~210 hook lines + a 365-line suite.) Patch release as its own
 entry; may ride the v0.6 minor with other non-security items, never shares a release with queue
 items 01, 03, or 04.
