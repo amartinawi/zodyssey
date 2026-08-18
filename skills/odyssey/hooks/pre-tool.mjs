@@ -19,7 +19,7 @@
 // stdout: JSON decision on block; empty on pass.
 // exit: 0 pass · 2 block (with reason).
 
-import { readFileSync, readdirSync, existsSync, writeFileSync, renameSync, openSync, closeSync, unlinkSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, writeFileSync, renameSync, openSync, closeSync, unlinkSync, statSync, appendFileSync } from "node:fs";
 import { join, dirname, resolve as pathResolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
@@ -985,7 +985,26 @@ if (isEdit) {
 // calls pass regardless of verdict/scope). This is the original author's personal setup; it is
 // OPT-IN and off by default. Edit/Write tools remain gated either way. Know the tradeoff:
 // ungated Bash lets any agent mutate ANY file via shell regardless of review or declared scope.
-if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1") exit(0);
+//
+// Item 04 (2026-08-18): the hatch still opens, but it is no longer SILENT. Both historical gate
+// deletions (v0.1.1, v0.2.0) were caused by this variable's ambient presence going unnoticed —
+// the silence was the failure mode, never the openness. Every call that walks through this exit
+// now appends one JSON line {at, command} to .zcode/state/<slug>.ungated.jsonl, counted as
+// ungated_bash_calls by run-report.mjs. The .jsonl suffix keeps run discovery — which matches
+// *.json — from ever loading it as state. Recording is unconditional (read-only calls included:
+// filtering by write-capability would re-run the gate analysis the hatch exists to skip) and
+// best-effort BY DESIGN — the one place in this repo where fail-open is correct, because the
+// operator has explicitly disabled enforcement and a recording failure must not silently re-gate
+// the call they ungated. Degrades to one stderr line; exit 0 regardless.
+function recordUngatedBash(cmd) {
+  try {
+    appendFileSync(join(RUN_STATE_DIR, `${state.slug}.ungated.jsonl`),
+      JSON.stringify({ at: new Date().toISOString(), command: cmd }) + "\n");
+  } catch (e) {
+    process.stderr.write(`ZOdyssey: WARNING — ungated Bash call passed but was NOT recorded (ledger ${state.slug}.ungated.jsonl: ${(e && e.message || String(e)).slice(0, 120)}). This is a witness failure, not a block.\n`);
+  }
+}
+if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1") { recordUngatedBash(typeof toolInput.command === "string" ? toolInput.command : ""); exit(0); }
 
 // Trusted-script allowlist for the recorder machinery (G1 + SEC-H3). Returns true ONLY for a
 // `node <path-under-skills/odyssey/scripts/>` invocation with no shell metacharacters. Any
