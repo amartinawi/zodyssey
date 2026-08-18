@@ -262,7 +262,7 @@ Every doc that states the claim this change alters ("an executor may only edit d
 
 - `CHANGELOG.md:182` — move the v0.5.1 *Known, not fixed* bullet into the new version's **Fixed**
   (shape below).
-- `README.md:118` — comparison-table row "Executor stays in declared scope … blocks edits outside
+- `README.md:121` — comparison-table row "Executor stays in declared scope … blocks edits outside
   it. **Fails closed** on unreadable/empty plan": extend to state that containment covers targets
   outside the repo entirely, converged with the Bash write-gate. The mermaid at `README.md:94-95`
   already implies it — verify, don't rewrite.

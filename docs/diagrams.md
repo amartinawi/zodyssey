@@ -41,6 +41,36 @@ flowchart TD
 - The OKAY verdict is **non-forgeable** — bound to a nonce the hook minted when it witnessed the `Task(momus)` dispatch, plus the plan's sha256.
 - A REJECT loop can run at most 3 rounds; the hook blocks further `momus` dispatches after that.
 
+### 1b. Terminal phases and the escape hatches
+
+`done` is not the last state. The phase graph in `set-phase.mjs` admits four terminal phases and two escape hatches, and the edges are enforced — an arbitrary transition is refused, not warned about.
+
+```mermaid
+flowchart LR
+    F["6 · FINAL WAVE"] --> DONE(("done"))
+    DONE -- "/orchestrate-consult<br/>ACCEPT" --> AUD(("audited"))
+    DONE -- "gaps found" --> REM["remediate<br/><i>gates re-armed</i>"]
+    AUD -- "later gap" --> REM
+    REM --> DONE
+    REM --> AUD
+    REM --> BLK(("blocked"))
+    REM --> ABN(("abandoned"))
+    ANY["any active phase"] -.-> BLK
+    ANY -.-> ABN
+    ABN -- "resume" --> RES["plan / review / execute"]
+
+    classDef good fill:#dafbe1,stroke:#2da44e,stroke-width:2px,color:#1f2328;
+    classDef warn fill:#fff8c5,stroke:#d4a72c,color:#1f2328;
+    classDef dead fill:#eaeef2,stroke:#6e7681,color:#1f2328;
+    class DONE,AUD good;
+    class REM warn;
+    class BLK,ABN dead;
+```
+
+- **`done` → `audited`** is the only path that records an independent verdict. It is what `verify_origin: external-audit` means on the run record (v0.6.0).
+- **`remediate`** re-arms the enforcement hooks, which are otherwise disarmed after `done`, so gap-fixes run under the same gates the original work did.
+- **`blocked` and `abandoned`** are the two `--force`-able targets (`set-phase.mjs:295`). `abandoned` can resume into `plan`/`review`/`execute`, but **not** into `audited` — a run opened purely to carry an external audit of already-shipped work therefore has no legal path to `audited`, and contributes no trend record at all, because the terminal auto-append fires on `done`/`audited` only. That gap is tracked as candidate C1 in [`docs/impl/00-INDEX.md`](impl/00-INDEX.md).
+
 ---
 
 ## 2. Agent topology
@@ -106,10 +136,15 @@ flowchart TD
     KIND -- "Task / Agent" --> DISP["dispatch branch"]
     KIND -- "Bash" --> BASH{"write-capable?<br/>(sed -i, >, git apply, ...)"}
     KIND -- "Edit / Write / ..." --> EDIT["edit branch"]
+    KIND -- "MCP / non-native<br/>(v0.5.4)" --> MCP{"target inside the<br/>enforcement subtree?<br/>(skills/odyssey, agents,<br/>commands, manifest,<br/>hook registry)"}
+
+    MCP -- "yes" --> BLOCK6["✗ BLOCK — H3 containment"]
+    MCP -- "no" --> PASS7["✓ pass — read-only MCPs<br/>and ordinary repo work"]
 
     BASH -- "read-only" --> PASS2["✓ pass"]
     BASH -- "trusted recorder<br/>script invoke" --> PASS3["✓ pass"]
     BASH -- "write-capable" --> VERDICT1
+    BASH -- "ZODYSSEY_UNGATE_BASH=1<br/>(v0.6.2)" --> LEDGER["✓ pass — recorded in<br/>the per-run ungated ledger"]
 
     EDIT --> SCOPE{"target in plan's<br/>declared Files: ?"}
     SCOPE -- "no" --> BLOCK1["✗ BLOCK — scope violation"]
@@ -132,12 +167,14 @@ flowchart TD
     classDef pass fill:#dafbe1,stroke:#2da44e;
     classDef block fill:#ffebe9,stroke:#cf222e,stroke-width:1.5px;
     classDef decision fill:#fff8c5,stroke:#d4a72c;
-    class PASS1,PASS2,PASS3,PASS4,PASS5,PASS6 pass;
-    class BLOCK1,BLOCK2,BLOCK3,BLOCK4,BLOCK5,BLOCKR block;
-    class ACTIVE,KIND,SCOPE,LOCK,VERDICT1,TAMPER,PCAP,BASH,REC decision;
+    classDef audit fill:#f6f8fa,stroke:#8250df,stroke-dasharray:3 3;
+    class PASS1,PASS2,PASS3,PASS4,PASS5,PASS6,PASS7 pass;
+    class BLOCK1,BLOCK2,BLOCK3,BLOCK4,BLOCK5,BLOCK6,BLOCKR block;
+    class ACTIVE,KIND,SCOPE,LOCK,VERDICT1,TAMPER,PCAP,BASH,REC,MCP decision;
+    class LEDGER audit;
 ```
 
-**The five load-bearing invariants**, each mapped to a branch above:
+**The seven load-bearing invariants**, each mapped to a branch above:
 
 | Invariant | Branch | Failure mode if absent |
 |---|---|---|
@@ -147,6 +184,9 @@ flowchart TD
 | Parallel dispatch within bounds | `PCAP` | runaway fan-out, 50 subagents |
 | **No embedded-dispatch injection** (v0.2.0) | `REC` | a prompt-injected executor coerces a downstream agent into a forged nested `Task()` call |
 | Bash write-escape before review | `BASH` | shell bypass of the Edit gate (`sed -i`, `>`) |
+| **Non-native tools can't write the gate** (v0.5.4) | `MCP` | an MCP write rewrites `pre-tool.mjs` or the manifest from inside an approved run — the enforcement layer edits itself away |
+
+The dashed `LEDGER` node is not a gate. `ZODYSSEY_UNGATE_BASH=1` is a deliberate operator escape hatch; since v0.6.2 every call taken through it is recorded in the run's ungated ledger and surfaced as `ungated_bash_calls` on the run record. The affordance stays; what changed is that using it is no longer invisible.
 
 ---
 
@@ -180,3 +220,52 @@ flowchart LR
 **Why this is stronger than any in-session reviewer:** the auditor is a separate process — it has not seen the plan rationale, the consult debate, or the executor's self-justifications. It judges the diff against the plan cold. A sub-agent reviewer (even momus) shares the run's context; the external auditor does not.
 
 **Honest limitation:** this fires only on `/orchestrate-consult` (opt-in) and only after the run reaches `done`. It needs a second provider's CLI installed (default `claude`; override with `CLAUDE_CLI`). The `--multi-auditor` mode runs two independent passes and flags disagreement.
+
+---
+
+## 5. The evidence lane (what a closed run leaves behind)
+
+Added across v0.6.0–v0.6.3. Everything above decides whether work is *allowed*; this decides whether the record of it can be *trusted afterwards*. Each piece exists because a specific reading of the corpus turned out to be wrong.
+
+```mermaid
+flowchart TD
+    CLOSE["set-phase … done | audited"] --> RPT["run-report.mjs<br/>(executes from the plugin CACHE,<br/>not your working tree)"]
+    RPT --> TOK{"token collector"}
+    TOK -- "node:sqlite ≥ 22.5<br/>+ usage in window" --> POP["populated<br/>totals · by_model · by_agent · by_role"]
+    TOK -- "absent capability" --> INERT["inert + reason<br/><i>db-missing · binding-unavailable ·<br/>db-unreachable · bad-args ·<br/>no-usage-in-window</i>"]
+    POP --> SCOPE2{"orchestrator session id<br/>witnessed by post-tool?"}
+    SCOPE2 -- "yes" --> EXACT["attribution: session<br/>confidence: exact"]
+    SCOPE2 -- "no" --> EST["attribution: time-window<br/>confidence: estimate"]
+
+    RPT --> ORIG["verify_origin<br/>external-audit | in-session-only<br/>+ consult_rounds"]
+    RPT --> UNG["ungated_bash_calls"]
+
+    POP --> LANE{"ZODYSSEY_EVAL_LANE"}
+    INERT --> LANE
+    LANE -- "synthetic" --> SYN[("results.synthetic.jsonl<br/>fixtures")]
+    LANE -- "unset (default)" --> OPS[("results.jsonl<br/>operator lane — real runs")]
+
+    OPS --> REG["registry-report.mjs<br/>narrator trust ledger<br/>keyed on agent-file hashes"]
+
+    classDef good fill:#dafbe1,stroke:#2da44e,stroke-width:2px,color:#1f2328;
+    classDef warn fill:#fff8c5,stroke:#d4a72c,color:#1f2328;
+    classDef store fill:#f6f8fa,stroke:#8250df,stroke-width:1.5px,color:#1f2328;
+    classDef decision fill:#ddf4ff,stroke:#218bff,color:#1f2328;
+    class POP,EXACT good;
+    class INERT,EST warn;
+    class SYN,OPS store;
+    class TOK,SCOPE2,LANE decision;
+```
+
+**Why each branch exists:**
+
+| Piece | Shipped | The reading it prevents |
+|---|---|---|
+| **Two-lane corpus** | v0.6.1 | 83.2% of the trend log was fixture runs. Any "our runs average N" claim was measuring the test suite. Fixtures now declare `ZODYSSEY_EVAL_LANE=synthetic` at source and land in a separate file |
+| **Inert-with-reason** | v0.6.3 | five distinct failure conditions all returned bare `null`, so a healthy collector and a dead one produced identical records. The absence now names its cause, including the `node:sqlite` floor the `>=18` engines field hides |
+| **Session-exact attribution** | v0.6.3 | usage was scoped by (repo × time window), so two concurrent runs in one repo each counted the other's tokens — two readers landed on 10.8M and 24.3M for the same run and neither was wrong |
+| **`verify_origin`** | v0.6.0 | an externally audited run and a self-graded one were indistinguishable in the corpus, while the docs claimed the external auditor was the stronger check |
+| **Narrator trust ledger** | v0.6.0 | reviewer verdicts were scored per-run and thrown away. Trust is now cross-run and keyed on agent-file content hashes, so editing a prompt starts a new record instead of inheriting the old one's reputation |
+| **`ungated_bash_calls`** | v0.6.2 | the documented `ZODYSSEY_UNGATE_BASH=1` escape hatch left no trace, so a run that used it read exactly like one that did not |
+
+**The cache caveat.** `run-report.mjs` executes from the installed plugin cache, not your working tree — so a telemetry fix that stays in the dev tree changes nothing at close. Refresh the plugin (`--sync-cache`, then a marketplace Update on a version bump) before trusting a new record shape, and check `npm run smoke`, which compares the deployed version against the repo.

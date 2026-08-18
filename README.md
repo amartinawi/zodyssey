@@ -102,15 +102,18 @@ flowchart TD
     C -- no --> X4["✗ BLOCK cap"]
     C -- yes --> P3["✓ dispatch"]
     K -- "Bash (write-capable)" --> V
+    K -- "MCP / non-native" --> M{"targets the<br/>enforcement subtree?"}
+    M -- yes --> X5["✗ BLOCK containment"]
+    M -- no --> P4["✓ pass"]
     classDef b fill:#ffebe9,stroke:#cf222e,stroke-width:1.5px;
     classDef g fill:#dafbe1,stroke:#2da44e;
     classDef d fill:#fff8c5,stroke:#d4a72c;
-    class X1,X2,X3,X4 b;
-    class P1,P2,P3 g;
-    class B,K,S,L,V,C d;
+    class X1,X2,X3,X4,X5 b;
+    class P1,P2,P3,P4 g;
+    class B,K,S,L,V,C,M d;
 ```
 
-*First match wins; every other branch blocks.* Full decision tree (including the plan-tamper sha guard + the trusted-script allowlist) in [`docs/diagrams.md`](docs/diagrams.md).
+*First match wins; every other branch blocks.* The MCP/non-native arm landed in v0.5.4 — it is the tool class that could otherwise rewrite the gate itself from inside an approved run. Full decision tree (including the plan-tamper sha guard + the trusted-script allowlist) in [`docs/diagrams.md`](docs/diagrams.md).
 
 | Invariant | How omo does it | How ZOdyssey does it |
 |---|---|---|
@@ -125,22 +128,33 @@ flowchart TD
 | **The declared work actually happened** | not enforced | F1 checks the converse: a plan declaring files against an empty diff fails instead of passing vacuously |
 | **Evidence can't be destroyed** | not enforced | notepads are append-only — `Write` over an existing one is blocked, `Edit` is not |
 | **`done` requires executed evidence** | not enforced | `record-todo` refuses `done` without passing `verify.history` records; `--force-done` is allowed but stamps `forced: true` |
-| **No pass-to-pass regressions** | not enforced | ⚠️ **half-wired — see note below.** The suite is snapshotted entering `execute` (`set-phase.mjs:339`), and `regression-gate.mjs --check` exits 8 on green→red with `set-phase … done` refusing while `status === "regressed"` — but **nothing invokes `--check`**, so the comparison never runs and the refusal reads a field nothing writes. An already-red suite is never blamed on the run |
-| **Imports resolve** | not enforced | ⚠️ **built, not wired — see note below.** `check-imports.mjs` flags packages that are in neither the manifest nor `node_modules`, offline and exiting 9 — but its only caller is prose (`references/scripts.md:45`), so it runs only when a conductor remembers |
+| **No pass-to-pass regressions** | not enforced | ⚠️ **still half-wired — see note below.** The suite is snapshotted at review-record (`record-review.mjs:295`) and entering `execute` (`set-phase.mjs:339`), and `set-phase … done` refuses on both `regressed` and `toolchain-drift` (`set-phase.mjs:131`, `set-phase.mjs:137`) — a refusal is not a pass. But **nothing invokes `--check`**, the only path that writes either value, so the comparison never runs and both clauses guard a field nothing sets. An already-red suite is never blamed on the run |
+| **Imports resolve** | not enforced | `check-imports.mjs` flags packages in neither the manifest nor `node_modules`, offline, exiting 9. **Wired both sides in v0.6.0** (queue item 02): invoked at verify entry (`set-phase.mjs:380`), recorded to `state.imports`, consumed by a `done` refusal on `status === "unresolved"` (`set-phase.mjs:152`). `inert` and a missing lane still pass, so it cannot wedge a repo it can't evaluate |
 | **No retrying an unchanged workspace** | not enforced | `record-verify` refuses to re-run a criterion whose worktree is byte-identical to its last failure (exit `10`). Ported from prime-agent |
-| **Citations still point where they claim** | not enforced | 411 `file:line` citations across 53 docs are content-pinned in `scripts/anchors.lock.json`; `check-anchors.test.mjs` fails `npm test` when a cited line changes. Pins content, not line numbers, so an in-place edit is caught too |
+| **Citations still point where they claim** | not enforced | 442 `file:line` citations across 58 docs; 415 are content-pinned in `scripts/anchors.lock.json` (the 27 into `CHANGELOG.md` are exempt — unstable by format), and `check-anchors.test.mjs` fails `npm test` when a cited line changes. Pins content, not line numbers, so an in-place edit is caught too. The lock proves *unchanged since seeding*, never *correct*: re-seeding a citation whose meaning moved silences it |
+| **Non-native tools can't write the enforcement surface** (v0.5.4) | n/a | Edit and Bash were already gated, leaving MCP/non-native tools as the last class that could rewrite the gate from inside an approved run. The H3 guard in `pre-tool.mjs` blocks them from `skills/odyssey`, `agents`, `commands`, the manifest and the hook registry. Read-only MCPs and ordinary repo work are unaffected |
+| **Every run records who verified it** (v0.6.0) | not enforced | each run-report and trend record carries `verify_origin` (`external-audit` \| `in-session-only`) plus `consult_rounds`. Labeling only, no gate — but an externally audited run and a self-graded one are no longer indistinguishable in the corpus |
+| **Reviewer reliability is measured, not assumed** (v0.6.0) | not enforced | `registry-report.mjs` folds consult verdicts + judge criterion results into a cross-run trust ledger keyed on agent-file content hashes, so editing a prompt creates a new identity rather than inheriting its predecessor's record. Laplace-smoothed with `n` always shown; advisory-only |
+| **The metrics corpus holds real runs only** (v0.6.1) | n/a | `ZODYSSEY_EVAL_LANE=synthetic`, declared at source, routes fixture scorecards to `results.synthetic.jsonl`; the operator lane takes real runs. Before this, 83.2% of the trend log was fixtures being read as evidence |
+| **Absent telemetry explains itself** (v0.6.3) | n/a | `collectRunTokens` returns `{inert:true, reason, node_version, at}` over a closed reason set instead of a bare null, so a dead collector is distinguishable from a healthy one. Attribution upgrades to session-exact when the orchestrator session id was witnessed. Needs **Node ≥ 22.5** for `node:sqlite`; below that the record says `binding-unavailable` rather than going quiet |
 
-> **⚠️ Two rows above are not yet enforced, corrected 2026-08-16.** Both mechanisms are built and
-> tested; neither is invoked from code. `regression-gate.mjs --check` and `check-imports.mjs` each
-> have **zero code callers** — they run only if a conductor follows a prompt instruction. Every
-> other row in this table is hook- or script-enforced on the path to `done`.
+> **⚠️ One row above is still not enforced — was two, corrected 2026-08-19.** Queue item 02 shipped
+> in **v0.6.0** and wired `check-imports`, `coverage-delta` and `resolve-capabilities` the two-sided
+> way a gate needs: an invoke *and* a consumer that refuses on what it recorded. The "Imports
+> resolve" row is now a guarantee.
+>
+> `regression-gate.mjs --check` was **not** in item 02's scope and still has **zero code callers**.
+> `--snapshot` runs from two sites, but nothing ever compares, so the two `done` refusals at
+> `set-phase.mjs:131` and `set-phase.mjs:137` guard a field only `--check` can write. The source
+> says so itself at `set-phase.mjs:146`: *"an invoke whose recorded state nothing consumes is the
+> half-wiring the regression gate shipped with."* Every other row in this table is hook- or
+> script-enforced on the path to `done`.
 >
 > This is the difference between *shipping a mechanism* and *wiring it*, and it is the exact class
-> the table exists to claim ZOdyssey has solved. It is being fixed as items 01–02 of the v0.6 build
-> queue ([`docs/impl/`](docs/impl/00-INDEX.md)). Until then, treat those two rows as capabilities
-> you must invoke, not guarantees you receive.
+> the table exists to claim ZOdyssey has solved. Treat that one row as a capability you must
+> invoke, not a guarantee you receive.
 
-All hooks are **NO-OP unless an orchestration run is active**. Normal ZCode editing is never affected. A run is "active" only between `/orchestrate` and reaching a terminal phase (`done`/`audited`/`abandoned`), and only inside the repo where you invoked it.
+All hooks are **NO-OP unless an orchestration run is active**. Normal ZCode editing is never affected. A run is "active" only between `/orchestrate` and reaching a terminal phase (`done`/`audited`/`abandoned`/`blocked`), and only inside the repo where you invoked it.
 
 ## The external consult gate (the strongest check)
 
@@ -169,7 +183,7 @@ There are **two paths** and the prerequisites differ. Pick one, then install in 
 You already have an orchestrator and want to bolt on the 4 enforcement hooks. This is the porting path described in [`docs/ADAPT.md`](docs/ADAPT.md). Install in this order:
 
 1. **An orchestrator with a hook system.** ZOdyssey's delta is `PreToolUse` / `PostToolUse` / `Stop` hooks that return `pass` or `block`. Your harness must run a script before tool calls and honor that decision. [omo](https://github.com/code-yeongyu/oh-my-openagent) (TypeScript), Claude Code, and ZCode all qualify.
-2. **Node 18+** on the machine that runs the hooks. All ZOdyssey scripts are ESM `.mjs` using only Node built-ins (`fs`, `path`, `crypto`, `child_process`) — **zero npm dependencies**, so no `npm install` step.
+2. **Node 18+** on the machine that runs the hooks. All ZOdyssey scripts are ESM `.mjs` using only Node built-ins (`fs`, `path`, `crypto`, `child_process`) — **zero npm dependencies**, so no `npm install` step. Enforcement needs nothing newer; **token telemetry** additionally wants **Node ≥ 22.5** for `node:sqlite`, and below that floor the run record reports `binding-unavailable` instead of silently omitting counts.
 3. **A `PreToolUse` hook registration mechanism.** You need a way to tell your harness "run `pre-tool.mjs` before `Write|Edit|ApplyPatch|MultiEdit|NotebookEdit|Bash|Task|Agent`." On ZCode this is `~/.zcode/cli/config.json`; on Claude Code it's `.claude/settings.json`; on omo it's the TS hook layer. See [`docs/ADAPT.md` § "Porting to omo specifically"](docs/ADAPT.md).
 4. **A hook scripting language that can read JSON from stdin and exit with a code.** The reference implementation is Node; if your harness prefers Python or Bash, port the logic (it's ~200 lines) — the decision tree is what matters, not the language.
 
@@ -180,8 +194,8 @@ That's the full mandatory set for Path A. The 4 hooks are the entire delta; ever
 You want the full ZOdyssey pipeline (conductors, sub-agents, slash commands) working out of the box. Install in this order:
 
 1. **[ZCode](https://z.ai)** — the hooks, commands, and sub-agents are ZCode primitives. Start a ZCode session first; everything else installs into `~/.zcode/`.
-2. **Node 18+** (for the hooks + scripts, all ESM `.mjs`).
-3. **A coding model that follows multi-step instructions.** Developed against GLM-5.2 via the Z.ai coding plan. Claude / GPT / Gemini class models work too, as long as ZCode can dispatch them as sub-agents.
+2. **Node 18+** (for the hooks + scripts, all ESM `.mjs`). **Node ≥ 22.5** if you want token telemetry — `node:sqlite` is how run-close reads usage; on an older Node the record names the missing binding rather than going quiet.
+3. **A coding model that follows multi-step instructions.** Developed against GLM-5.2, now run against GLM-5.3, via the Z.ai coding plan. Claude / GPT / Gemini class models work too, as long as ZCode can dispatch them as sub-agents.
 4. **Clone this repo and run the installer:**
    ```bash
    git clone https://github.com/amartinawi/zodyssey.git
@@ -244,7 +258,9 @@ zodyssey/
 │   ├── DESIGN.md            # the full design doc — read this first
 │   ├── ADAPT.md             # porting the enforcement delta onto omo / any harness
 │   ├── INSTALL.md           # detailed install + config + troubleshooting
-│   └── ECOSYSTEM_GRAPH.md, MEASUREMENT.md, RESUME.md, deep-audit-prompt.md
+│   ├── diagrams.md          # every architecture diagram (Mermaid, no build step)
+│   ├── impl/                # the v0.6 build queue: 00-INDEX.md + one brief per item
+│   └── ECOSYSTEM_GRAPH.md, MEASUREMENT.md, RESUME.md, ROADMAP.md, deep-audit-prompt.md
 ├── examples/                # one anonymized example run
 └── scripts/install.mjs      # the installer
 ```
