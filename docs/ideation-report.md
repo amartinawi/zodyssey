@@ -427,7 +427,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B9-3) Phase B item B9 shipped | CONFIRMED shipped as standalone script, NOT phase-wired | CHANGELOG.md:491; skills/odyssey/references/scripts.md:45 | shipped v0.3.2; pipeline presence is prompt-convention only |
 | (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:60-88 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |
 | (c-F) Shell-escaping splits command tokens | CONFIRMED | CHANGELOG.md:100; skills/odyssey/hooks/pre-tool.mjs:184,249-272 | `p\ython -c`, `py''thon -c` defeat regex tokenization; no shell-grammar parser |
-| (c-G) Interpreter deny-list unbounded by construction | CONFIRMED (posture inverted; names still enumerated) | CHANGELOG.md:121; skills/odyssey/hooks/pre-tool.mjs:126,140-154 | gawk/mawk/pypy/perl6/raku/jshell/ts-node ungated; posture inverted to allowlist-of-gated-names, but the NAME list remains unbounded |
+| (c-G) Interpreter deny-list unbounded by construction | CONFIRMED (posture inverted; names still enumerated) | CHANGELOG.md:101; skills/odyssey/hooks/pre-tool.mjs:126,140-154 | gawk/mawk/pypy/perl6/raku/jshell/ts-node ungated; posture inverted to allowlist-of-gated-names, but the NAME list remains unbounded |
 | (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:102; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
 | (c-head-allowlist) Head-allowlist inversion unshipped | CONFIRMED | CHANGELOG.md:104; skills/odyssey/hooks/pre-tool.mjs:100-199 | "deliberately **not** in this release: it wants its own release and its own paired run"; code remains a deny-list |
 | (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:133; skills/odyssey/hooks/pre-tool.mjs:1402 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
@@ -532,7 +532,7 @@ support the same conclusion; the file is append-only and live). The blind chain 
 (`CHANGELOG.md:104`); the map demotes it ("flips the sign but stays in the same game," §2.1).
 **Winner: the map's skepticism, by code.** The gate's posture was already inverted
 (`skills/odyssey/hooks/pre-tool.mjs:140`, "Invert instead") while the enumerated interpreter names
-remained the unbounded residual (`:152`, `CHANGELOG.md:121`) — a sign-flip alone demonstrably did
+remained the unbounded residual (`:152`, `CHANGELOG.md:101`) — a sign-flip alone demonstrably did
 not kill this class; head classification is structurally a Bash-command concept and cannot touch
 the Edit path; and notepad 3 finds no published outcome evidence for the mechanism. This report
 keeps it ranked (§1 entry 7, low) for the same reasons.
