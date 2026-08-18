@@ -13,15 +13,15 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 ## What is broken
 
 One environment variable disables the entire Bash write-gate with no audit trail. At
-`skills/odyssey/hooks/pre-tool.mjs:1007` the check
+`skills/odyssey/hooks/pre-tool.mjs:1064` the check
 
 `if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1") exit(0);`
 
 is the first executable statement of the Bash branch (the decision-tree comment above it spans
-`:940-977`), so with the variable set, **every** Bash call — read-only or write-capable, pre- or
+`:1007-1055`), so with the variable set, **every** Bash call — read-only or write-capable, pre- or
 post-review, in-scope or not — exits 0 past the verdict gate, the SEC-4 plan-sha tamper guard, and
 the per-target scope check, and nothing anywhere records that it happened. The affordance is
-deliberate and documented: the hook's own comment (`skills/odyssey/hooks/pre-tool.mjs:984-987`,
+deliberate and documented: the hook's own comment (`skills/odyssey/hooks/pre-tool.mjs:1041-1044`,
 "POWER-USER ESCAPE HATCH"), the installer's AGENTS.md template written into every user's repo at
 `scripts/install.mjs:883` ("set \`ZODYSSEY_UNGATE_BASH=1\` to disable if you trust your agents"),
 the env table at `docs/INSTALL.md:152`, and the README comparison row at `README.md:124`. It
@@ -63,7 +63,7 @@ ungated call**.
   its existence; an operator who sets it accidentally loses everything.
 - *For recording (and against retiring):* retirement breaks a legitimate, documented, four-anchor
   affordance (`scripts/install.mjs:883`, `docs/INSTALL.md:152`, `README.md:124`,
-  `skills/odyssey/hooks/pre-tool.mjs:984-987`) whose explicit contract is low-friction operation
+  `skills/odyssey/hooks/pre-tool.mjs:1041-1044`) whose explicit contract is low-friction operation
   for operators who "trust your agents" — a real use case this repo's own author is. And the
   deletion history is causal evidence **against** removal, not for it: the gate was deleted twice
   while the escape hatch existed, and each time the cause was the hatch's *silence*, never its
@@ -108,13 +108,13 @@ Stated as observable behaviour, not as a diff:
    hatch is the operator's explicit choice — a write error must not silently revoke it, and stderr
    is the only channel a PreToolUse hook has that reaches the transcript.
 6. With no active run, behaviour is unchanged: the no-run exit at
-   `skills/odyssey/hooks/pre-tool.mjs:548` fires long before `:978`, so there is no slug, no
+   `skills/odyssey/hooks/pre-tool.mjs:548` fires long before `:1064`, so there is no slug, no
    ledger, and the hook stays a no-op exit 0 (Step-5 constraint: every hook is a no-op unless a
    run is active).
 7. A shared test asserts the class, not just this instance: the regression suite scans the hook's
    own source and asserts that **every** `process.env.ZODYSSEY_*` read whose branch guards an
    early `exit(0)` (the bypass shape) routes through the recorder between the env read and the
-   exit. Exactly one such site exists today (`:978`); a future bypass variable added without a
+   exit. Exactly one such site exists today (`:1064`); a future bypass variable added without a
    recording path fails the suite (see "The class it closes").
 
 **Preferred implementation (~12 lines in the hook):** a `recordUngatedBash(cmd)` helper —
@@ -405,7 +405,7 @@ in anticipation.
 ## Estimated size
 
 ~12 lines in `skills/odyssey/hooks/pre-tool.mjs` (the `recordUngatedBash` helper — append,
-try/catch, stderr fallback — plus its call immediately before the `:978` exit and a comment
+try/catch, stderr fallback — plus its call immediately before the `:1064` exit and a comment
 mirroring the escape-hatch contract), ~8 lines in `skills/odyssey/scripts/run-report.mjs` (read +
 count the ledger, the `ungated_bash_calls` field, one scorecard line), and ~40-50 lines in
 `skills/odyssey/hooks/pre-tool.bash-gate.test.mjs` (the ledger both-direction cases reusing the

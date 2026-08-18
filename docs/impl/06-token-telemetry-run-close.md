@@ -110,7 +110,7 @@ Stated as observable behaviour, not as a diff:
    (repo, window) heuristic with `confidence: "estimate"` — degrade, never block.
 4. **The orchestrator's session id is stamped into run state once, from a hook payload.**
    `post-tool.mjs` already holds the sanctioned locked state-write pattern (the capability
-   observation write at `skills/odyssey/hooks/post-tool.mjs:207-216`); the same channel stamps
+   observation write at `skills/odyssey/hooks/post-tool.mjs:240-249`); the same channel stamps
    `state.session_id = payload.session_id` on first witness (only if absent), best-effort,
    exit-0-always. Hook-payload `session_id` is shared across parallel sub-agents
    (`skills/odyssey/hooks/pre-tool.mjs:880-885`), so any event during the run yields the
@@ -295,7 +295,7 @@ readers are humans and `docs/MEASUREMENT.md`. The blast radius is therefore:
   shape — both additive; the backward-compat rule (`|| {}` discipline for every new state field)
   applies and old states must load unchanged (criterion 5's suite covers state round-trips).
 - `post-tool.mjs` gains a best-effort state write. It already writes state under lock for
-  capability observation (`:171-180`), so the new write rides an exercised path; the invariant
+  capability observation (`:204-213`), so the new write rides an exercised path; the invariant
   that must not move is exit-0-always (criterion 4), because PostToolUse hooks must not block.
 
 ## The class it closes

@@ -85,13 +85,22 @@ try {
   }
 } catch {}
 
+// Shared lint invocation (item 07 / B10, todo 2) — imported HERE, adjacent to the arm
+// that uses it (not at the file top), so the session-stamp arm above keeps its pinned
+// line numbers. ESM hoists this; both hooks call the SAME module so pre-side capture
+// and post-side comparison run byte-identical invocations (same toolchain read, same
+// whitespace split, same 5s cap) — divergence would make the comparison measure two
+// different things.
+import { lintTarget, baselineKey, readBaselineMap, writeBaselineMap } from "./lib/lint-invocation.mjs";
+
 // ─── NEW ARM: post-edit diagnostics for Edit/Write/MultiEdit ─────────────────
-// (todo 12, "post-edit diagnostics hook as a new arm"). MUTUALLY EXCLUSIVE with
-// the existing Task/Agent ledger-drain path below by tool_name, so it cannot
-// race the ledger drain: this arm returns early on non-Edit tools, and the
-// existing path returns early on Edit tools. Reads .zcode/toolchain.json
-// (produced by probe-toolchain.mjs, todo 4). Never blocks on success; injects a
-// lint failure back to the executor only on a non-zero exit.
+// (todo 12, "post-edit diagnostics hook as a new arm"; item 07 / B10 made the block
+// ATTRIBUTED). MUTUALLY EXCLUSIVE with the existing Task/Agent ledger-drain path
+// below by tool_name, so it cannot race the ledger drain: this arm returns early on
+// non-Edit tools, and the existing path returns early on Edit tools. Reads
+// .zcode/toolchain.json (produced by probe-toolchain.mjs, todo 4) via the shared
+// lint-invocation module. Never blocks on success; injects a lint failure back to
+// the executor only when the diagnostics are attributable to THIS edit.
 if (["Edit", "Write", "MultiEdit"].includes(toolName)) {
   // Phase guard: diagnostics only run during execute/verify/final — never
   // planning/review (an edit there is the planner/reviewer's own scratch, not a
@@ -102,39 +111,63 @@ if (["Edit", "Write", "MultiEdit"].includes(toolName)) {
       ["execute", "verify", "final"].includes(_diagRun.state.phase)) {
     // repo root for this run = two levels above its stateDir (.../<repo>/.zcode/state)
     const _diagRepoRoot = pathResolve(_diagRun.stateDir, "..", "..");
-    const _toolchainPath = join(_diagRepoRoot, ".zcode", "toolchain.json");
-    let _tc = null;
-    if (existsSync(_toolchainPath)) {
-      try { _tc = JSON.parse(readFileSync(_toolchainPath, "utf8")); } catch { _tc = null; }
-    }
-    const _lintCmd = _tc && typeof _tc.lint_cmd === "string" && _tc.lint_cmd.trim()
-      ? _tc.lint_cmd.trim() : null;
-    if (_lintCmd) {
-      // The edited file path (Edit/Write carry file_path; some hosts use path).
-      const _target = (payload.tool_input && (payload.tool_input.file_path || payload.tool_input.path)) || "";
-      if (_target) {
-        // Scope the lint to the single edited file by appending the path to
-        // the configured cmd. spawnSync with an argv array + shell:false → no
-        // shell interpolation → no injection surface (consistent with
-        // consult.mjs:719). 5s cap keeps this fast. Never throws on non-zero
-        // exit — that IS the failure signal we read from result.status.
-        const lintParts = _lintCmd.split(/\s+/);
-        const result = spawnSync(lintParts[0], [...lintParts.slice(1), _target], {
-          cwd: _diagRepoRoot,
-          stdio: ["ignore", "pipe", "pipe"],
-          timeout: 5000,
-          shell: false,
-          encoding: "utf8",
-        });
-        if (result.status !== 0) {
-          // Inject the failure back to the executor. PostToolUse hooks must not
-          // block, so exit 0; the JSON decision carries the reason.
-          const _stderr = result.stderr || result.stdout || "";
-          const _reason = `post-edit lint failed for ${_target} (cmd: ${_lintCmd}): ${String(_stderr).slice(0, 400)}`;
+    // The edited file path (Edit/Write carry file_path; some hosts use path).
+    const _target = (payload.tool_input && (payload.tool_input.file_path || payload.tool_input.path)) || "";
+    if (_target) {
+      const _lint = lintTarget(_diagRepoRoot, _target);
+      // Capability failure (nothing spawned — no lint_cmd / spawn error — or killed at
+      // the 5s cap) is NEVER a diagnostic. This deletes the old defect where a timed-out
+      // lint's status:null was graded as a failure signal and blocked the edit.
+      const _capFail = !_lint.spawned || _lint.timedOut || _lint.status === null;
+      if (_capFail) {
+        // Record inert for a target with no entry yet (frozen values stay untouched);
+        // best-effort, blocks nothing.
+        try {
+          const _m = readBaselineMap(_diagRun.stateDir, _diagRun.state.slug);
+          const _k = baselineKey(_diagRepoRoot, _target);
+          if (!_m || !(_k in _m)) {
+            writeBaselineMap(_diagRun.stateDir, _diagRun.state.slug,
+              _m ? { ..._m, [_k]: "inert" } : { [_k]: "inert" });
+          }
+        } catch {}
+      } else if (_lint.status !== 0) {
+        // ATTRIBUTED comparison against the first-touch baseline (item 07 six-row table,
+        // docs/impl/07-b10-pre-edit-lint-baseline.md): block ONLY when the edit made it
+        // worse. Baseline values are frozen by the pre-side capture arm.
+        const _key = baselineKey(_diagRepoRoot, _target);
+        const _map = readBaselineMap(_diagRun.stateDir, _diagRun.state.slug);
+        const _entry = _map ? _map[_key] : undefined;
+        if (_entry === "clean") {
+          // clean → non-zero: the file passed lint before this edit, so every diagnostic
+          // in this output arrived with it. Inject the failure back to the executor.
+          // PostToolUse hooks must not block, so exit 0; the JSON decision carries the reason.
+          const _stderr = _lint.stderr || "";
+          const _reason = `post-edit lint failed for ${_target}: ${String(_stderr).slice(0, 400)}. ` +
+            `This file passed lint before this edit — these diagnostics are NEW to this edit; fix them before continuing.`;
           console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", decision: "block", reason: _reason } }));
+        } else if (_entry === "failing") {
+          // failing → non-zero: pre-existing noise, seen not new (today's false block,
+          // removed). Record the sighting in the side-file's "seen:" namespace — frozen
+          // per-target values are never rewritten — and block nothing.
+          try {
+            if (_map) {
+              _map["seen:" + _key] = new Date().toISOString();
+              writeBaselineMap(_diagRun.stateDir, _diagRun.state.slug, _map);
+            }
+          } catch {}
+        } else {
+          // Absent entry (a run created before this change, or a path that never
+          // baselined) or an `inert` baseline: the arm never guesses a "before" it does
+          // not have. No block; record inert for an absent entry.
+          try {
+            if (!_map || !(_key in _map)) {
+              writeBaselineMap(_diagRun.stateDir, _diagRun.state.slug,
+                _map ? { ..._map, [_key]: "inert" } : { [_key]: "inert" });
+            }
+          } catch {}
         }
-        // lint exited 0 → silent pass (do NOT block).
       }
+      // lint exited 0 → silent pass (do NOT block), regardless of baseline.
     }
   }
   // This arm OWNS Edit/Write/MultiEdit — never fall through to the Task/Agent

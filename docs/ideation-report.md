@@ -143,7 +143,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 
 - **Claim:** `post-tool.mjs` lints the edited file **after** the edit with no baseline capture, so
   pre-existing lint noise is attributed to the edit that happened to land on the file.
-- **Evidence:** `skills/odyssey/hooks/post-tool.mjs:88-144` (Edit arm, no before-reading;
+- **Evidence:** `skills/odyssey/hooks/post-tool.mjs:96-177` (Edit arm, no before-reading;
   `lint-untrusted.mjs` is prompt-injection scanning — a different mechanism); no CHANGELOG entry
   ships a B10 baseline (notepad 1, rows b-B10/b-B10-2). **no published outcome evidence** — the
   reasoning is mechanism-internal.
@@ -200,10 +200,10 @@ Verdicts from the code inventory (notepad 2); citations are `file:line`.
 
 | Layer | Verdict | Load-bearing evidence |
 |---|---|---|
-| Tool orchestration | **STRONG** | parallel cap hook-enforced (`skills/odyssey/hooks/pre-tool.mjs:43,1281`), per-file locks with owner identity (`pre-tool.mjs:875,905-930`), capability routing cross-checked at F5 (`skills/odyssey/scripts/record-final-wave.mjs:468`), dispatch observation feed (`skills/odyssey/hooks/post-tool.mjs:198-218`) |
+| Tool orchestration | **STRONG** | parallel cap hook-enforced (`skills/odyssey/hooks/pre-tool.mjs:43,1439`), per-file locks with owner identity (`pre-tool.mjs:875,905-930`), capability routing cross-checked at F5 (`skills/odyssey/scripts/record-final-wave.mjs:468`), dispatch observation feed (`skills/odyssey/hooks/post-tool.mjs:231-251`) |
 | Verification | **STRONG** | criteria executed not trusted, `--trust-argv` required (`skills/odyssey/scripts/record-verify.mjs:69-107`), regression gate three-way semantics (`skills/odyssey/scripts/regression-gate.mjs:2-29`), F1 fails closed (`record-final-wave.mjs:6-7,178-198`); one soft spot — `check-imports.mjs` unwired (`skills/odyssey/references/scripts.md:45` prose-only) |
 | Context/memory | **THIN — WEAKEST** | see the three pieces of evidence below |
-| Guardrails | **STRONG** | review gate (`pre-tool.mjs:797`), fail-closed scope isolation (`:847`), hook-minted nonces (`:1355-1382`), plan-tamper guard (`:811,959`), HMAC run discovery (`:30,506`) — the project's center of mass |
+| Guardrails | **STRONG** | review gate (`pre-tool.mjs:797`), fail-closed scope isolation (`:850`), hook-minted nonces (`:1456-1485`), plan-tamper guard (`:826,1036`), HMAC run discovery (`:30,506`) — the project's center of mass |
 | Observability | **MEDIUM** | real DB-backed token accounting (`skills/odyssey/scripts/lib/tokens.mjs:36,105-114`), 177-record longitudinal store, 5 genuinely judged runs, dashboard + written methodology (`docs/MEASUREMENT.md:3-42`) — but telemetry populated 1/177 and the baseline arm never measured (`skills/odyssey/scripts/harness.mjs:19`) |
 
 **WEAKEST: context/memory. Runner-up: observability.** The three strongest pieces of code
@@ -283,7 +283,7 @@ self-grading at the level of the whole project (failure mode #4). (§1 entry 5.)
 
 **Runner-up considered and not selected: head-allowlist inversion.** It kills the Bash-path
 enumeration class, but (a) **no published outcome evidence** exists for the mechanism (notepad 3);
-(b) the gate's *posture* was already inverted (`pre-tool.mjs:140`, "Invert instead") while the
+(b) the gate's *posture* was already inverted (`pre-tool.mjs:139`, "Invert instead") while the
 enumerated interpreter names remained the residual (`pre-tool.mjs:126`) — a sign-flip alone has not
 historically killed this class; (c) it is itself an enumeration, now of safe heads — failure mode
 #1 wearing the opposite sign — and it cannot touch the Edit path, where targets are files, not
@@ -298,7 +298,7 @@ POSITION: "Swiss army knife" here must mean the one orchestrator whose guarantee
 Supporting argument (from notepad 4, grounded in notepads 1–3):
 
 - **Where the code actually is:** guardrails STRONG (review gate `skills/odyssey/hooks/pre-tool.mjs:797`,
-  fail-closed scope isolation `:847`, hook-minted nonces `:1355-1382`), verification STRONG, tool
+  fail-closed scope isolation `:850`, hook-minted nonces `:1456-1485`), verification STRONG, tool
   orchestration STRONG; context/memory THIN, observability MEDIUM (notepad 2). Breadth builds
   where the repo is weakest, against competitors whose whole product is breadth. The
   enforced-guarantee stack is the one asset that is built, re-executed today (32/32 suites; exactly
@@ -396,13 +396,13 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | CLAIM | VERDICT | file:line | one-line evidence |
 |---|---|---|---|
 | (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:278-281); hook gates at pre-tool.mjs:798,1086 |
-| (a2) Non-forgeable verdicts via nonce chain | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1400-1426; skills/odyssey/scripts/record-review.mjs:113-124,130-141 | hook mints one-time nonce; record-review refuses verdicts whose nonce is not bound to artifact path+sha256+round; plan-sha mandatory |
+| (a2) Non-forgeable verdicts via nonce chain | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1457-1483; skills/odyssey/scripts/record-review.mjs:113-124,130-141 | hook mints one-time nonce; record-review refuses verdicts whose nonce is not bound to artifact path+sha256+round; plan-sha mandatory |
 | (a3) Authenticated run discovery (HMAC) | CONFIRMED | skills/odyssey/scripts/lib/state-auth.mjs:26,65; skills/odyssey/hooks/lib/find-run.mjs:21 | createHmac over run identity; dropped/copied state files are inert |
-| (a4) Bash/Edit write gate with declared-file scope | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:954,1085-1086 | write-capable Bash requires OKAY + declared Files:; Edit path same at :788 (boundary behavior of the Edit path — see Reconciliation M1) |
+| (a4) Bash/Edit write gate with declared-file scope | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1011,1142-1143 | write-capable Bash requires OKAY + declared Files:; Edit path same at :788 (boundary behavior of the Edit path — see Reconciliation M1) |
 | (a5) Append-only notepads (hook-enforced) | CONFIRMED — enforced by PRE-TOOL | skills/odyssey/hooks/pre-tool.mjs:759-767 | Write on existing `.zcode/notepads/*` blocked: "notepads are APPEND-ONLY" |
 | (a6) Test-integrity guard | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:131,253-256 | SKIP_MARKER regex + `git diff --numstat` flags deleted/net-weakened test files |
 | (a7) Pass-to-pass regression gate | CONFIRMED | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:339 | auto-snapshot entering execute; exit 8 on pass→fail; done blocked while regressed |
-| (a8) F1–F5 incl. behavioural capability cross-check | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:86,468-481,500-503; skills/odyssey/hooks/post-tool.mjs:198-218 | F5 cross-checks declared `routed:` tokens against hook-witnessed state.capabilities[] |
+| (a8) F1–F5 incl. behavioural capability cross-check | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:86,468-481,500-503; skills/odyssey/hooks/post-tool.mjs:231-251 | F5 cross-checks declared `routed:` tokens against hook-witnessed state.capabilities[] |
 | (a9) Segment-tolerant capability matching | CONFIRMED | skills/odyssey/scripts/lib/capability-name.mjs:13; skills/odyssey/scripts/record-final-wave.mjs:61 | exact match wins, else final name segment — bare matches namespaced and vice versa |
 | (a10) Real token accounting from the session DB | CONFIRMED — at skills/odyssey/scripts/lib/tokens.mjs, reading ~/.zcode/cli/db/db.sqlite | skills/odyssey/scripts/lib/tokens.mjs:36,83,105-114; skills/odyssey/scripts/run-report.mjs:18,90 | node:sqlite read-only; SQL over model_usage JOIN session by repo+time-window; attribution honestly "estimate" |
 | (a11) "32 test suites" | CONFIRMED (re-measured) | package.json test script; npm test 2026-08-15 | `npm test` → "32/32 suite(s) passed in 59318ms" |
@@ -411,7 +411,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-A4) Doc-code invariant registry "never built" (ROADMAP.md:158) | PARTIAL — named artifact absent, four equivalents exist | docs/ROADMAP.md:158; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17; scripts/version-consistency.test.mjs:15; scripts/smoke-gate.mjs:1 | no `invariants.test.mjs` anywhere (zero find hits), but bash-gate/gate-surface/version-consistency/smoke-gate deliver the function domain-by-domain without a unified registry |
 | (b-B9-1) Package-existence checking "absent" | REFUTED — code wins | skills/odyssey/scripts/check-imports.mjs:1-23; CHANGELOG.md:524 | check-imports.mjs exists (shipped v0.3.2): offline import resolution JS/TS + Python; exit 9 on unresolved import |
 | (b-B9-2) check-imports has a test and is wired into a phase | PARTIAL | skills/odyssey/scripts/check-imports.test.mjs:1; skills/odyssey/references/scripts.md:45 | test passes (part of 32/32), but the ONLY caller is documentation — prose instructs the conductor; zero code callers repo-wide |
-| (b-B10) Pre-edit lint baseline "absent" | CONFIRMED | skills/odyssey/hooks/post-tool.mjs:88-144; skills/odyssey/scripts/lint-untrusted.mjs:1 | post-tool lints AFTER the edit, no baseline capture; lint-untrusted is injection scanning (different mechanism) |
+| (b-B10) Pre-edit lint baseline "absent" | CONFIRMED | skills/odyssey/hooks/post-tool.mjs:96-177; skills/odyssey/scripts/lint-untrusted.mjs:1 | post-tool lints AFTER the edit, no baseline capture; lint-untrusted is injection scanning (different mechanism) |
 | (b-judge-1) judge.mjs:176 hardcodes `arm: "zodyssey"` | CONFIRMED | skills/odyssey/scripts/judge.mjs:176 | literal in the record constructor |
 | (b-judge-2) judge.mjs "never reads --arm" | CONFIRMED for judge.mjs (nuance: harness parses it) | skills/odyssey/scripts/judge.mjs:46; skills/odyssey/scripts/harness.mjs:41-42,19,128-131 | judge parses only `--double`; harness parses `--arm` but baseline is TODO and prints instructions |
 | (b-judge-3) "The eval has never produced a number" | REFUTED — code/filesystem wins | ~/.zcode/orchestration/eval/judged.jsonl:1-5; ~/.zcode/orchestration/eval/results.jsonl (177 lines) | judged.jsonl holds 5 real scored records (2026-08-01); results.jsonl 177 run records. Narrower true statement: the arm FIELD never records baseline (judge.mjs:176) and the harness cannot run the baseline arm (harness.mjs:19) — see Reconciliation D1 for the slug-derived baseline records |
@@ -425,12 +425,12 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:313-327; skills/odyssey/scripts/pipeline-integration.test.mjs:98 | scaffold invokes it at run start; integration test asserts the wiring |
 | (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:339 | auto-snapshot entering execute; done blocked on regression |
 | (b-B9-3) Phase B item B9 shipped | CONFIRMED shipped as standalone script, NOT phase-wired | CHANGELOG.md:524; skills/odyssey/references/scripts.md:45 | shipped v0.3.2; pipeline presence is prompt-convention only |
-| (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:110-138 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |
+| (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:117-170 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |
 | (c-F) Shell-escaping splits command tokens | CONFIRMED | CHANGELOG.md:133; skills/odyssey/hooks/pre-tool.mjs:184,249-272 | `p\ython -c`, `py''thon -c` defeat regex tokenization; no shell-grammar parser |
 | (c-G) Interpreter deny-list unbounded by construction | CONFIRMED (posture inverted; names still enumerated) | CHANGELOG.md:134; skills/odyssey/hooks/pre-tool.mjs:126,140-154 | gawk/mawk/pypy/perl6/raku/jshell/ts-node ungated; posture inverted to allowlist-of-gated-names, but the NAME list remains unbounded |
 | (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:135; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
 | (c-head-allowlist) Head-allowlist inversion unshipped | CONFIRMED | CHANGELOG.md:137; skills/odyssey/hooks/pre-tool.mjs:100-199 | "deliberately **not** in this release: it wants its own release and its own paired run"; code remains a deny-list |
-| (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:166; skills/odyssey/hooks/pre-tool.mjs:1421 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
+| (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:166; skills/odyssey/hooks/pre-tool.mjs:1478 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
 | (c-cache) Five stale cache versions, no pruning | CONFIRMED (5 stale + 1 live) | ~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/ (6 dirs); package.json:3 (0.5.2 at measurement; 0.6.x across the 2026-08-17/18 releases, cache follows on re-Get); scripts/install.mjs:686 | 0.3.2–0.5.1 stale, 0.5.2 live; install.mjs only warns, never prunes |
 
 **Phase B scorecard (code-derived):** B1–B9 shipped (B9 standalone-only — its invocation is
@@ -475,7 +475,7 @@ settled by code, never by preference or seniority.
    same conclusion, and the union strengthens it.
 3. **The eval has produced numbers** (map §0.3 ≡ notepad 1 b-judge-3): both REFUTE the brief's
    "never produced a number" from the same 5-record `judged.jsonl` (re-read during synthesis).
-4. **B10 absent** (map item #11 ≡ §1 entry 6): `post-tool.mjs:88-144`, no baseline mechanism.
+4. **B10 absent** (map item #11 ≡ §1 entry 6): `post-tool.mjs:96-177`, no baseline mechanism.
 5. **Phase B scorecard** (map §0.5 ≡ notepad 1 rows b-B1..b-B10-2): B1–B9 shipped (B9
    standalone-only), B10 unshipped — identical tables.
 6. **Context/memory weakest** (map §1.1 ≡ §2): both argue it from `compact.mjs`'s unwired
@@ -512,7 +512,7 @@ checks live in scripts (convention)"). This report §2 / notepad 2: context/memo
 **Winner: this report, by code.** The orchestration layer's load-bearing mechanisms are
 hook-enforced — parallel cap (`skills/odyssey/hooks/pre-tool.mjs:43`), per-file locks
 (`:875-936`), routing cross-check (`skills/odyssey/scripts/record-final-wave.mjs:468`),
-dispatch observation (`skills/odyssey/hooks/post-tool.mjs:198-218`) — while the unwired scripts
+dispatch observation (`skills/odyssey/hooks/post-tool.mjs:231-251`) — while the unwired scripts
 the map counts against orchestration are members of other layers by their own function:
 `check-imports.mjs` is a verification check (notepad 2 files it under verification's soft spot),
 `compact.mjs` is context/memory machinery, `dashboard`/`status` are observability views. The map's
@@ -531,7 +531,7 @@ support the same conclusion; the file is append-only and live). The blind chain 
 **D4 — Standing of head-allowlist inversion.** The CHANGELOG names it the terminus
 (`CHANGELOG.md:137`); the map demotes it ("flips the sign but stays in the same game," §2.1).
 **Winner: the map's skepticism, by code.** The gate's posture was already inverted
-(`skills/odyssey/hooks/pre-tool.mjs:140`, "Invert instead") while the enumerated interpreter names
+(`skills/odyssey/hooks/pre-tool.mjs:139`, "Invert instead") while the enumerated interpreter names
 remained the unbounded residual (`:152`, `CHANGELOG.md:134`) — a sign-flip alone demonstrably did
 not kill this class; head classification is structurally a Bash-command concept and cannot touch
 the Edit path; and notepad 3 finds no published outcome evidence for the mechanism. This report
@@ -550,7 +550,7 @@ that a merged view should take into v0.6.
 **M1 — Edit-path containment escape (map §0.2 / item #1). CONFIRMED IN CODE.** The entire
 Edit-path scope check — plan-sha tamper guard, declared-`Files:` containment, fail-closed catch —
 is wrapped in `if (rel) {` at `skills/odyssey/hooks/pre-tool.mjs:817`; the file-lock branch is
-likewise guarded at `:894`; and the path then falls through to `exit(0)` at `:937` (allow).
+likewise guarded at `:894`; and the path then falls through to `exit(0)` at `:996` (allow).
 `classifyTarget` (`pre-tool.mjs:664-726`) returns `rel: ""` for any target outside both the run
 repo and `PROJECT_DIR`. Consequence: once a verdict is OKAY, an executor can Edit/Write
 outside-project paths — including `~/.zcode/cli/config.json`, the hook registry itself — with no
@@ -562,7 +562,7 @@ closing this (~5 lines, converging the Edit path with its Bash twin) would compe
 §1. Nothing in this report's blind ranking supersedes it; in a merged queue it goes first.**
 
 **M2 — `ZODYSSEY_UNGATE_BASH` escape hatch (map item #6). Verified.**
-`skills/odyssey/hooks/pre-tool.mjs:1007` — `if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1")
+`skills/odyssey/hooks/pre-tool.mjs:1064` — `if (isBash && process.env.ZODYSSEY_UNGATE_BASH === "1")
 exit(0);` — one environment variable disables the entire Bash gate, and `scripts/install.mjs:883`
 advertises it in every user's AGENTS.md. The map's causal note (mirroring the author's local
 UNGATE copy is how v0.1.1 shipped the gate deleted) is consistent with the twice-deleted history
@@ -571,11 +571,11 @@ constraint-compatible.
 
 **M3 — Nonce-lane name tolerance (map item #12). Verified at the time; FIXED by impl item 03
 (2026-08-17).** The momus/F2/F4 nonce lanes had gated on `isAgent(...)` — final-segment matching
-via `isAgent = (want) => sameName(want, subagent)` at `skills/odyssey/hooks/pre-tool.mjs:1287`,
+via `isAgent = (want) => sameName(want, subagent)` at `skills/odyssey/hooks/pre-tool.mjs:1344`,
 from `sameName` in `skills/odyssey/scripts/lib/capability-name.mjs` — so any `*:momus`-suffixed
 agent dispatch minted review nonces, while the matcher's own header asserted it is "not a
 security boundary." The header's exemption was false in code for the lanes; the map's finding
-stood. Item 03 closed it: the mint sites at `skills/odyssey/hooks/pre-tool.mjs:1516-1544` now
+stood. Item 03 closed it: the mint sites at `skills/odyssey/hooks/pre-tool.mjs:1573-1601` now
 require the exact declared minter type per lane (`NONCE_MINTERS`), a lookalike dispatches but
 mints nothing and warns on stderr, and the header states the matcher is routing-grade only.
 

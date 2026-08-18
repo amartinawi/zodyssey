@@ -17,7 +17,7 @@ at `skills/odyssey/hooks/pre-tool.mjs:904`. `classifyTarget`
 `rel` only inside the run-repo branch (`:681-692`) or the `PROJECT_DIR` branch (`:694-717`). A
 target that resolves outside **both** roots therefore returns `rel: ""`: the scope gate at `:817`
 is skipped, the lock at `:904` is skipped, and control falls through to the allow at
-`skills/odyssey/hooks/pre-tool.mjs:947`.
+`skills/odyssey/hooks/pre-tool.mjs:996`.
 
 The escape is **post-OKAY only**. Pre-OKAY, outside targets are blocked by the unconditional
 verdict gate at `skills/odyssey/hooks/pre-tool.mjs:798`; the comment at `:796` ("Outside
@@ -79,7 +79,7 @@ criteria are the contract, not the mechanism.)
 Two edges to handle knowingly, not accidentally:
 
 - **No-target events.** `if (!p)` at `skills/odyssey/hooks/pre-tool.mjs:665` returns `rel: ""` for
-  an Edit payload with no resolvable path, which still falls to the allow at `:947`. The standing
+  an Edit payload with no resolvable path, which still falls to the allow at `:996`. The standing
   rule says an unverifiable target should Fail closed — but widening this change past the
   demonstrated class is out of scope. If you leave it, name it in *Known, not fixed*.
 - **Root equality.** A target exactly equal to the run repo or `PROJECT_DIR` yields `rel: ""` on
@@ -102,7 +102,7 @@ deliberately widened to list each doc literally. Do not widen it by default.
 ## Must NOT do
 
 - Do not touch the Bash path — `quickClassify` at `skills/odyssey/hooks/pre-tool.mjs:290-300` or
-  the Bash branch from `:1082` on. The twin is already correct; converging means changing the
+  the Bash branch from `:1158` on. The twin is already correct; converging means changing the
   EDIT classifier, not both.
 - Do not add or edit any `WRITE_PATTERNS` entry, and do not introduce a new deny-list or
   allow-list pattern anywhere. The fix is structural classification, not enumeration — see

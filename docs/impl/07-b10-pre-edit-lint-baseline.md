@@ -11,16 +11,16 @@ numbers below were re-derived on 2026-08-16 and this file moves fast. Do exactly
 ## What is broken
 
 The repo ships half a diagnostics mechanism. When an executor edits a file during a run, the
-post-edit arm at `skills/odyssey/hooks/post-tool.mjs:95` (gated on
+post-edit arm at `skills/odyssey/hooks/post-tool.mjs:104` (gated on
 `Edit|Write|MultiEdit`; the matcher already carries the family at
 `.zcode-plugin/plugin.json:44`) reads the target repo's `.zcode/toolchain.json`
-(`:104-108`), takes its `lint_cmd` (`:109-110`), and runs the repo's own lint command against the
-edited file — AFTER the edit (`spawnSync` at `:121`, 5s timeout at `:124`). Any non-zero exit
-injects a `decision: "block"` reason back to the executor (`:128-134`). That is the whole
+(`skills/odyssey/hooks/lib/lint-invocation.mjs:44-48`), takes its `lint_cmd` (`:49-50`), and runs the repo's own lint command against the
+edited file — AFTER the edit (`spawnSync` at `:53`, 5s timeout at `:56`). Any non-zero exit
+injects a `decision: "block"` reason back to the executor (`skills/odyssey/hooks/post-tool.mjs:140-147`). That is the whole
 mechanism, and it has no "before": nothing anywhere captures the file's lint state prior to the
 edit. `pre-tool.mjs` never lints a file — its single `spawnSync` call site is the momus
-plan-lint at `skills/odyssey/hooks/pre-tool.mjs:1489` (`parse-plan --lint`; verified by grep
-against the whole file). So the comparison at `:79` is against nothing: a file that was already
+plan-lint at `skills/odyssey/hooks/pre-tool.mjs:1546` (`parse-plan --lint`; verified by grep
+against the whole file). So the comparison at `:133` is against nothing: a file that was already
 failing lint before the run started produces the same block as a file the edit just broke.
 "Did this edit introduce new diagnostics" — the question the arm exists to answer — is
 undecidable per-edit, and the misattribution is load-bearing: pre-existing noise is reported to
@@ -47,14 +47,14 @@ before-reading"). Two adjacent facts frame the fix:
   construction, and that is correct.
 
 One latent defect rides in the same lines and belongs to this fix: a lint that TIMES OUT returns
-`status: null` from `spawnSync`, and `null !== 0` is true at `:79` — a slow linter is reported
+`status: null` from `spawnSync`, and `null !== 0` is true at `:133` — a slow linter is reported
 to the executor as a lint failure it did not cause. A capability failure is being graded as a
 diagnostic.
 
 **Paired-probe result, broken direction (provable today):** in a scratch repo whose fake
 `scripts.lint` exits 1 whenever the target contains the marker `FAIL-MARKER`, seed `src/probe.js`
 WITH the marker, start a run in `execute`, then make a purely benign edit (append a comment).
-The arm at `skills/odyssey/hooks/post-tool.mjs:129-135` emits `decision: "block"` blaming the
+The arm at `skills/odyssey/hooks/post-tool.mjs:140-147` emits `decision: "block"` blaming the
 edit — for noise the file carried before the run existed. The true-positive direction (an edit
 that introduces the marker) emits a byte-indistinguishable block. The arm cannot tell its true
 positives from its false positives, and only one of those two directions should exist.
@@ -64,14 +64,14 @@ positives from its false positives, and only one of those two directions should 
 Stated as observable behaviour, not as a diff. Comparison is exit-code-level only (no parsing of
 lint output), every degradation is recorded, and no `state.json` field is added — the baseline
 is a per-run side-file in the state dir, the same pattern as `<slug>.inflight.json`
-(`skills/odyssey/hooks/post-tool.mjs:228`).
+(`skills/odyssey/hooks/post-tool.mjs:261`).
 
 **1. First-touch baseline capture (pre-tool).** On the FIRST `Edit`/`Write`/`MultiEdit` call to
 a given target during an active run whose phase is `execute`, `verify`, or `final` — the same
-phase guard the existing arm applies (`skills/odyssey/hooks/post-tool.mjs:99-102`; edits during
+phase guard the existing arm applies (`skills/odyssey/hooks/post-tool.mjs:108-111`; edits during
 `plan`/`review`/`consult` are never linted or baselined, for the reason the guard's own comment
-gives at `:96-98`: planner/reviewer scratch is not a product edit) — `pre-tool.mjs`, on the
-allow path just before `exit(0)` (`:937` is the allow exit today), runs the target repo's
+gives at `:105-107`: planner/reviewer scratch is not a product edit) — `pre-tool.mjs`, on the
+allow path just before `exit(0)` (`:996` is the allow exit today), runs the target repo's
 `lint_cmd` against the target and records the exit status in
 `.zcode/state/<slug>.lint-baseline.json`, keyed by repo-relative target path, written with the
 atomic tmp+rename idiom. The capture set is exactly the set the existing post arm lints (same
@@ -90,11 +90,11 @@ tool-name gate, same toolchain read) — no narrower, no wider. Rules:
 
 **2. Attributed post-edit comparison (post-tool).** The existing arm keeps its shape —
 toolchain read, single-file lint, `decision: "block"` JSON, exit 0 always — but the block at
-`:79-85` fires only on diagnostics attributable to the edit:
+`:133-169` fires only on diagnostics attributable to the edit:
 
 | baseline for target | post-edit lint exit | behaviour after the fix |
 |---|---|---|
-| clean (0) | 0 | silent pass, unchanged (`:86`) |
+| clean (0) | 0 | silent pass, unchanged (`:170`) |
 | clean (0) | non-zero | block — reason names the target and states the diagnostics are NEW to this edit |
 | failing (non-zero) | non-zero | **no block** — pre-existing; recorded in the side-file as seen-not-new (today's false block, removed) |
 | failing (non-zero) | 0 | no block — the edit fixed pre-existing noise |
@@ -102,19 +102,19 @@ toolchain read, single-file lint, `decision: "block"` JSON, exit 0 always — bu
 | `inert` (capture failed) | any | no block, recorded `inert` |
 
 **3. Capability failures are never diagnostics, on either side.** A lint that times out (5s cap,
-`skills/odyssey/hooks/post-tool.mjs:125`), cannot spawn, or whose baseline capture failed,
+`skills/odyssey/hooks/lib/lint-invocation.mjs:38`), cannot spawn, or whose baseline capture failed,
 records `inert` and blocks nothing. This deletes the timeout-blocks defect above: after the
 fix, a slow linter costs one recorded `inert`, not a false block.
 
-**4. Blast discipline.** The Task/Agent ledger-drain path (`:135` onward), the
-`Skill`/`mcp__*` capability-recording arm (`:101-133`), and every pre-tool gate (review gate,
+**4. Blast discipline.** The Task/Agent ledger-drain path (`:218` onward), the
+`Skill`/`mcp__*` capability-recording arm (`:184-216`), and every pre-tool gate (review gate,
 scope boundary, file locks, Bash gate) behave byte-identically. Hooks remain no-ops without an
 active run. The regression gate's own design comment states the shared principle this change
 adopts verbatim in spirit: "baseline already failing → recorded, never fails the gate"
 (`skills/odyssey/scripts/regression-gate.mjs:15-21`).
 
 **5. Discovery isolation.** `find-run.mjs` parses every `*.json` in `.zcode/state/` and skips
-side-files by explicit suffix (`skills/odyssey/hooks/lib/find-run.mjs:79-80` skips
+side-files by explicit suffix (`skills/odyssey/hooks/lib/find-run.mjs:80-81` skips
 `.inflight.json` with the comment "not a run state file"). The new side-file gets the same
 explicit skip — one additive condition on the line after `:80` — so run discovery never depends
 on `verifyMarker` happening to reject it. This is following the file's own precedent, not new
@@ -128,7 +128,7 @@ complete:
 - `skills/odyssey/hooks/pre-tool.mjs` — the first-touch capture arm (allow path, Edit-family
   tools, phase-guarded, never blocks)
 - `skills/odyssey/hooks/post-tool.mjs` — the attributed comparison replacing the unconditional
-  block at `:79-85`
+  block at `:133-169`
 - `skills/odyssey/hooks/lib/lint-invocation.mjs` (new) — the single shared helper both hooks
   call: read `toolchain.json`, take `lint_cmd`, split on whitespace, `spawnSync` argv-array with
   `shell: false` and the 5s timeout, normalize to `{ spawned, status, timedOut, stderr }`. NOT
@@ -152,13 +152,13 @@ the release pass, not the gated run — do not widen the set to include them by 
 - Do not block any edit on baseline-capture failure — timeout, ENOENT, unreadable files:
   record `inert`, allow the edit. Over-blocking is the failure this change exists to remove.
 - Do not lint or baseline during `plan`/`review`/`consult` — the existing phase guard at
-  `skills/odyssey/hooks/post-tool.mjs:99-102` exists for a reason (its own comment at `:96-98`
+  `skills/odyssey/hooks/post-tool.mjs:108-111` exists for a reason (its own comment at `:105-107`
   says why); mirror it exactly on the pre side.
 - Do not change the Task/Agent ledger-drain path, the `Skill`/`mcp__*` capability arm, or any
   pre-tool gate; do not touch `probe-toolchain.mjs`'s detection order or fields.
 - Do not parse lint output beyond exit status and captured stderr. Per-diagnostic diffing
   (which message is new) is a deliberately-unbuilt known-limit — runner-specific output parsing
-  is the conceded-to-rot class (`docs/MEASUREMENT.md:81`).
+  is the conceded-to-rot class (`skills/odyssey/scripts/regression-gate.mjs:15-21`).
 - No new `state.json` schema (side-file only, and the side-file is optional everywhere it is
   read); no new env vars; no async; no daemon.
 - Do not batch this into a release carrying queue items 01, 03, or 04 (one security change per
@@ -276,7 +276,7 @@ run in `execute`.
 
 - **Before the fix (current HEAD): the false block.** Seed `src/probe.js` containing
   `FAIL-MARKER`; make a benign edit (append a comment). The post-tool arm emits
-  `decision: "block"` blaming the edit (`skills/odyssey/hooks/post-tool.mjs:129-135`) — for noise
+  `decision: "block"` blaming the edit (`skills/odyssey/hooks/post-tool.mjs:140-147`) — for noise
   the file carried before the run. Then start clean and introduce the marker VIA the edit: the
   same block fires, byte-indistinguishable from the false one. Today the arm cannot tell its
   true positive from its false positive, and both cost the executor a round.
@@ -292,8 +292,8 @@ or leaked into a neighbouring arm:
 |---|---|---|
 | Same edits in a repo with no `lint_cmd` | no block | no block, `inert` recorded |
 | Edit during `plan` phase | no lint, no block | no lint, no block, no baseline file |
-| `Task` completion (ledger drain, `:135` onward) | drains the slot | drains identically |
-| `Skill` load (capability arm, `:101-133`) | records `observed:true` | identical |
+| `Task` completion (ledger drain, `:218` onward) | drains the slot | drains identically |
+| `Skill` load (capability arm, `:184-216`) | records `observed:true` | identical |
 | Review/scope/file-lock gates on the same repo | unchanged | unchanged |
 | Run created before the change (no side-file) | blocks on any non-zero lint | no block, `inert` — strictly fewer blocks, never more |
 
@@ -301,11 +301,11 @@ or leaked into a neighbouring arm:
 
 The honest cost is latency, paid once per file: a run's FIRST edit to each file now spawns the
 repo lint BEFORE the edit, in addition to the existing post-edit run
-(`skills/odyssey/hooks/post-tool.mjs:122`). In a repo with a slow lint, executors pay up to the
-5s cap (`:124`) twice on first touch instead of once. The stance, deliberate: the 5s cap is kept
+(`skills/odyssey/hooks/lib/lint-invocation.mjs:53`). In a repo with a slow lint, executors pay up to the
+5s cap (`:38`) twice on first touch instead of once. The stance, deliberate: the 5s cap is kept
 on both sides, and a timed-out lint degrades to a recorded `inert` — a slow linter must never
 wedge an edit or masquerade as a diagnostic (it does the latter today: timeout →
-`status: null` → `null !== 0` → block at `:128`). Per-run side-file storage is bounded by the
+`status: null` → `null !== 0` → block at `post-tool.mjs:133`). Per-run side-file storage is bounded by the
 number of distinct files the run edits. Legitimate workflows that start failing: none — the
 change strictly removes blocks (the pre-existing-failure and timeout cases) and adds
 attribution to the one block that remains. What actually changes for a human: an executor who
@@ -375,7 +375,7 @@ Patch-level `fix(hooks)` entry, its own entry even if it rides the v0.6 minor:
 - **Known, not fixed** — name them; the next audit should not have to find them:
   - Attribution is exit-code-level. Per-diagnostic diffing (which message is new) is
     deliberately unbuilt — runner-specific output parsing is the conceded-to-rot class
-    (`docs/MEASUREMENT.md:81`).
+    (`skills/odyssey/scripts/regression-gate.mjs:15-21`).
   - The baseline is per-run, frozen at first touch. Cross-file induced diagnostics (editing A
     changes what B's lint reports) are baselined at B's first touch, not at run start — chosen
     to bound cost; a full-repo lint at execute entry was rejected as too slow for big repos.
@@ -406,7 +406,7 @@ actually loaded, after the fact, never in anticipation.
 ## Estimated size
 
 ~90-120 lines of hook code: ~35-45 in `pre-tool.mjs` (the phase-guarded first-touch capture on
-the allow path), ~20-30 reworking `post-tool.mjs:110-139` (baseline read plus the attributed
+the allow path), ~20-30 reworking `post-tool.mjs:117-171` (baseline read plus the attributed
 decision), ~40 in the new `skills/odyssey/hooks/lib/lint-invocation.mjs`, 1 line in
 `skills/odyssey/hooks/lib/find-run.mjs`; plus ~160-200 lines of new test
 (`skills/odyssey/hooks/lint-baseline.test.mjs`: fixture-repo builder, the marker lint, scenarios

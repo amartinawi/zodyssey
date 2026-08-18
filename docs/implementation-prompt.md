@@ -198,7 +198,7 @@ Abbreviated. Yours are fuller; this fixes the register and the level of specific
 > `skills/odyssey/hooks/pre-tool.mjs:817`. `classifyTarget`
 > (`skills/odyssey/hooks/pre-tool.mjs:664-726`) returns `rel: ""` for any target outside both the
 > run repo and `PROJECT_DIR`, so the check is skipped, the file-lock branch at `:894` is skipped
-> too, and control reaches `exit(0)` at `:937`. Post-OKAY, `Write` to
+> too, and control reaches `exit(0)` at `:996`. Post-OKAY, `Write` to
 > `skills/odyssey/hooks/pre-tool.mjs` and to `~/.zcode/cli/config.json` both return exit 0 against
 > the deployed build. The Bash twin returns 2 for the same targets.
 >

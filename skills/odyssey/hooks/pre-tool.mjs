@@ -944,8 +944,65 @@ if (isEdit) {
       try { closeSync(lockFd); unlinkSync(lockPath); } catch {}
     }
   }
+
+  // ─── NEW ARM: first-touch lint-baseline capture (item 07 / B10, todo 2) ──────
+  // The post-edit lint arm needs a "before" reading or it cannot tell diagnostics
+  // this edit introduced from noise the file already carried — both directions
+  // produced a byte-identical block. So: on the FIRST Edit/Write/MultiEdit to a
+  // given target — allow path only (an edit any gate above blocked never
+  // baselines), phase execute/verify/final only (same phase guard and rationale
+  // as post-tool's diagnostics arm: planner/reviewer scratch is not a product
+  // edit), run selected by edit target (the SEC-H6 re-selection above, same
+  // policy as every other gate in this block) — run the target repo's own
+  // lint_cmd once via the shared module and freeze the exit status into
+  // .zcode/state/<slug>.lint-baseline.json, keyed by repo-relative target path,
+  // atomic tmp+rename. Rules:
+  //   · Write creating a file that did not exist → implicit "clean" (a file this
+  //     run created owes ALL its diagnostics to this run; linting a file that
+  //     does not exist yet is meaningless, so nothing is spawned);
+  //   · capture capability failure (no lint_cmd, spawn error, 5s timeout) →
+  //     "inert", never a diagnostic;
+  //   · FROZEN at first touch — a second edit to a baselined target spawns no
+  //     second capture, so "new" always means "not present when the run first
+  //     touched this file".
+  // This arm NEVER blocks and never prints a decision — over-blocking is the
+  // failure mode this change exists to remove; a baseline that cannot even be
+  // recorded is swallowed and the edit proceeds.
+  try {
+    const _lbTarget = targetPath();
+    if (_lbTarget && ["Edit", "Write", "MultiEdit"].includes(toolName) &&
+        ["execute", "verify", "final"].includes(state.phase)) {
+      const _lbRepoRoot = pathResolve(RUN_STATE_DIR, "..", ".."); // same root derivation as post-tool's arm
+      const _lbKey = baselineKey(_lbRepoRoot, _lbTarget);
+      if (_lbKey) {
+        const _lbMap = readBaselineMap(RUN_STATE_DIR, state.slug);
+        if (!_lbMap || !(_lbKey in _lbMap)) { // first touch only — frozen afterwards
+          let _lbVal;
+          let _lbNewFile = false;
+          try { _lbNewFile = toolName === "Write" && !existsSync(_lbTarget); } catch { _lbNewFile = false; }
+          if (_lbNewFile) {
+            _lbVal = "clean";
+          } else {
+            const _lb = lintTarget(_lbRepoRoot, _lbTarget);
+            _lbVal = (!_lb.spawned || _lb.timedOut || _lb.status === null)
+              ? "inert" : (_lb.status === 0 ? "clean" : "failing");
+          }
+          writeBaselineMap(RUN_STATE_DIR, state.slug,
+            _lbMap ? { ..._lbMap, [_lbKey]: _lbVal } : { [_lbKey]: _lbVal });
+        }
+      }
+    }
+  } catch {} // capture is best-effort BY DESIGN: never block, never print on failure
   exit(0);
 }
+
+// Shared lint invocation for the capture arm above (item 07 / B10) — imported HERE,
+// adjacent to the arm, NOT at the file top: ESM hoists import declarations, and this
+// way zero lines are added above the capture-arm insertion region, so every citation
+// pinned above it (e.g. docs/ROADMAP.md → pre-tool.mjs:553) cannot drift inside this
+// run. Byte-identical invocation with post-tool's comparison arm is the whole point
+// of the shared module.
+import { lintTarget, baselineKey, readBaselineMap, writeBaselineMap } from "./lib/lint-invocation.mjs";
 
 // ============================================================================
 // ZOdyssey ships with Bash GATED, mirroring the Edit/Write gate above. Write-capable Bash

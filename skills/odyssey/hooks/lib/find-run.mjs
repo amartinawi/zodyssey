@@ -78,6 +78,7 @@ export function findActiveRuns({ projectDir, staleMs = STALE_MS_DEFAULT }) {
     for (const f of entries) {
       if (!f.endsWith(".json")) continue;
       if (f.endsWith(".inflight.json")) continue; // parallel-cap ledger, not a run state file
+      if (f.endsWith(".lint-baseline.json")) continue; // pre-edit lint baseline side-file, not a run state file
       const p = join(dir, f);
       let st;
       try { st = JSON.parse(readFileSync(p, "utf8")); } catch { continue; }

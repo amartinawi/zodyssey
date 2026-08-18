@@ -45,7 +45,7 @@ Stated as observable behaviour:
      Judge-era records predate agent hashing → they attribute to the CURRENT config key and carry
      `assumed_current_config: true`.
    - Identity: keys are `<agent>@<sha256(agents/<name>.md).slice(0,12)>`, resolved self-relative
-     (`../../../agents/` — the `pre-tool.mjs:1589` install-root pattern). **A prompt edit starts a
+     (`../../../agents/` — the `pre-tool.mjs:1646` install-root pattern). **A prompt edit starts a
      new key at the cold-start prior — structural decay; trust attaches to the configuration,
      never the model name.**
    - Ledger: `~/.zcode/orchestration/registry/narrators.jsonl` (env `ZODYSSEY_REGISTRY_DIR`,

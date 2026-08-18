@@ -23,9 +23,9 @@ cited file silently shifts every anchor below it. No test, hook, or CI step noti
 
 This is not hypothetical. It happened twice in the week this queue was written:
 
-- **`agents/sisyphus-junior.md:93`** cited `pre-tool.mjs:906-962` for the Bash write-gate and
+- **`agents/sisyphus-junior.md:93`** cited `pre-tool.mjs:906-1019` for the Bash write-gate and
   `pre-tool.mjs:817` for the `ZODYSSEY_UNGATE_BASH` hatch. Both had drifted. The gate is at
-  `:1072-1226`; the hatch is at `:978`; and `:807` had become `if (rel) {` — the Edit-path
+  `:1158-1312`; the hatch is at `:1064`; and `:807` had become `if (rel) {` — the Edit-path
   containment escape, an unrelated line. The executor's own trust-model briefing pointed at the
   wrong code, and `docs/impl/00-INDEX.md` had to flag the file as unciteable.
 - **While fixing that**, an edit to `skills/odyssey/references/scripts.md` inserted one line and

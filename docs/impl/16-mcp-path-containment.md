@@ -17,11 +17,11 @@ Item 01 (`4bc9dff`) closed the post-OKAY Edit-path containment escape. The Bash 
 closed. That leaves **exactly one tool class that can still write the enforcement surface from
 inside an approved run: a non-native tool, in practice a filesystem MCP.**
 
-The H3 guard at `skills/odyssey/hooks/pre-tool.mjs:1557` catches every tool the gate does not
+The H3 guard at `skills/odyssey/hooks/pre-tool.mjs:1614` catches every tool the gate does not
 natively classify, but — before this item — protected only two directories:
-`skills/odyssey/hooks/pre-tool.mjs:1603` built `protectedDirs` as the run's `.zcode/state` and
+`skills/odyssey/hooks/pre-tool.mjs:1660` built `protectedDirs` as the run's `.zcode/state` and
 `.zcode/reviews` alone. Its own header says so plainly
-(`skills/odyssey/hooks/pre-tool.mjs:1555-1556`): *"a targeted forge-surface guard, not a blanket
+(`skills/odyssey/hooks/pre-tool.mjs:1612-1613`): *"a targeted forge-surface guard, not a blanket
 MCP block."*
 
 That scope was defensible when Edit and Bash were the load-bearing paths. It is not anymore,
@@ -95,13 +95,13 @@ where "is this MCP call a write" does not.
 
 ### Resolve the install root self-relatively
 
-`skills/odyssey/hooks/pre-tool.mjs:1032` already establishes the technique for the trusted-script
+`skills/odyssey/hooks/pre-tool.mjs:1089` already establishes the technique for the trusted-script
 allowlist: `SCRIPTS_DIR` is derived from `import.meta.url`, so it is correct in a repo checkout, in
 the legacy `~/.zcode/skills/` layout, and in the plugin cache, and it cannot drift when the install
 layout changes. Derive the protected install root the same way — from the running hook's own
 location — rather than guessing paths.
 
-The v0.5.0 note at `skills/odyssey/hooks/pre-tool.mjs:1012-1021` is the warning attached to that
+The v0.5.0 note at `skills/odyssey/hooks/pre-tool.mjs:1069-1078` is the warning attached to that
 technique: two path *guesses* were removed there because one of them trusted a directory inside the
 repo being audited. Do not reintroduce a guess.
 
@@ -122,12 +122,12 @@ Nothing else. The docs under "Docs to update" belong to the release pass, not th
 - **Do not touch the Edit or Bash branches.** Item 01 closed the Edit path
   (`4bc9dff`); both are verified and out of scope here. This change lives entirely inside the
   `if (!isEdit && !isBash && !isDispatch)` block at
-  `skills/odyssey/hooks/pre-tool.mjs:1557`.
+  `skills/odyssey/hooks/pre-tool.mjs:1614`.
 - **Do not add a pattern to `WRITE_PATTERNS`.** Wrong file, wrong class.
 - **Do not widen `protectedDirs` by hard-coding an absolute path you guessed.** Self-relative for
   the install root; a named constant with a stated reason for the host registry.
 - Do not change the `strings` collector's depth or cap
-  (`skills/odyssey/hooks/pre-tool.mjs:1610-1611`) — that is a separate tuning question and
+  (`skills/odyssey/hooks/pre-tool.mjs:1667-1668`) — that is a separate tuning question and
   widening it here would conflate two changes.
 
 ### Constraints carried forward (Step 5, verbatim)
