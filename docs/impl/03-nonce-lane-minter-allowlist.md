@@ -43,7 +43,7 @@ asserted the hole as *intended* behavior — pre-fix, the Class C block (now the
 was green (33/33, 2026-08-16) with the tolerance enforced as a feature — the self-grading this
 item flips. There is also an in-repo prior
 that already named this exact shape as a bug: v0.5.1, audit-3 finding 7
-(`CHANGELOG.md:161-163` and the comment at `skills/odyssey/hooks/pre-tool.mjs:1434-1441`) —
+(`CHANGELOG.md:141-143` and the comment at `skills/odyssey/hooks/pre-tool.mjs:1434-1441`) —
 "`evil:momus` skipped the cap and the pre-dispatch lint, then minted a review nonce" — fixed the
 round-cap twin (now `if (isDeclaredMinter("review"))` at `:1442`) by making **both** sites
 tolerant, so the lookalike was capped but still minted.
@@ -281,7 +281,7 @@ gates) consumed by an authority-bearing check (nonce minting). This is the same 
 the v0.5.2 head-allowlist inversion named at `CHANGELOG.md:104`: identity questions ("who may
 execute", "who may grant") answered by tolerant matching instead of exact identity, where the
 structural fix is to invert to an allowlist of declared identities. The direct in-lane prior is
-v0.5.1 audit-3 finding 7 (`CHANGELOG.md:161-163`): the round-cap twin and the minter disagreed, and
+v0.5.1 audit-3 finding 7 (`CHANGELOG.md:141-143`): the round-cap twin and the minter disagreed, and
 the fix agreed them **downward** (both tolerant) instead of upward (both exact) — closing the cap
 bypass while leaving the mint open. This change completes that agreement in the right direction.
 

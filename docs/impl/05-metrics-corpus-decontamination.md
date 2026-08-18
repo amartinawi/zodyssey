@@ -469,3 +469,21 @@ note); quoted code lines in "What is broken" describe the pre-lane tree and are 
 historical record. Stamped at cutover: 387 records / 91.2% synthetic (211 `add-truncate` +
 142 `t`); suite-run guard after the fix: operator log byte-identical (387 → 387), synthetic lane
 +4 fixture records on the first post-fix run.
+
+## Amendment — 2026-08-18, fix-run residuals (impl-05-corpus-decontamination)
+
+Deltas recorded by the post-ship verification run:
+
+1. **Check-wiring's source lane completed** (the census amendment): `set-phase.check-wiring.test.mjs`
+   now declares the lane in its own `phase()` helper, so direct dev-loop runs of the suite (which
+   bypass `run-tests.mjs`'s whole-run blanket) route synthetic too — the one residual polluter the
+   shipped fix left open.
+2. **The v0.6.1 CHANGELOG-shift reconciliation was verify-adopted from `2550e67`, not redone**: the
+   re-anchored citations were sample-re-verified by claim content. The insert was +13 lines; the
+   blanket +33 applied to the "coherent remainder" overshot by 20, so those sites were re-fixed at
+   source in this run (the hand-fixed cluster — the cadence line, the gate-surface line, the v0.5.1
+   Edit-path bullet, secure-by-default — verified correct as re-anchored).
+3. **The 09-12 sweep stands superseded** per `f0c723b`'s committed decision: briefs 09-12 re-derive
+   their citations against the standing tree at their own build time (two same-day
+   inferred-referent double-shifts motivated the decline — re-editing reconciled citations is how
+   double-shifts happen).

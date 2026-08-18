@@ -36,8 +36,8 @@ Two pieces of in-repo history prove the silence is the dangerous part, not the o
   `skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11` ("the Bash gate has been silently deleted
   TWICE … v0.1.1 shipped it deleted — the author's local ZODYSSEY_UNGATE_BASH=1 copy was mirrored
   to the public repo verbatim"). During the ungated v0.2.0 window, "`ZODYSSEY_UNGATE_BASH` survived
-  in four documentation locations and **zero lines of executable code**" (`CHANGELOG.md:486`), and
-  the v0.1.2 restore entry (`CHANGELOG.md:651`) carries the post-mortem note that the first fix
+  in four documentation locations and **zero lines of executable code**" (`CHANGELOG.md:466`), and
+  the v0.1.2 restore entry (`CHANGELOG.md:631`) carries the post-mortem note that the first fix
   "did not hold".
 - Observed live during this queue's own probing (2026-08-16, prompt 01's Bash-twin probe, recorded
   in run `impl-prompts-v0-6`): an executor shell whose ambient environment carried
@@ -296,7 +296,7 @@ for anyone — not the operator with the variable set (still 0), not anyone with
 unchanged), and the existing hatch assertion at `:157-158` still passes untouched.
 
 Visible-by-default beats silent here for a reason this repo has paid for twice: the gate's two
-deletions (`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11`, `CHANGELOG.md:486`) were both
+deletions (`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11`, `CHANGELOG.md:466`) were both
 silent ambient leakage of exactly this variable becoming shipped code, and neither was noticed
 until after release — three external audits missed the second one. The 2026-08-16 ambient-leak
 incident is the same shape at miniature scale: a probe quietly passed and nothing on the operator's
@@ -310,7 +310,7 @@ quoted in the regression suite's header.
 **A silent authority-bypass affordance** — an opt-out that removes enforcement without leaving a
 witness. This is the affordance-class sibling of the divergence family 01 and 03 close (enforcement
 present in one build and absent in another): v0.1.1's public/private divergence
-(`CHANGELOG.md:651`) was not a logic bug at all — it was this variable's silent ambient presence in
+(`CHANGELOG.md:631`) was not a logic bug at all — it was this variable's silent ambient presence in
 a private copy being mirrored verbatim. The silence, not the openness, was the failure mode both
 times, which is also why the committed decision records rather than retires.
 
@@ -318,7 +318,7 @@ How this change could reintroduce the class: the hatch pattern is one copy-paste
 contributor adding availability or debugging affordances ("`ZODYSSEY_SKIP_SCOPE=1`",
 "`ZODYSSEY_DEBUG_BYPASS=1`", or the UNGATE check moved during a refactor so the recorder no longer
 sits between the env read and the exit) recreates a silent bypass with zero ill intent — the exact
-path by which the second deletion shipped unnoticed (`CHANGELOG.md:486`: audits review the diff in
+path by which the second deletion shipped unnoticed (`CHANGELOG.md:471`: audits review the diff in
 front of them). What prevents it: (a) the **shared structural assertion** in the regression suite —
 it scans the hook source for every `process.env.ZODYSSEY_*` read whose branch guards an early
 `exit(0)` and requires the recorder to be routed between read and exit, so a second bypass variable

@@ -285,7 +285,7 @@ them. Either order works; sharing a release does not.
 
 ## Note — 2026-08-17: the checker-invisible citation dialects (external-audit rounds 2-3)
 
-Two continuation dialects are invisible to `check-anchors.mjs` because the CITE regex requires
+Three dialects are invisible to `check-anchors.mjs` because the CITE regex requires
 the filename before the line number, and CHANGELOG.md keys are exempt from the lock entirely
 (unstable-by-format, `scripts/check-anchors.mjs` NO_PIN_TARGETS):
 
@@ -293,8 +293,12 @@ the filename before the line number, and CHANGELOG.md keys are exempt from the l
   that carries no
   filename, so a shifted file leaves it stale while the suite stays green (found by external
   audit round 2; reconciled via git-hunk-derived shift bands, commit `7b33454`).
-- **comma/slash continuations** — `CHANGELOG.md:486, :592`, `:415/:554`, `md:33,31` — same
+- **comma/slash continuations** — `CHANGELOG.md:466, :605`, `:415/:554`, `md:33,31` — same
   blindness inside the exempt CHANGELOG target (found by round 3).
+- **path-then-parenthetical-range** — the file named with no `:NNN` while the claim's range rides
+  inside parentheses later in the entry, like `docs/impl/05`'s append-site cite `` (`:430-457`) ``
+  after a bare `skills/odyssey/scripts/set-phase.mjs` mention (found during the item-05 verify pass,
+  2026-08-18).
 
 Until the dialects are either lockable or linted, reconciliation passes here must grep for
 `` `: `` (backtick-colon-digit) and `[0-9]+[,:/] ?[0-9]+` after every cited-file edit. The
