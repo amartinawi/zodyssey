@@ -16,7 +16,7 @@ Census re-measured 2026-08-16 (this run, not an ideation-doc number): grep for `
 run `scripts/compact.mjs <repo> <slug>`" — an instruction addressed to the conductor, inside the
 phase-6 OPTIONAL COMPACTION box at `:157-164`), `skills/odyssey/SKILL.md:212` ("the **optional**
 `_compact-brief.md`"), `skills/odyssey/references/scripts.md:17` ("OPTIONAL pre-final-wave
-notepad compactor"), `README.md:59`, `README.md:81`, `README.md:280`, `CHANGELOG.md:616`. The
+notepad compactor"), `README.md:59`, `README.md:81`, `README.md:280`, `CHANGELOG.md:648`. The
 script's own header admits it: `skills/odyssey/scripts/compact.mjs:20-21` — "OPT-IN: the
 orchestrator MAY call this before phase-6 dispatch. It is not mandatory and not wired into any
 phase transition or hook."
