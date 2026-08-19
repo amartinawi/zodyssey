@@ -22,6 +22,8 @@
 //     · ok        — boolean, true iff findings.length === 0
 //     · rows      — the loaded row objects ({ id, documented_at, asserted_by, kind, marker })
 //     · findings  — array of strings, each one naming the offending row's id
+//     · failedIds — Set of the row-id tokens named by findings ("row #N" for id-less rows);
+//                   rows.length - failedIds.size is the resolved count the CLI summary prints
 //   Row file paths (asserted_by, and the file part of a "path:line" documented_at) resolve
 //   repo-root-relative or absolute — the real ledger uses repo-relative paths; the fixtures
 //   below use absolute paths into their own tmp dirs so only the seeded defect can fail.
@@ -36,9 +38,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Unresolvable until the implementation lands — that un-resolvability IS the committed red state.
@@ -93,10 +95,15 @@ function validRow(dir, overrides = {}) {
 }
 
 // Write files + a fixture ledger (rows are built per-dir, hence the builder callback) into a
-// fresh tmp dir. Returns { dir, ledgerPath }.
+// fresh tmp dir. Returns { dir, ledgerPath }. File names may be nested ("build/target.test.mjs")
+// — the subdirectory is created; flat names are unaffected (recursive mkdir over the existing
+// fixture dir is a no-op).
 function makeFixture(files, buildRows) {
   const dir = mkdtempSync(join(tmpdir(), "check-claims-fixture-"));
-  for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, name), content);
+  for (const [name, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), content);
+  }
   const ledgerPath = join(dir, "ledger.mjs");
   writeFileSync(ledgerPath, `export const CLAIMS = ${JSON.stringify(buildRows(dir), null, 2)};\n`);
   return { dir, ledgerPath };
@@ -106,6 +113,7 @@ const rmFixture = (dir) => rmSync(dir, { recursive: true, force: true });
 
 // ---------------------------------------------------------------------------
 // (a)–(h), the eight minimum behaviours from the item-08 acceptance criteria.
+// (i)–(j): the consult-r1 regressions — repo-relative skip-dir scan, honest failure summary.
 // ---------------------------------------------------------------------------
 
 test("(a) real ledger end-to-end: zero findings over at least 8 rows", async () => {
@@ -220,6 +228,64 @@ test("(h) CLI end-to-end on a broken fixture -> process exit 1, report names the
     const out = `${r.stdout || ""}\n${r.stderr || ""}`;
     assert.ok(out.includes("CLI-BROKEN-ROW"),
       `the CLI report must name the broken row id, got: ${JSON.stringify(out)}`);
+  } finally {
+    rmFixture(dir);
+  }
+});
+
+test("(i) a suite target under a skip-named segment OUTSIDE the repo root resolves clean (consult r1)", async () => {
+  // The skip-dir question mirrors run-tests.mjs, which walks from the repo root and skips by
+  // directory name BELOW it (scripts/run-tests.mjs:39-50). Directories above the checkout are
+  // none of the checker's business: a repo cloned under ~/build/ZOdyssey, or a tmp fixture
+  // whose path merely contains a skip-named directory, must not false-red. Before the
+  // consult-r1 fix both rows below fired "asserted_by sits under build[/coverage]" because the
+  // checker scanned the ABSOLUTE resolved path for skip segments.
+  const files = { ...validFiles() };
+  for (const sub of ["build", "coverage"]) files[join(sub, "target.test.mjs")] = files["target.test.mjs"];
+  const { dir, ledgerPath } = makeFixture(files, (d) => [
+    validRow(d, { id: "OUTSIDE-BUILD-SEGMENT", asserted_by: join(d, "build", "target.test.mjs") }),
+    validRow(d, { id: "OUTSIDE-COVERAGE-SEGMENT", asserted_by: join(d, "coverage", "target.test.mjs") }),
+  ]);
+  try {
+    const { ok, findings } = await checkClaims(ledgerPath);
+    assert.equal(ok, true,
+      `a path shape outside the repo root is none of the checker's business — run-tests walks ` +
+      `from the repo root only; findings:\n  - ${findings.join("\n  - ")}`);
+    assert.equal(findings.length, 0, `expected zero findings, got ${JSON.stringify(findings)}`);
+  } finally {
+    rmFixture(dir);
+  }
+});
+
+test("(j) the failure summary counts resolved rows honestly: one defect among five -> 4/5 (consult r1)", async () => {
+  // A checker whose purpose is honest reporting must not claim 0/5 when four rows resolve (the
+  // pre-fix CLI printed `summary: 0/N` on every failure path). Pinned twice: the exported
+  // result's failedIds arithmetic, and the CLI summary line itself.
+  const { dir, ledgerPath } = makeFixture(validFiles(), (d) => [
+    validRow(d, { id: "HONEST-A" }),
+    validRow(d, { id: "HONEST-B" }),
+    validRow(d, { id: "HONEST-C" }),
+    validRow(d, { id: "HONEST-D" }),
+    validRow(d, { id: "HONEST-BROKEN", marker: "ZZ-ABSENT-FROM-EVERY-FIXTURE-ZZ" }),
+  ]);
+  try {
+    const result = await checkClaims(ledgerPath);
+    assert.equal(result.ok, false, "one broken binding among five must not report ok");
+    assert.equal(result.findings.length, 1,
+      `expected exactly one finding, got ${JSON.stringify(result.findings)}`);
+    assert.ok(result.failedIds && result.failedIds.has("HONEST-BROKEN"),
+      `failedIds must name the broken row, got ${JSON.stringify(result.failedIds && [...result.failedIds])}`);
+    assert.equal(result.failedIds.size, 1, "exactly one row id may be named by one finding");
+    assert.equal(result.rows.length - result.failedIds.size, 4,
+      "the summary's arithmetic must count four resolved rows");
+
+    const r = spawnSync(process.execPath, [CHECKER, "--ledger", ledgerPath], { encoding: "utf8" });
+    assert.equal(
+      r.status, 1,
+      `expected the CLI to exit 1 on a broken ledger, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`
+    );
+    assert.ok((r.stdout || "").includes("summary: 4/5 rows resolve, 1 finding(s)"),
+      `the CLI failure summary must use honest arithmetic, got: ${JSON.stringify(r.stdout)}`);
   } finally {
     rmFixture(dir);
   }
