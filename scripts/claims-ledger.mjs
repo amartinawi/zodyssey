@@ -101,7 +101,7 @@ export const CLAIMS = [
     note: "marker is static text inside a template literal in the suite source; includes() matches source bytes",
   },
   {
-    id: "UNGUATED-CALLS-RECORDED",
+    id: "UNGATED-CALLS-RECORDED",
     claim: "every ZODYSSEY_UNGATE_BASH=1 call under an active run leaves a ledger row",
     documented_at: "docs/impl/04-ungate-bash-record-or-retire.md:86",
     asserted_by: "skills/odyssey/hooks/pre-tool.bash-gate.test.mjs",

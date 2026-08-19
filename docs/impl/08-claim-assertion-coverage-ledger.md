@@ -132,7 +132,7 @@ not run-scoped state; a live orchestration run must never block on it.
 | `EDIT-PATH-CONTAINMENT` | prompt 01's claim: post-OKAY, no Edit-family path skips the scope gate | `skills/odyssey/hooks/pre-tool.scope.test.mjs` (suite) |
 | `CHECKS-WIRED-AT-TRANSITIONS` | prompt 02's claim: the three checks fire from phase transitions; findings block `done`; absent capability records `inert` | `skills/odyssey/scripts/set-phase.check-wiring.test.mjs` (suite) |
 | `NONCE-MINTER-EXACT` | prompt 03's claim: only declared minter types mint the nonce lanes | `skills/odyssey/hooks/pre-tool.gate-surface.test.mjs` (suite — 03's own Files set) |
-| `UNGUATED-CALLS-RECORDED` | prompt 04's claim: every `ZODYSSEY_UNGATE_BASH=1` call under an active run is recorded | `skills/odyssey/hooks/pre-tool.bash-gate.test.mjs` (suite — 04's own Files set) |
+| `UNGATED-CALLS-RECORDED` | prompt 04's claim: every `ZODYSSEY_UNGATE_BASH=1` call under an active run is recorded | `skills/odyssey/hooks/pre-tool.bash-gate.test.mjs` (suite — 04's own Files set) |
 
 Rows 1-5 use **existing header literals as markers** (e.g. `"silently deleted TWICE"`,
 `"the v0.4.1 audit found UNTESTED"`, `"documented-but-unenforced invariant"`,
