@@ -221,7 +221,7 @@ broken the gate's twin-parity in the other direction.
   files outside the plan's declared scope, because the hook cannot tell a write from a read there.
   That is a real residual — it is the isolation gap, not the takeover gap. Closing it needs the
   harness to declare tool write-capability, the same shape of dependency as the nonce-to-transcript
-  binding (`CHANGELOG.md:228`). Name it in the CHANGELOG under *Known, not fixed*.
+  binding (`CHANGELOG.md:245`). Name it in the CHANGELOG under *Known, not fixed*.
 
 ## The class it closes
 

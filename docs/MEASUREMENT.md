@@ -95,7 +95,7 @@ Because paths are non-deterministic, we judge the **end state**, not the sequenc
 > needs runner-specific parsing that would rot. `check-imports.mjs` verifies a package is
 > *declared here*, not that it exists on any registry, and does not check whether an imported
 > *symbol* exists within a real package. Nothing type-checks or builds. Treat those as open. A fourth mechanism has since landed (2026-08-19) and **is** invoked: `scripts/check-claims.mjs` over the claim→assertion coverage ledger `scripts/claims-ledger.mjs`, run by `npm test` via test discovery. It answers the table's standing question — "which documented guarantee has no test?" — with `node scripts/check-claims.mjs` (exit 0 = every row resolves; 1 = findings, each naming its row id; `inert` when no ledger exists). Initial coverage: 9 rows, measured at build time (43/43 suites green).
-| **LLM-as-judge score (0.0–1.0)** | overall, rubric-weighted | oracle/judge on final diff + success criteria | ≥0.85 |
+| **LLM-as-judge score (0.0–1.0)** | overall, rubric-weighted | external-CLI judge (not oracle) on final diff + success criteria — ONE judge scores BOTH arms (`--arm`-stamped record, arm-blind prompt) | ≥0.85 |
 
 **Rubric for the judge** (0.0–1.0 each, weighted mean):
 - Correctness vs. success criteria (0.4)
@@ -191,8 +191,16 @@ with what state.json already gives us, add the judge last.
 
 ## 6. Honest limitations of this measurement
 
-1. **Judge variance** — LLM-as-judge isn't perfectly consistent. Mitigate: judge each run twice,
-   flag disagreements >0.15 for human review (Anthropic's pattern).
+1. **Judge variance** — LLM-as-judge isn't perfectly consistent: published hard-pair accuracies
+   run 56.6–65.7% and verdicts flip on up to 61.3% of cases under prompt paraphrase
+   (`docs/ideation-report.md:448`), so **absolute judge scores are untrustworthy**. Two
+   mitigations. (a) Judge each run twice, flag disagreements >0.15 for human review
+   (Anthropic's pattern; `judge.mjs --double` — recommended for the settling two-arm run).
+   (b) The two-arm design (item 09): the SAME judge, rubric, success criteria, and seeds score
+   BOTH arms — the conductor-driven zodyssey run and the `--arm baseline` single-agent control —
+   and the arm never enters the judged prompt, so systematic judge error is shared by both
+   measurements and largely cancels in the DELTA. The same-judge delta is the claim; the
+   absolute score is not.
 2. **Seed set is small** — 20 tasks has high variance per change. Treat the numbers as directional,
    not statistically tight. Significance comes from trends over many changes, not one delta.
 3. **No public benchmark** — we can't claim "beats omo by X%" without running omo on the same set.
@@ -219,10 +227,18 @@ with what state.json already gives us, add the judge last.
 1. **`run-report.mjs`** — reads state.json + log, emits a one-run scorecard (JSON + text). The
    foundation; pure aggregation, no judging.
 2. **`eval/seed.jsonl`** — your ~20 tasks in the format above. You bring the tasks; I structure them.
-3. **`judge.mjs`** — dispatches oracle to score a completed run's diff against the rubric. The
-   quality half.
+3. **`judge.mjs`** — dispatches the EXTERNAL CLI (not oracle — a participant in the run cannot
+   judge it independently) to score a completed run's diff against the rubric. The quality half.
+   Signature since item 09: `judge.mjs <run-repo> <slug> <seed-id> [--arm zodyssey|baseline]
+   [--double]` — `--arm` stamps the record's arm (default: slug-suffix derivation; the arm never
+   enters the judged prompt) — plus a read-only `judge.mjs --compare` mode that reports per-seed
+   two-arm deltas grouped by the stamped arm (exit 3 when there is nothing to compare).
 4. **`eval/results.jsonl` + `dashboard.mjs`** — append-only trend log + the dashboard renderer. Two lanes since 2026-08-17: real runs append to `results.jsonl`; runs that declare themselves synthetic at source (`ZODYSSEY_EVAL_LANE=synthetic`, set by the spawning fixture/harness) append to `results.synthetic.jsonl` — identical record format, identical rolling cap, `dashboard.mjs` reads the operator lane unmodified.
-5. **(optional) cross-eval** — run omo on the same seed set for the head-to-head number.
+5. **(optional) cross-eval** — run omo on the same seed set for the head-to-head number. This is
+   the EXTERNAL comparison and stays optional; distinguish it from the INTERNAL baseline arm
+   (`harness.mjs --arm baseline`, item 09 — one external-CLI agent on the seed prompt alone, no
+   pipeline), which is built machinery answering a different question: enforced orchestration vs.
+   a single capable agent on our own seeds. The judge scores both; `--compare` reports the delta.
 
 Items 1–2 give immediate value (you see efficiency per run). 3 adds quality. 4 gives the trend.
 5 is the cherry on top.

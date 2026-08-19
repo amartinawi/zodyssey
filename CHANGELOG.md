@@ -1,6 +1,23 @@
 # Changelog
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+## [0.6.7] — 2026-08-19
+
+### Added — the two-arm eval instrument (item 09)
+
+The core bet — that enforced orchestration beats a single capable agent — had one real arm and a printed paragraph for a control: the baseline existed as instructions to run by hand, and a judged record took its label from the run slug rather than from the runner. Both arms are machinery now. `judge.mjs --arm zodyssey|baseline` stamps the record with the arm the invocation judged under — a validated enum (anything else exits 2), defaulting with no flag to the existing slug-suffix derivation bit-for-bit, and the arm never enters the judged prompt, so the one external judge stays blind to which arm produced the work. `harness.mjs --arm baseline` executes the control arm end-to-end instead of printing instructions: the shared fresh-copy / git-baseline / scaffold prefix runs unchanged for both arms, then one external-CLI agent receives the seed's prompt alone — no plan, no criteria, no sub-agents — bounded by a named 240-minute constant (`BASELINE_TIMEOUT_MIN`, its reasoning stated in its header per the 2026-08-19 amendment), and on completion the harness self-appends an efficiency record to the operator lane's `results.jsonl` in the run-report schema — honest nulls for pipeline-only fields, measured `wall_clock_min`, never a fabricated `success`; a missing CLI, a non-zero exit, or a timeout marks that seed failed with no vacuous append, and a batch in which every seed failed exits 4. `harness.mjs --dry-run [--arm zodyssey|baseline]` proves both arms selectable safely: it prints each runnable seed's exact plan (spawn, cwd, append destination, judge command carrying the arm) and exits 0 having written and spawned nothing. `judge.mjs --compare` is the read-only third surface — per-seed `{zodyssey, baseline, delta}` of the judge `overall` plus per-arm means and n, grouped by the STAMPED arm with no slug-sniffing and no everything-else-to-zodyssey default: an unknown arm prints as its own warned group, and a record whose slug suffix disagrees with its stamp gets a mismatch warning line.
+
+Paired probe, as this repo cites its probes: pre-fix, the corpus already carries the falsified direction — records `std-01-baseline` and `arch-01-baseline` (`~/.zcode/orchestration/eval/judged.jsonl`, both 2026-08-01) are stamped `arm: "zodyssey"`, baseline runs judged and filed under the wrong label — and criterion 4's stash proof re-proves the red on demand: with only the stamp reverted to the slug derivation, `two-arm-eval.test.mjs` exits 1 (cases (a)/(b) fail — every record wears the derived arm). Post-fix, stamp==argv holds across the enum (41/41, including `--arm baseline` on a zodyssey-shaped slug and the `--arm zodyssey` override on a `-baseline` slug), and `--compare` over the real corpus warns on exactly those two historical records, exits 0, and writes nothing.
+
+**Known, not fixed:**
+- No baseline data exists yet. The instrument ships; the corpus populates on the first explicit operator run (`harness.mjs --arm baseline`; `--double` recommended for the settling measurements, `--task` subsets first). Landing this release without running the eval is correct — no baseline number is claimed here.
+- The two historical mislabeled judged records (2026-08-01) remain — retention stance per queue item 05; `--compare` flags them on every run rather than rewriting history.
+- The zodyssey arm stays conductor-driven and interactive: the harness wires the measurement, the operator runs `/orchestrate`; headless full-pipeline automation is a separate follow-up.
+- `dashboard.mjs` still derives arm from slug suffixes and its "arm field is unreliable" header comment is now stale prose — correct behaviour, stale comment; switching it to the stamped field is a follow-up outside this file set.
+- The settling number will be directional (small seed set), and judge absolute scores stay untrustworthy (56.6–65.7% on hard pairs, 61.3% flip under paraphrase); only the same-judge delta is the claim.
+
+Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `install.mjs`, then re-Get/Update the plugin so the marketplace cache picks up the new argv surface — a judge left in the stale cache takes its arm from slug derivation instead of the runner's explicit stamp and has no `--compare` to flag the disagreement, which is exactly how mislabels persist unremarked.
+
 ## [0.6.6] — 2026-08-19
 
 ### Fixed — the consult-r1 remediations, cut as a release (audit gap r2-1)

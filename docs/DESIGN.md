@@ -391,9 +391,19 @@ extension once we have an eval harness telling us which lessons are worth keepin
   rolling cap; consumers of the operator lane get real runs only with zero filter conventions.
 - **End-state evaluation** (Anthropic's method): because paths are non-deterministic, we judge
   whether the *final state* satisfies the success criteria — not the sequence of steps.
-- **LLM-as-judge stub:** a `momus`-style review of the completed work against `Success criteria`,
-  scored 0.0–1.0 on factual accuracy / scope fidelity / verification rigor. Start with ~20-query
-  eval set (Anthropic's "small samples are enough").
+- **LLM-as-judge, two-armed (item 09):** `judge.mjs` scores a completed run's end state against
+  the seed's `Success criteria` via the external CLI (0.0–1.0 rubric — not oracle/momus; a
+  participant cannot judge independently). ONE judge scores BOTH arms: records are stamped by
+  `--arm zodyssey|baseline` (default: slug suffix) and the arm never enters the judged prompt,
+  so the judge is blind to which arm produced the work. `judge.mjs --compare` renders the
+  read-only per-seed delta report (unknown arms and slug/stamp mismatches warned). Absolute
+  judge scores stay untrustworthy (MEASUREMENT §6 item 1) — the same-judge delta is the claim.
+- **Automated baseline arm (item 09):** `harness.mjs --arm baseline` runs the control end-to-end:
+  the shared fresh-copy/git-baseline/scaffold prefix, then ONE external-CLI agent on the seed
+  prompt alone (no pipeline artifacts; 240-min budget), self-appending an honest efficiency
+  record (`arm:"baseline"`, pipeline-only fields null) to the operator lane. A failed seed
+  appends nothing (loud, status "failed"); an all-failed batch exits 4. `--dry-run` previews
+  either arm without writing or spawning anything.
 - **Tracing:** the run log records every dispatch, hook decision, lock acquire/release, and
   checkpoint — enough to diagnose whether a failure was a bad plan, a bad dispatch, or a tool failure.
 
@@ -414,7 +424,7 @@ extension once we have an eval harness telling us which lessons are worth keepin
 | 9 | Verify + Final-wave evidence scripts | `scripts/{record-verify,record-final-wave}.mjs` | done |
 | 10 | Team mode (mailbox + tasklist + worktree) | `scripts/team/*.mjs` | deferred (v2) |
 | 11 | Model-routing config table | `scripts/models.json` | deferred (v2) |
-| 12 | **Eval harness** (run-report + record-todo + record-capability + **harness + judge + resolve-capabilities + recall-outcomes** + 18 seed tasks + 4 fixtures + results.jsonl + results.synthetic.jsonl lane + judged.jsonl) | `scripts/{run-report,record-todo,record-capability,harness,judge,resolve-capabilities,recall-outcomes,status}.mjs` + `eval/` | **done** |
+| 12 | **Eval harness** (run-report + record-todo + record-capability + **harness + judge + resolve-capabilities + recall-outcomes** + 18 seed tasks + 4 fixtures + results.jsonl + results.synthetic.jsonl lane + judged.jsonl; two-arm since item 09 — `--arm` stamping, `--compare` deltas, automated baseline arm) | `scripts/{run-report,record-todo,record-capability,harness,judge,resolve-capabilities,recall-outcomes,status}.mjs` + `eval/` | **done** (two-arm instrument landed 2026-08-19; no baseline data yet — populates on the first explicit operator run) |
 | 13 | AGENTS.md rules | `~/.zcode/AGENTS.md` | done |
 | 14 | **External consult/audit gate** (fail-closed, secret-redacting, scope-aware, generated-path-filtered) | `scripts/consult.mjs` + `references/auditor-prompt.md` | done |
 | 15 | Env overrides (`ZODYSSEY_PARALLEL_CAP`, `ZODYSSEY_STALE_HOURS`, `CLAUDE_CLI`) | documented in SKILL.md; consumed by hooks + consult | done |

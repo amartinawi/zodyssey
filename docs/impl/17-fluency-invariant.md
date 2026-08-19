@@ -12,8 +12,8 @@ below were derived on 2026-08-17 and this repo moves fast. Do exactly this one c
 `docs/MEASUREMENT.md:60` defines the quality rubric as five dimensions — correctness, scope
 fidelity, verification rigor, code quality, efficiency — none of which scores HOW the output is
 written. The judge prompt implements exactly that:
-`skills/odyssey/scripts/judge.mjs:106` (`## Scoring rubric`, weights 0.4/0.2/0.2/0.1/0.1) and the
-output-contract literal at `skills/odyssey/scripts/judge.mjs:131`. The external auditor prompt
+`skills/odyssey/scripts/judge.mjs:206` (`## Scoring rubric`, weights 0.4/0.2/0.2/0.1/0.1) and the
+output-contract literal at `skills/odyssey/scripts/judge.mjs:232`. The external auditor prompt
 carries the matching defense at `skills/odyssey/references/auditor-prompt.md:49` ("Do NOT reject
 for style preferences the plan didn't specify").
 

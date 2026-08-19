@@ -282,7 +282,7 @@ Every doc that states the claim this change alters ("an executor may only edit d
 ## CHANGELOG entry shape
 
 New version `0.5.3` (patch). **One security change per release, shipped alone** — the repo rule,
-with its own precedent at `CHANGELOG.md:167` (a structural gate change "wants its own release and
+with its own precedent at `CHANGELOG.md:184` (a structural gate change "wants its own release and
 its own paired run"). Do NOT batch queue items 03 or 04 into this release even though they touch
 the same file.
 

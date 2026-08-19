@@ -123,8 +123,8 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 - **Claim:** the project's core bet is currently unfalsifiable: the judge hardcodes one arm on
   every record, the baseline arm prints instructions instead of running, so no comparison has ever
   been measured. This is the only entry whose output is a decision rather than a defect fix.
-- **Evidence:** `skills/odyssey/scripts/judge.mjs:176` (`arm: "zodyssey"` literal in the record
-  constructor; only `--double` is parsed, `judge.mjs:46`); `skills/odyssey/scripts/harness.mjs:19`
+- **Evidence:** `skills/odyssey/scripts/judge.mjs:278` (`arm: "zodyssey"` literal in the record
+  constructor; only `--double` is parsed, `judge.mjs:130`); `skills/odyssey/scripts/harness.mjs:21-23`
   (baseline marked TODO), `:41-42` (already parses `--arm zodyssey|baseline`), `:128-131` (prints
   instructions instead of running); `~/.zcode/orchestration/eval/judged.jsonl` — 5 scored records,
   all `arm: "zodyssey"` (notepad 1, rows b-judge-1..3; re-read during synthesis, see Corrections);
@@ -204,7 +204,7 @@ Verdicts from the code inventory (notepad 2); citations are `file:line`.
 | Verification | **STRONG** | criteria executed not trusted, `--trust-argv` required (`skills/odyssey/scripts/record-verify.mjs:69-107`), regression gate three-way semantics (`skills/odyssey/scripts/regression-gate.mjs:2-29`), F1 fails closed (`record-final-wave.mjs:6-7,178-198`); one soft spot — `check-imports.mjs` unwired (`skills/odyssey/references/scripts.md:46` prose-only) |
 | Context/memory | **THIN — WEAKEST** | see the three pieces of evidence below |
 | Guardrails | **STRONG** | review gate (`pre-tool.mjs:797`), fail-closed scope isolation (`:850`), hook-minted nonces (`:1456-1485`), plan-tamper guard (`:826,1036`), HMAC run discovery (`:30,506`) — the project's center of mass |
-| Observability | **MEDIUM** | real DB-backed token accounting (`skills/odyssey/scripts/lib/tokens.mjs:36,105-114`), 177-record longitudinal store, 5 genuinely judged runs, dashboard + written methodology (`docs/MEASUREMENT.md:3-42`) — but telemetry populated 1/177 and the baseline arm never measured (`skills/odyssey/scripts/harness.mjs:19`) |
+| Observability | **MEDIUM** | real DB-backed token accounting (`skills/odyssey/scripts/lib/tokens.mjs:36,105-114`), 177-record longitudinal store, 5 genuinely judged runs, dashboard + written methodology (`docs/MEASUREMENT.md:3-42`) — but telemetry populated 1/177 and the baseline arm never measured (`skills/odyssey/scripts/harness.mjs:21-23`) |
 
 **WEAKEST: context/memory. Runner-up: observability.** The three strongest pieces of code
 evidence for that verdict:
@@ -273,7 +273,7 @@ ceremony-without-mechanism, the project's failure mode #3, in its least visible 
 
 ### S3 — Finish the two-arm eval: make the core bet falsifiable
 
-`judge.mjs:176` hardcodes the arm; `harness.mjs:19` marks baseline TODO while `:41-42` already
+`judge.mjs:278` hardcodes the arm; `harness.mjs:21-23` marks baseline TODO while `:41-42` already
 parse `--arm`; five judged records exist, all one arm. The settling experiment (§5 below) needs no
 new instrument — only the missing half of existing machinery: record the parsed arm, implement the
 baseline arm the harness already declares, blind-judge both arms over the existing `seed.jsonl`,
@@ -366,9 +366,9 @@ evidence exists that enforcement specifically wins.**
    ground the general claim that a maintained convention in any competent harness would also fail.
 
 **Settling evidence — the machinery exists and is half-born.** Per notepad 1 rows b-judge-1..3:
-`judge.mjs:176` hardcodes `arm: "zodyssey"`; `harness.mjs` already parses
-`--arm zodyssey|baseline` (`harness.mjs:41-42`) but the baseline arm is TODO and prints
-instructions instead of running (`harness.mjs:19,128-131`); `judged.jsonl` holds 5 real scored
+`judge.mjs:278` hardcodes `arm: "zodyssey"`; `harness.mjs` already parses
+`--arm zodyssey|baseline` (`harness.mjs:69-70`) but the baseline arm is TODO and prints
+instructions instead of running (`harness.mjs:21-23,128-131`); `judged.jsonl` holds 5 real scored
 records — all one arm. The decisive measurement is therefore the missing half of existing
 machinery: run the baseline arm as the SAME pipeline with hook gates replaced by their
 prompt-convention equivalents (SKILL.md instruction text where `pre-tool.mjs` now enforces — the
@@ -407,14 +407,14 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (a10) Real token accounting from the session DB | CONFIRMED — at skills/odyssey/scripts/lib/tokens.mjs, reading ~/.zcode/cli/db/db.sqlite | skills/odyssey/scripts/lib/tokens.mjs:36,83,105-114; skills/odyssey/scripts/run-report.mjs:18,90 | node:sqlite read-only; SQL over model_usage JOIN session by repo+time-window; attribution honestly "estimate" |
 | (a11) "32 test suites" | CONFIRMED (re-measured) | package.json test script; npm test 2026-08-15 | `npm test` → "32/32 suite(s) passed in 59318ms" |
 | (a12) "~98 gate-surface cases" | CONFIRMED (re-measured; exactly 98 — not approximate) | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:1; CHANGELOG.md:173 | standalone run: "98 passed, 0 failed"; CHANGELOG v0.5.2: "Gate-surface is 98 cases (was 80)" |
-| (a13) Paired old/new probes | CONFIRMED | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:6; CHANGELOG.md:149,155; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17 | "Every case below fails on the pre-v0.5.0 code"; v0.5.2 paired run against v0.5.1 |
+| (a13) Paired old/new probes | CONFIRMED | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:6; CHANGELOG.md:166,172; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17 | "Every case below fails on the pre-v0.5.0 code"; v0.5.2 paired run against v0.5.1 |
 | (b-A4) Doc-code invariant registry "never built" (ROADMAP.md:158) | PARTIAL — named artifact absent, four equivalents exist | docs/ROADMAP.md:158; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17; scripts/version-consistency.test.mjs:15; scripts/smoke-gate.mjs:1 | no `invariants.test.mjs` anywhere (zero find hits), but bash-gate/gate-surface/version-consistency/smoke-gate deliver the function domain-by-domain without a unified registry |
 | (b-B9-1) Package-existence checking "absent" | REFUTED — code wins | skills/odyssey/scripts/check-imports.mjs:1-23; CHANGELOG.md:556 | check-imports.mjs exists (shipped v0.3.2): offline import resolution JS/TS + Python; exit 9 on unresolved import |
 | (b-B9-2) check-imports has a test and is wired into a phase | PARTIAL | skills/odyssey/scripts/check-imports.test.mjs:1; skills/odyssey/references/scripts.md:46 | test passes (part of 32/32), but the ONLY caller is documentation — prose instructs the conductor; zero code callers repo-wide |
 | (b-B10) Pre-edit lint baseline "absent" | CONFIRMED | skills/odyssey/hooks/post-tool.mjs:96-177; skills/odyssey/scripts/lint-untrusted.mjs:1 | post-tool lints AFTER the edit, no baseline capture; lint-untrusted is injection scanning (different mechanism) |
-| (b-judge-1) judge.mjs:176 hardcodes `arm: "zodyssey"` | CONFIRMED | skills/odyssey/scripts/judge.mjs:176 | literal in the record constructor |
-| (b-judge-2) judge.mjs "never reads --arm" | CONFIRMED for judge.mjs (nuance: harness parses it) | skills/odyssey/scripts/judge.mjs:46; skills/odyssey/scripts/harness.mjs:41-42,19,128-131 | judge parses only `--double`; harness parses `--arm` but baseline is TODO and prints instructions |
-| (b-judge-3) "The eval has never produced a number" | REFUTED — code/filesystem wins | ~/.zcode/orchestration/eval/judged.jsonl:1-5; ~/.zcode/orchestration/eval/results.jsonl (177 lines) | judged.jsonl holds 5 real scored records (2026-08-01); results.jsonl 177 run records. Narrower true statement: the arm FIELD never records baseline (judge.mjs:176) and the harness cannot run the baseline arm (harness.mjs:19) — see Reconciliation D1 for the slug-derived baseline records |
+| (b-judge-1) judge.mjs:278 hardcodes `arm: "zodyssey"` | CONFIRMED | skills/odyssey/scripts/judge.mjs:278 | literal in the record constructor |
+| (b-judge-2) judge.mjs "never reads --arm" | CONFIRMED for judge.mjs (nuance: harness parses it) | skills/odyssey/scripts/judge.mjs:130; skills/odyssey/scripts/harness.mjs:69-70,19,128-131 | judge parses only `--double`; harness parses `--arm` but baseline is TODO and prints instructions |
+| (b-judge-3) "The eval has never produced a number" | REFUTED — code/filesystem wins | ~/.zcode/orchestration/eval/judged.jsonl:1-5; ~/.zcode/orchestration/eval/results.jsonl (177 lines) | judged.jsonl holds 5 real scored records (2026-08-01); results.jsonl 177 run records. Narrower true statement: the arm FIELD never records baseline (judge.mjs:278) and the harness cannot run the baseline arm (harness.mjs:21-23) — see Reconciliation D1 for the slug-derived baseline records |
 | (b-seed) REPLACE_WITH seed bug fixed | CONFIRMED | skills/odyssey/scripts/seed.jsonl:1-5 | `grep REPLACE_WITH` → zero matches; concrete ids/prompts/criteria |
 | (b-B1) Verdict ambiguity → `missing` | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:96-111; skills/odyssey/scripts/record-final-artifact.mjs:76-86 | "AMBIGUITY RESOLVES TO 'missing', NEVER 'approve'" |
 | (b-B2) Append-only notepads shipped | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:755-772 | block message explicitly permits Edit appends and new notepad files |
@@ -428,7 +428,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:117-170 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |
 | (c-F) Shell-escaping splits command tokens | CONFIRMED | CHANGELOG.md:165; skills/odyssey/hooks/pre-tool.mjs:184,249-272 | `p\ython -c`, `py''thon -c` defeat regex tokenization; no shell-grammar parser |
 | (c-G) Interpreter deny-list unbounded by construction | CONFIRMED (posture inverted; names still enumerated) | CHANGELOG.md:180; skills/odyssey/hooks/pre-tool.mjs:126,140-154 | gawk/mawk/pypy/perl6/raku/jshell/ts-node ungated; posture inverted to allowlist-of-gated-names, but the NAME list remains unbounded |
-| (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:167; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
+| (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:184; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
 | (c-head-allowlist) Head-allowlist inversion unshipped | CONFIRMED | CHANGELOG.md:169; skills/odyssey/hooks/pre-tool.mjs:100-199 | "deliberately **not** in this release: it wants its own release and its own paired run"; code remains a deny-list |
 | (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:198; skills/odyssey/hooks/pre-tool.mjs:1478 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
 | (c-cache) Five stale cache versions, no pruning | CONFIRMED (5 stale + 1 live) | ~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/ (6 dirs); package.json:3 (0.5.2 at measurement; 0.6.x across the 2026-08-17/18 releases, cache follows on re-Get); scripts/install.mjs:686 | 0.3.2–0.5.1 stale, 0.5.2 live; install.mjs only warns, never prunes |
@@ -500,7 +500,7 @@ settled by code, never by preference or seniority.
 `std-01` 0.83/0.83 and `arch-01` 0.87/0.62 (Δ+0.25). Notepad 1: "no BASELINE-arm number exists."
 **Winner: the map, by code.** `judged.jsonl` records 3 and 5 carry slugs `std-01-baseline`
 (overall 0.83) and `arch-01-baseline` (0.62), re-read during this synthesis — baseline runs were
-judged once per seed on 2026-08-01. Arm attribution is slug-derived because `judge.mjs:176`
+judged once per seed on 2026-08-01. Arm attribution is slug-derived because `judge.mjs:278`
 hardcodes the arm field on every record, and `dashboard.mjs:20-24` codifies the slug-suffix
 workaround. Synthesis: baseline numbers exist at n=1 per seed (map right); an automated baseline
 arm and a truthful arm field do not exist (notepad right on the mechanism). The Corrections row

@@ -52,7 +52,7 @@ Prompt-layer only. The enforcement twins already existed — notepads are append
 
 No stylistic or fluency feature may enter trust scoring. Style-correlated confidence is a measured LLM-judge failure mode, and ZOdyssey's judge rubric was clean *by accident* — five weighted dimensions, none of them prose quality, and nothing pinning them there.
 
-`judge-rubric.test.mjs` now pins it: the five weighted dimensions and their exact weights, the output-contract keys (`judge.mjs:131`), a denylist regex that must match nothing inside the rubric block, and the auditor prompt's existing "Do NOT reject for style preferences" clause. Proved in both directions — adding a `clarity (0.1)` dimension fails the suite.
+`judge-rubric.test.mjs` now pins it: the five weighted dimensions and their exact weights, the output-contract keys (`judge.mjs:232`), a denylist regex that must match nothing inside the rubric block, and the auditor prompt's existing "Do NOT reject for style preferences" clause. Proved in both directions — adding a `clarity (0.1)` dimension fails the suite.
 
 ---
 
@@ -70,7 +70,7 @@ No stylistic or fluency feature may enter trust scoring. Style-correlated confid
 
 Written 2026-08-19, reconstructed from committed artifacts. Two limits worth stating plainly:
 
-**The original rule-by-rule mapping was never written down.** It lived in the study conversation. `CHANGELOG.md:137` asserts the unadopted rules were skipped "precisely because ZOdyssey already enforces the rest in stronger form" — a claim with no supporting mapping in the repo. The "already covered" rows above are *this document's* verification against the current tree, each with a citation you can check. They are not a transcript of what the study concluded, and where the study's reasoning differed it is lost.
+**The original rule-by-rule mapping was never written down.** It lived in the study conversation. `CHANGELOG.md:154` asserts the unadopted rules were skipped "precisely because ZOdyssey already enforces the rest in stronger form" — a claim with no supporting mapping in the repo. The "already covered" rows above are *this document's* verification against the current tree, each with a citation you can check. They are not a transcript of what the study concluded, and where the study's reasoning differed it is lost.
 
 **The rule numbering is sparse.** Only R2, R4, R5 and R8 appear anywhere in the repo. R1, R3, R6 and R7 are never named, so the domains above are listed by description rather than assigned numbers that cannot be verified.
 

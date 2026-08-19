@@ -42,7 +42,7 @@ const judgeSrc = readFileSync(join(HERE, "judge.mjs"), "utf8");
 const dashSrc = readFileSync(join(HERE, "dashboard.mjs"), "utf8");
 check("judge.mjs imports the lib", /from "\.\/lib\/arm\.mjs"/.test(judgeSrc));
 check("judge.mjs passes the slug (no hardcoded arm literal remains)",
-  /arm: armFromSlug\(slug\)/.test(judgeSrc) && !/arm: "zodyssey"/.test(judgeSrc));
+  /arm: (?:cliArm \|\| )?armFromSlug\(slug\)/.test(judgeSrc) && !/arm: "zodyssey"/.test(judgeSrc));
 check("dashboard.mjs imports the lib (private copy removed)",
   /from "\.\/lib\/arm\.mjs"/.test(dashSrc) && !/function armFromSlug/.test(dashSrc));
 

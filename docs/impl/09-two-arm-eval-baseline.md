@@ -14,9 +14,9 @@ Do exactly this one change.
 
 ## What is broken
 
-**The judge cannot label arms.** `skills/odyssey/scripts/judge.mjs:176` constructs every record
+**The judge cannot label arms.** `skills/odyssey/scripts/judge.mjs:278` constructs every record
 with the literal `arm: "zodyssey"`. The argv surface knows no arm flag at all —
-`skills/odyssey/scripts/judge.mjs:41-46` destructures `<run-repo> <slug> <seed-id>` plus
+`skills/odyssey/scripts/judge.mjs:125-130` destructures `<run-repo> <slug> <seed-id>` plus
 `jrest.includes("--double")`, and the usage line at `:42` documents only `[--double]`. So even a
 run that was in fact a baseline run is recorded as arm `"zodyssey"`. This is not hypothetical: the
 live corpus (~/.zcode/orchestration/eval/judged.jsonl, **5 records**, counted 2026-08-16) contains
@@ -27,7 +27,7 @@ The repo's own consumer has given up on the field: `skills/odyssey/scripts/dashb
 works around it with a slug-suffix heuristic at `skills/odyssey/scripts/lib/arm.mjs:14-17` whose fallback silently buckets everything
 non-`-baseline` into the zodyssey arm.
 
-**The harness cannot run the control arm.** `skills/odyssey/scripts/harness.mjs:19` documents
+**The harness cannot run the control arm.** `skills/odyssey/scripts/harness.mjs:21-23` documents
 `--arm` as "baseline = single-agent, no pipeline — TODO"; `:41-42` parses the flag; but the
 baseline branch at `:128-132` only PRINTS instructions ("BASELINE ARM: execute this task as a
 SINGLE agent with NO pipeline…") instead of executing anything, and `:137` prints the post-run
@@ -50,19 +50,19 @@ Stated as observable behaviour, not as a diff.
 `node skills/odyssey/scripts/judge.mjs <run-repo> <slug> <seed-id> [--arm zodyssey|baseline] [--double]`
 appends a record whose `arm` equals the `--arm` value; with no `--arm`, the record says
 `arm: "zodyssey"` — every existing invocation is bit-for-bit unchanged. `--arm` is a validated
-enum: any other value exits **2** (the script's existing "bad args" contract, `judge.mjs:15`).
-The arm NEVER enters the judged prompt: the scoring prompt built at `judge.mjs:102-136` contains
+enum: any other value exits **2** (the script's existing "bad args" contract, `judge.mjs:24-25`).
+The arm NEVER enters the judged prompt: the scoring prompt built at `judge.mjs:202-236` contains
 the criteria, the task prompt, and the diff — no arm — and must stay that way, so judging remains
 blind to which arm produced the work. The stamp is record bookkeeping only.
 
 **2. `harness.mjs --arm baseline` runs the seed end-to-end without orchestration.** The shared
 prefix — fresh fixture copy (`:95-97`), the SEC-M12 git baseline (`:103-113`), the scaffold
 (`:117-124`, which records `run_start_sha` at `skills/odyssey/scripts/scaffold.mjs:226,284` —
-this is what makes the run judgeable, `judge.mjs:62-65`) — is UNCHANGED and runs for BOTH arms.
+this is what makes the run judgeable, `judge.mjs:162-165`) — is UNCHANGED and runs for BOTH arms.
 Then, instead of printing instructions, the harness spawns **one** external CLI agent (the same
-binary `judge.mjs:142` already resolves: `env.CLAUDE_CLI || "claude"`), with cwd = the fresh copy,
+binary `judge.mjs:242` already resolves: `env.CLAUDE_CLI || "claude"`), with cwd = the fresh copy,
 input = the seed's `prompt` field verbatim (nothing else — the pipeline arm does not see the
-success_criteria either; `harness.mjs:120` scaffolds from `seed.prompt` only), a bounded timeout
+success_criteria either; `harness.mjs:192` scaffolds from `seed.prompt` only), a bounded timeout
 (one named constant; **the corpus does not support the 60 minutes this brief originally
 proposed** — see the 2026-08-19 amendment at the end of this file for the measured distribution
 and for why a short cap biases this experiment), and waits synchronously. On completion the
@@ -109,9 +109,9 @@ authority. The two arms compare under the ONE existing judge.
 **7. Judge noise is bounded by design, and the caveat is carried honestly.** The spec's evidence
 (`docs/implementation-prompt.md:166-167`): LLM judges run 56.6–65.7% on hard pairs with a 61.3%
 flip rate under paraphrase. Neither arm's absolute score is meaningful at this corpus size; what
-the two-arm design buys is that the SAME judge, rubric (`judge.mjs:106-113`), criteria, and seeds
+the two-arm design buys is that the SAME judge, rubric (`judge.mjs:206-213`), criteria, and seeds
 score BOTH arms, so systematic judge error is shared and largely cancels in the DELTA.
-Per-record variance stays visible through the existing `--double` (`judge.mjs:46,161-169`;
+Per-record variance stays visible through the existing `--double` (`judge.mjs:130,161-169`;
 `docs/MEASUREMENT.md` §6.1: judge twice, flag disagreements > 0.15) — the settling run should use
 it. Per `docs/MEASUREMENT.md` §6.2 the result is directional, not statistically tight.
 
@@ -153,7 +153,7 @@ do not widen the set to include them by default.
   text, same judge, same rubric, same criteria. In particular do not "help" the baseline with
   orchestration artifacts (no plan, no criteria in its prompt, no sub-agents) and do not alter the
   zodyssey arm's conductor-driven flow — the interactive-conductor boundary at
-  `harness.mjs:11-14` stands; headless full-pipeline automation is a separate follow-up.
+  `harness.mjs:13-16` stands; headless full-pipeline automation is a separate follow-up.
 - **Do not run the settling eval as part of this change.** Every acceptance criterion below is
   hermetic (temp `HOME`, stubbed CLI) or dry; populating the corpus is the operator's explicit
   later act. The fix-run spends zero external-CLI budget.
@@ -262,7 +262,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
    not a per-callsite label list; `--compare` groups by the stamped field with no catch-all
    default, so an unknown value surfaces instead of silently joining the treatment arm. The
    rejected alternative (deriving arm from slug suffixes, as `lib/arm.mjs:14-17` does) is
-   sentinel matching — the exact shape `harness.mjs:53-55`'s own comment condemns.
+   sentinel matching — the exact shape `harness.mjs:94-95`'s own comment condemns.
 2. **A check that cannot detect the class of failure it exists for.** Criterion 4 proves the stamp
    assertions go red; case (f) proves a "dry-run" that writes anything fails; case (g) plus
    criterion 3's exit-4 rule keep the harness's vacuous-green rule honest for the new arm.
@@ -270,7 +270,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
    instruction standing in for a control group. This ships the mechanism: a spawn, an append, a
    comparison command.
 4. **Self-grading.** The judge is an external process that never saw the run's plan or reasoning
-   (`judge.mjs:17-18`), is blind to the arm by case (d), and scores both sides; the delta is
+   (`judge.mjs:27-28`), is blind to the arm by case (d), and scores both sides; the delta is
    machine-computed from stamped records. The settling conclusion is drawn by the operator from
    `--compare` output, not authored by the system under test.
 5. **A fix that reopens its own class.** Covered in "The class it closes" — the reopening shape is
@@ -346,8 +346,8 @@ The intended break: the baseline arm stops being a paragraph and starts costing 
 **A measurement that cannot see its control — an experiment with no baseline can only confirm.**
 The repo's core bet (enforced orchestration over a single capable agent,
 `docs/ideation-report.md:296`, falsifiable only by "this repo's own two-arm eval", `:325-327`)
-was structurally untestable: every judged record wore one label (`judge.mjs:176`) and the control
-arm was documentation (`harness.mjs:19,128-132`). The class's observable damage: five judged
+was structurally untestable: every judged record wore one label (`judge.mjs:278`) and the control
+arm was documentation (`harness.mjs:21-23,128-132`). The class's observable damage: five judged
 records, zero comparisons possible, and a consumer reduced to slug sniffing (`dashboard.mjs:20`).
 
 How this change could reintroduce the class: a **future arm — a third treatment, a renamed arm,
@@ -410,7 +410,7 @@ security-class).
     Landing this change without running the eval is correct.
   - The two historical mislabeled judged records (2026-08-01) remain — retention stance per queue
     item 05; `--compare` flags them on every run rather than rewriting history.
-  - The zodyssey arm stays conductor-driven and interactive (`harness.mjs:11-14`); headless
+  - The zodyssey arm stays conductor-driven and interactive (`harness.mjs:13-16`); headless
     full-pipeline automation is a separate follow-up requiring a headless `/orchestrate`.
   - `dashboard.mjs` still derives arm from slug suffixes and its `:20` "arm field is unreliable"
     comment is now stale — correct behaviour, stale prose; switching it to the stamped field is a
@@ -458,7 +458,7 @@ source**, because it is deterministic, offline, and correct for the existing cor
 authoritative: `harness.mjs` constructs `${seed.id}-${arm}`). This brief's residual scope is
 unchanged where it matters: the **instrument** still needs the explicit `--arm` channel (an
 override the runner controls, not a suffix inference) and the **baseline arm automation**
-(`harness.mjs:19`) this item exists for. The mislabeling defect in the corpus ("every judged record
+(`harness.mjs:21-23`) this item exists for. The mislabeling defect in the corpus ("every judged record
 wore one label", `:347`) is fixed for all *future* records; historical judged.jsonl rows stay as
 written.
 

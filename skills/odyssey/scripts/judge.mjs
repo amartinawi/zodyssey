@@ -8,11 +8,21 @@
 // run's final state against the seed task's success_criteria, on the MEASUREMENT.md §2 rubric.
 //
 // Usage:
-//   judge.mjs <run-repo> <slug> <seed-id>
+//   judge.mjs <run-repo> <slug> <seed-id> [--arm zodyssey|baseline] [--double]
 //     reads: <run-repo>/.zcode/state/<slug>.json + the seed's success_criteria + git diff
 //     writes: appends a judge record to ~/.zcode/orchestration/eval/judged.jsonl
 //     prints: the score JSON
-//   exit: 0 scored · 2 bad args · 3 state/seed missing · 4 judge failed
+//     --arm: stamps the record with the arm this invocation judged under (item 09). Default
+//       with no flag: the slug-suffix derivation, bit-for-bit. Provenance bookkeeping only —
+//       the arm NEVER enters the judged prompt, so the judge stays blind to which arm produced
+//       the work.
+//   judge.mjs --compare
+//     reads: ~/.zcode/orchestration/eval/judged.jsonl (READ-ONLY — appends nothing, spawns
+//       nothing)
+//     prints: per-seed {zodyssey, baseline, delta} of `overall` + per-arm means/n, with
+//       warnings for unknown arm values and slug/stamp mismatches
+//   exit: 0 scored / report rendered · 2 bad args (--arm outside the enum included) ·
+//     3 state/seed missing, or nothing to compare · 4 judge failed
 //
 // Independence: the external CLI never saw the run's plan, the orchestrator's reasoning, or the
 // sub-agents' work — only the final diff + the criteria. It cannot grade its own past output.
@@ -38,12 +48,102 @@ function capJsonl(path, max) {
   } catch { /* advisory */ }
 }
 
-const [runRepo, slug, seedId, ...jrest] = argv.slice(2);
+const USAGE = "usage: judge.mjs <run-repo> <slug> <seed-id> [--arm zodyssey|baseline] [--double] | judge.mjs --compare";
+
+// --compare (item 09, requirement 5): read-only two-arm report over judged.jsonl. Groups by the
+// STAMPED `arm` field — deliberately NOT slug-sniffing and NOT everything-else→zodyssey
+// (lib/arm.mjs's silent fallback is the mislabel shape this instrument exists to expose): an
+// unknown arm value prints as its own warned group, and a record whose slug suffix disagrees
+// with its stamp gets a mismatch warning line — that is what surfaces the historical mislabels.
+// Never appends; never spawns the judge CLI.
+function runCompare() {
+  const KNOWN_ARMS = ["zodyssey", "baseline"];
+  const judgedPath = join(env.HOME || "", ".zcode", "orchestration", "eval", "judged.jsonl");
+  if (!existsSync(judgedPath)) { console.error(`nothing to compare: ${judgedPath} (missing)`); exit(3); }
+  const records = readFileSync(judgedPath, "utf8").split("\n")
+    .filter((l) => l.trim())
+    .flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } }); // skip malformed lines
+  if (!records.length) { console.error(`nothing to compare: ${judgedPath} (empty or unparsable)`); exit(3); }
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const armOf = (rec) => (rec.arm === undefined || rec.arm === null ? "(no arm field)" : String(rec.arm));
+
+  // seed → arm → overalls; arm → {n, sum}; first-seen order for a stable report
+  const bySeed = new Map();
+  const armTotals = new Map();
+  for (const rec of records) {
+    const arm = armOf(rec);
+    const seedKey = rec.seed_id === undefined ? "(no seed_id)" : String(rec.seed_id);
+    if (!bySeed.has(seedKey)) bySeed.set(seedKey, new Map());
+    if (!bySeed.get(seedKey).has(arm)) bySeed.get(seedKey).set(arm, []);
+    const t = armTotals.get(arm) || { n: 0, sum: 0 };
+    t.n += 1;
+    const o = Number(rec.overall);
+    if (Number.isFinite(o)) { t.sum += o; bySeed.get(seedKey).get(arm).push(o); }
+    armTotals.set(arm, t);
+  }
+
+  console.log(`two-arm compare — ${judgedPath}`);
+  console.log(`${records.length} record(s), ${bySeed.size} seed(s); delta = zodyssey - baseline (judge overall); a missing arm is data, not an error`);
+  const mean = (xs) => (xs.length ? r2(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
+  for (const [seedKey, armMap] of bySeed) {
+    const zs = armMap.get("zodyssey") || [];
+    const bs = armMap.get("baseline") || [];
+    const z = mean(zs), b = mean(bs);
+    const zc = z === null ? "missing" : `${z} (n=${zs.length})`;
+    const bc = b === null ? "missing" : `${b} (n=${bs.length})`;
+    let d;
+    if (z === null || b === null) d = "n/a (missing arm)";
+    else { const dd = r2(z - b); d = `${dd >= 0 ? "+" : ""}${dd}`; }
+    console.log(`  ${seedKey}  zodyssey ${zc}  |  baseline ${bc}  |  delta ${d}`);
+  }
+  console.log("per-arm:");
+  const armOrder = [...KNOWN_ARMS, ...[...armTotals.keys()].filter((a) => !KNOWN_ARMS.includes(a))];
+  for (const arm of armOrder) {
+    const t = armTotals.get(arm);
+    if (!t) { console.log(`  ${arm}: no records (missing)`); continue; }
+    console.log(`  ${arm}: mean ${r2(t.sum / t.n)} (n=${t.n})${KNOWN_ARMS.includes(arm) ? "" : "  [unknown arm — its own group, NOT folded into zodyssey]"}`);
+  }
+  for (const rec of records) {
+    if (typeof rec.slug !== "string") continue;
+    const implied = armFromSlug(rec.slug);
+    if (armOf(rec) !== implied) {
+      console.log(`warning: arm/stamp mismatch: slug "${rec.slug}" stamped arm "${armOf(rec)}" but slug suffix implies "${implied}" — label untrustworthy`);
+    }
+  }
+  exit(0);
+}
+
+const args = argv.slice(2);
+// --compare is a MODE, not a flag on a judge run: it takes no other arguments and is checked
+// BEFORE the positional-args validation below — with only `--compare` on the command line there
+// are no positionals, so the usage check would exit 2 and shadow the mode entirely.
+if (args.includes("--compare")) {
+  if (args.length > 1) { console.error(USAGE); exit(2); }
+  runCompare(); // exits 0 (report) or 3 (nothing to compare); never returns
+}
+
+const [runRepo, slug, seedId, ...jrest] = args;
 if (!runRepo || !slug || !seedId) {
-  console.error("usage: judge.mjs <run-repo> <slug> <seed-id> [--double]");
+  console.error(USAGE);
   exit(2);
 }
 const doubleJudge = jrest.includes("--double");
+
+// --arm <zodyssey|baseline> (item 09, requirement 1): stamps the record with the arm this
+// invocation judged under. Validated enum — any other value (or a missing one) is the existing
+// bad-args contract (exit 2). Parsed from the rest args (flags follow the three positionals);
+// precedence at the record is --arm > armFromSlug(slug), and the value never reaches the prompt.
+const ARM_ENUM = ["zodyssey", "baseline"];
+let cliArm = null;
+const armFlagAt = jrest.indexOf("--arm");
+if (armFlagAt !== -1) {
+  cliArm = jrest[armFlagAt + 1];
+  if (!ARM_ENUM.includes(cliArm)) {
+    console.error(`bad --arm value: ${JSON.stringify(cliArm)} (expected zodyssey|baseline)`);
+    console.error(USAGE);
+    exit(2);
+  }
+}
 const repoAbs = (() => { try { return realpathSync(runRepo); } catch { return runRepo; } })();
 const statePath = join(repoAbs, ".zcode", "state", `${slug}.json`);
 if (!existsSync(statePath)) { console.error("no state file: " + statePath); exit(3); }
@@ -169,11 +269,13 @@ if (doubleJudge) {
 }
 
 const record = {
-  // audit LOW + ISNAD study: derive the arm from the slug suffix (harness.mjs constructs
-  // `${seed.id}-${arm}`) instead of hardcoding "zodyssey" — baseline runs were landing in
+  // audit LOW + ISNAD study: the arm was once hardcoded "zodyssey" — baseline runs landed in
   // judged.jsonl mislabeled, and cross-run consumers (dashboard, the narrator registry) either
-  // re-derived it anyway or ingested the lie.
-  seed_id: seedId, slug, arm: armFromSlug(slug), at: new Date().toISOString(),
+  // re-derived it anyway or ingested the lie. The slug-suffix derivation fixed the common case;
+  // item 09 (two-arm eval) adds the explicit stamp with precedence --arm > armFromSlug(slug):
+  // the runner DECLARES the arm it judged under, and --compare's mismatch warnings police the
+  // declaration. No --arm → derivation, bit-for-bit (every existing invocation unchanged).
+  seed_id: seedId, slug, arm: cliArm || armFromSlug(slug), at: new Date().toISOString(),
   overall: finalOverall,
   dimensions: verdict.dimensions || {},
   criterion_results: Array.isArray(verdict.criterion_results) ? verdict.criterion_results : [],

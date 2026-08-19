@@ -101,7 +101,7 @@ consume lib, drop private copy) · `agents/metis.md` · `skills/odyssey/SKILL.md
 
 This change edits heavily-cited prompt surfaces (`SKILL.md`, `metis.md`, `scripts.md`,
 `install.mjs`). Reconciliation performed 2026-08-17: ~35 citations shifted at source; five
-contentless re-anchors; `judge.mjs:171` family (16 citations) repointed at the derivation line with
+contentless re-anchors; `judge.mjs:271` family (16 citations) repointed at the derivation line with
 dated amendments appended to `docs/impl/09`, `docs/ideation-report.md`, and `docs/OPPORTUNITY-MAP.md`
 (their hardcode claims were true as written — the defect is now fixed). Procedure:
 [`docs/impl/02-wire-zero-caller-checks.md`](02-wire-zero-caller-checks.md) §Anchor-drift

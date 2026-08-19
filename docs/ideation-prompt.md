@@ -41,7 +41,7 @@ Companion to `deep-audit-prompt.md` (which finds what is *broken*). This one ask
 >   audits missed it).
 > - **B9 — package-existence checking:** absent. 19.7% hallucination rate across 576k samples.
 > - **B10 — pre-edit lint baseline:** absent, so pre-existing lint noise is attributed to the edit.
-> - **Phase C is still blocked:** `judge.mjs:176` hardcodes `arm: "zodyssey"` on every record and
+> - **Phase C is still blocked:** `judge.mjs:278` hardcodes `arm: "zodyssey"` on every record and
 >   never reads `--arm`, so the baseline arm cannot be measured. The eval has never produced a
 >   number. (The `REPLACE_WITH` seed bug it also cites *has* been fixed.)
 >
