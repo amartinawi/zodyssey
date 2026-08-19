@@ -52,7 +52,7 @@ Prompt-layer only. The enforcement twins already existed — notepads are append
 
 No stylistic or fluency feature may enter trust scoring. Style-correlated confidence is a measured LLM-judge failure mode, and ZOdyssey's judge rubric was clean *by accident* — five weighted dimensions, none of them prose quality, and nothing pinning them there.
 
-`judge-rubric.test.mjs` now pins it: the five weighted dimensions and their exact weights, the output-contract keys (`judge.mjs:232`), a denylist regex that must match nothing inside the rubric block, and the auditor prompt's existing "Do NOT reject for style preferences" clause. Proved in both directions — adding a `clarity (0.1)` dimension fails the suite.
+`judge-rubric.test.mjs` now pins it: the five weighted dimensions and their exact weights, the output-contract keys (`judge.mjs:252`), a denylist regex that must match nothing inside the rubric block, and the auditor prompt's existing "Do NOT reject for style preferences" clause. Proved in both directions — adding a `clarity (0.1)` dimension fails the suite.
 
 ---
 
@@ -70,11 +70,11 @@ No stylistic or fluency feature may enter trust scoring. Style-correlated confid
 
 Written 2026-08-19, reconstructed from committed artifacts. Two limits worth stating plainly:
 
-**The original rule-by-rule mapping was never written down.** It lived in the study conversation. `CHANGELOG.md:193` asserts the unadopted rules were skipped "precisely because ZOdyssey already enforces the rest in stronger form" — a claim with no supporting mapping in the repo. The "already covered" rows above are *this document's* verification against the current tree, each with a citation you can check. They are not a transcript of what the study concluded, and where the study's reasoning differed it is lost.
+**The original rule-by-rule mapping was never written down.** It lived in the study conversation. `CHANGELOG.md:210` asserts the unadopted rules were skipped "precisely because ZOdyssey already enforces the rest in stronger form" — a claim with no supporting mapping in the repo. The "already covered" rows above are *this document's* verification against the current tree, each with a citation you can check. They are not a transcript of what the study concluded, and where the study's reasoning differed it is lost.
 
 **The rule numbering is sparse.** Only R2, R4, R5 and R8 appear anywhere in the repo. R1, R3, R6 and R7 are never named, so the domains above are listed by description rather than assigned numbers that cannot be verified.
 
-**A numbering collision to watch.** `R2` and `R3` already denote something unrelated in this repo — bash command-classification remediation rounds ([`docs/OPPORTUNITY-MAP.md:333`](OPPORTUNITY-MAP.md), `CHANGELOG.md:285-286`). Two rule namespaces share the same tokens; read the surrounding context, not the number.
+**A numbering collision to watch.** `R2` and `R3` already denote something unrelated in this repo — bash command-classification remediation rounds ([`docs/OPPORTUNITY-MAP.md:333`](OPPORTUNITY-MAP.md), `CHANGELOG.md:302-303`). Two rule namespaces share the same tokens; read the surrounding context, not the number.
 
 **Both CHANGELOG citations above were, at writing time, into an exempt target.** `CHANGELOG.md` sat in `check-anchors`' `NO_PIN_TARGETS` (since removed by impl-21: CHANGELOG targets are content-pinned now, with only the released-history window below the second version heading unscanned). Both drifted by +14 within hours of this document being written, when v0.6.4 was cut above them, and the checker reported green throughout. Re-verify them by string, not by trusting the suite.
 

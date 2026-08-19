@@ -316,7 +316,7 @@ radius beyond that:
   eval dir) — post-split its win-rate covers real runs only and its numbers **shift**; that is
   the purpose, but the historical tail remains mixed until `capJsonl` ages it out, so the
   pre-cutover window must be documented in `docs/MEASUREMENT.md` or the next reader attributes
-  the shift to a code change. `skills/odyssey/scripts/harness.mjs:43,321` — updated in this
+  the shift to a code change. `skills/odyssey/scripts/harness.mjs:43,344` — updated in this
   change to report both lanes. `skills/odyssey/scripts/run-report.mjs:193` — the manual-append
   footer still names `results.jsonl`; a human hand-appending a synthetic run's report would land
   it in the operator log — a one-clause docs caveat, no code change (named under *Known, not

@@ -1,6 +1,7 @@
 # Changelog
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+
 ## [0.6.9] — 2026-08-19
 
 ### Fixed — every number of a citation is checked; CHANGELOG targets content-pinned (item 21)
@@ -23,6 +24,22 @@ Paired probes, RED first: four groups (comma-pair, backwards-range, a +16-line C
 shift, the CHANGELOG top section) failed against the unmodified checker — exit 1, 43 passed,
 11 failed — and pass after the change. `--update` ran ONCE, after every newly discovered
 citation was verified at source.
+
+### Fixed — external-audit remediation: judge numerics and the harness work guard
+
+The first external consult audit of the two-arm instrument found two gaps, with one more of
+the same class disclosed on re-read; all three fixed probe-first. `judge.mjs --compare`
+scored a null or missing `overall` as a real 0.0 (`Number(x) || 0` — `Number(null)` is 0 and
+finite) and let an absent one inflate n; non-numeric records are now excluded from every
+mean and n and print as their own `unscored: k` line, and an all-unscored arm prints `no
+scored records` instead of a mean over nothing. The same coercion sat in the live judge-run
+path: a non-numeric verdict `overall` is now recorded as `overall: null` (unscored), never
+a fabricated 0.0, and `--double` runs its disagreement arithmetic on numeric pairs only — a
+non-numeric pass is disclosed as `unscored_pass` rather than coerced to zero and averaged in
+as fake agreement. In the harness, the empty-baseline guard decided "work happened" from
+`git status --porcelain` alone, so an agent that committed its work still failed as a no-op
+and its measured run was discarded; committed work is now also decided against the run's
+`run_start_sha..HEAD` diff, with unreadable state or git still failing closed.
 
 ## [0.6.8] — 2026-08-19
 

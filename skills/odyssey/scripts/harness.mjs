@@ -245,16 +245,39 @@ for (const seed of selected) {
     // The check is deliberately coarse — ANY change outside .zcode/ counts as work. Judging the
     // work's quality is the judge's job; this only separates "did something" from "did nothing",
     // which is the difference between an arm result and a dead tool surface.
+    const isWorkPath = (f) => !f.startsWith(".zcode/") && !/^(node_modules|dist|build|target|coverage|\.cache|\.next)\//.test(f);
     let worked = false;
     try {
       const porcelain = execFileSync("git", ["-C", runRepo, "status", "--porcelain", "--untracked-files=all"],
         { encoding: "utf8", shell: false, maxBuffer: 50 * 1024 * 1024 });
-      worked = porcelain.split("\n").map((l) => l.slice(3).trim()).filter(Boolean)
-        .some((f) => !f.startsWith(".zcode/") && !/^(node_modules|dist|build|target|coverage|\.cache|\.next)\//.test(f));
+      worked = porcelain.split("\n").map((l) => l.slice(3).trim()).filter(Boolean).some(isWorkPath);
     } catch (e) {
       // git unreadable here means we cannot tell work from no-work. Fail closed: an
       // unverifiable state blocks, it never passes (Step-5 constraint).
       worked = false;
+    }
+    // consult-remediation GAP 2 (external audit, 2026-08-19): porcelain sees only UNCOMMITTED
+    // changes, but this harness hands the agent a repo with a COMMITTED git baseline (the
+    // "fixture baseline" commit above) — so committing is the natural thing for a coding agent
+    // to do, and a committing agent left a clean tree that the porcelain half alone called
+    // "no work": the seed failed, and real measured work was discarded. Decide work against
+    // the run's START COMMIT as well (the scaffold already records run_start_sha in the run's
+    // state file — judge.mjs consumes the same field): any non-.zcode/ path in
+    // `diff run_start_sha..HEAD` is work. Missing state / invalid sha / unreadable git here
+    // stays silent (fail closed — porcelain's verdict stands; git unreadable NEVER passes).
+    if (!worked) {
+      try {
+        const statePath = join(runRepo, ".zcode", "state", `${slug}.json`);
+        if (existsSync(statePath)) {
+          const runState = JSON.parse(readFileSync(statePath, "utf8"));
+          const startSha = runState.run_start_sha;
+          if (typeof startSha === "string" && /^[0-9a-f]{7,40}$/.test(startSha)) {
+            const changed = execFileSync("git", ["-C", runRepo, "diff", "--name-only", startSha, "HEAD"],
+              { encoding: "utf8", shell: false, maxBuffer: 50 * 1024 * 1024 });
+            worked = changed.split("\n").map((l) => l.trim()).filter(Boolean).some(isWorkPath);
+          }
+        }
+      } catch { /* fail closed — an unreadable diff cannot verify work */ }
     }
     if (!worked) {
       const why = `produced no changes under ${JSON.stringify(BASELINE_PERMISSION_MODE)} — ` +

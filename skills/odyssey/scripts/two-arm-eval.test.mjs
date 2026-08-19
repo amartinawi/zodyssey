@@ -61,6 +61,23 @@ const VERDICT = JSON.stringify({
   blockers: [],
 });
 
+// (l): same shape with an arbitrary `overall` (null probes the judge-run coercion; a string
+// would too, but null is what a well-formed model JSON emits when it declines to score).
+const verdictWith = (overall) => JSON.stringify({
+  overall,
+  dimensions: { correctness: 0.8, scope_fidelity: 0.7, verification_rigor: 0.7, code_quality: 0.7, efficiency: 0.7 },
+  criterion_results: [],
+  summary: "stub verdict (non-numeric overall probe)",
+  blockers: [],
+});
+// `overall` key absent entirely (the n-inflating half of the GAP 1 shape, on the run path).
+const VERDICT_ABSENT = JSON.stringify({
+  dimensions: { correctness: 0.8, scope_fidelity: 0.7, verification_rigor: 0.7, code_quality: 0.7, efficiency: 0.7 },
+  criterion_results: [],
+  summary: "stub verdict (absent overall probe)",
+  blockers: [],
+});
+
 let pass = 0, fail = 0;
 function check(name, cond, detail = "") {
   if (cond) { console.log(`  + ${name}`); pass++; }
@@ -127,7 +144,46 @@ function makeHome() {
     "",
   ].join("\n"));
   chmodSync(stubWrite, 0o755);
-  return { home, evalDir, stubOk, stubFail, stubNoop, stubWrite, argvLog, capture, invoked };
+  // (k): a stub that COMMITS its work. The harness hands the agent a repo with a committed
+  // git baseline (harness.mjs git-inits + commits "fixture baseline" before spawning), so
+  // committing is the natural thing for a coding agent to do — and this stub does it, leaving
+  // a porcelain-clean tree. The harness's own repo-local user.email/user.name config makes the
+  // commit succeed without any global git identity.
+  const stubCommit = join(home, "stub-claude-commit.sh");
+  writeFileSync(stubCommit, [
+    "#!/bin/sh",
+    "cat > /dev/null",
+    `printf '%s\\n' "$*" >> "${argvLog}"`,
+    'printf "baseline agent committed work\\n" > committed-work.txt',
+    "git add -A",
+    'git commit -qm "baseline agent work"',
+    `printf '%s\\n' '{"usage":null}'`,
+    "exit 0",
+    "",
+  ].join("\n"));
+  chmodSync(stubCommit, 0o755);
+  // (l): verdict stubs with NON-NUMERIC overalls — the judge-RUN-path sibling of GAP 1 (the
+  // --compare fix). stubNull echoes overall:null every call; stubAbsent omits the key entirely;
+  // stubMixed counts invocations so one CLI serves a two-pass --double: numeric 0.8 on pass 1,
+  // null on pass 2 (the half-scored pair shape).
+  const stubNull = join(home, "stub-claude-null.sh");
+  writeFileSync(stubNull, ["#!/bin/sh", "cat > /dev/null", `printf '%s\\n' '${verdictWith(null)}'`, ""].join("\n"));
+  chmodSync(stubNull, 0o755);
+  const stubAbsent = join(home, "stub-claude-absent.sh");
+  writeFileSync(stubAbsent, ["#!/bin/sh", "cat > /dev/null", `printf '%s\\n' '${VERDICT_ABSENT}'`, ""].join("\n"));
+  chmodSync(stubAbsent, 0o755);
+  const stubMixed = join(home, "stub-claude-mixed.sh");
+  const mixedCnt = join(home, "mixed-count");
+  writeFileSync(stubMixed, [
+    "#!/bin/sh",
+    "cat > /dev/null",
+    `n=$(($(cat "${mixedCnt}" 2>/dev/null || echo 0) + 1)) && printf '%s' "$n" > "${mixedCnt}"`,
+    `if [ "$n" -eq 1 ]; then printf '%s\\n' '${verdictWith(0.8)}'; else printf '%s\\n' '${verdictWith(null)}'; fi`,
+    "",
+  ].join("\n"));
+  chmodSync(stubMixed, 0o755);
+  return { home, evalDir, stubOk, stubFail, stubNoop, stubWrite, stubCommit, argvLog, capture, invoked,
+    stubNull, stubAbsent, stubMixed };
 }
 
 // Git fixture repo: two commits so judge has a real diff (start sha → work commit), plus an
@@ -450,6 +506,120 @@ console.log("two-arm-eval tests (judge --arm/--compare, harness --dry-run/baseli
     check("(i) the failure names it as a capability failure, not a loss",
       /produced no changes.*capability failure, not an arm result/is.test(r.stdout + r.stderr),
       `(output: ${JSON.stringify((r.stdout + r.stderr).slice(-240))})`);
+  } finally { rmSync(h.home, { recursive: true, force: true }); }
+}
+
+// --- (j) --compare numerics: null/missing overalls are neither scored as 0.0 nor n-inflating --
+// consult-remediation GAP 1 (external auditor, 2026-08-19): `Number(null)` is 0 and passes
+// Number.isFinite, so a record with overall:null used to be folded into the arm sum as a real
+// 0.0 score, while a record with `overall` ABSENT yielded NaN (excluded from the sum) only
+// AFTER `t.n += 1` had already run — inflating the mean's denominator. The per-arm line then
+// contradicted the per-seed rows (which filter first). The fix parses `overall` once, gates
+// both counters on the same test, and reports non-numeric records as their own `unscored: k`
+// line. Corpus: two real scores (0.8, 0.6 → filtered mean 0.7, n=2) + one null + one absent
+// (→ unscored: 2), all one seed/arm so the per-seed row and per-arm aggregate must agree.
+{
+  const corpus = [
+    { seed_id: "sj", slug: "sj-zodyssey", arm: "zodyssey", overall: 0.8, at: "2026-08-19T06:00:00.000Z" },
+    { seed_id: "sj", slug: "sj-zodyssey", arm: "zodyssey", overall: null, at: "2026-08-19T06:05:00.000Z" }, // null ≠ 0.0
+    { seed_id: "sj", slug: "sj-zodyssey", arm: "zodyssey", at: "2026-08-19T06:10:00.000Z" }, // absent ≠ n++
+    { seed_id: "sj", slug: "sj-zodyssey", arm: "zodyssey", overall: 0.6, at: "2026-08-19T06:15:00.000Z" },
+  ];
+  const h = makeHome();
+  try {
+    writeJudged(h.evalDir, corpus);
+    const r = run(JUDGE, ["--compare"], h.home, h.stubOk);
+    const out = r.stdout + r.stderr;
+    check("(j) --compare exits 0 on a corpus with non-numeric overalls", r.code === 0,
+      `(got ${r.code}) ${r.stderr.slice(0, 120)}`);
+    const armLine = (out.split("\n").find((l) => l.includes("zodyssey:")) || "(no zodyssey per-arm line)").trim();
+    check("(j) per-arm mean is the FILTERED mean 0.7 with n=2 (null not scored 0.0, absent not n++)",
+      /zodyssey:\s+mean 0\.7 \(n=2\)/.test(out), `(got "${armLine}")`);
+    check("(j) non-numeric records are reported on their own unscored: line",
+      /unscored:\s*2/.test(out), "(no \"unscored: 2\" line in the report)");
+    const seedLine = (out.split("\n").find((l) => l.includes("sj")) || "(no sj row)").trim();
+    check("(j) per-seed row agrees with the per-arm aggregate (0.7, n=2)",
+      /sj[^\n]*zodyssey 0\.7 \(n=2\)/.test(out), `(got "${seedLine}")`);
+  } finally { rmSync(h.home, { recursive: true, force: true }); }
+}
+
+// --- (k) COMMITTED work counts as work: the empty-work guard must see past the index ---------
+// consult-remediation GAP 2 (external auditor, 2026-08-19): the guard read only
+// `git status --porcelain --untracked-files=all`, which sees UNCOMMITTED changes — but the
+// harness hands the agent a repo with a COMMITTED git baseline, so committing is the natural
+// thing for a coding agent to do. A committing agent left a clean tree, `worked` was false,
+// the seed was marked failed with no append, and a batch of such seeds exited 4 — real
+// measured work discarded. The fix also diffs run_start_sha..HEAD (the scaffold records
+// run_start_sha in the run's state file; judge.mjs already consumes it), counting any
+// non-.zcode/ path as work. stubCommit is exactly that agent: writes real work, commits it,
+// exits 0 — porcelain-clean but diff-non-empty.
+{
+  const h = makeHome();
+  try {
+    makeFixtureDir(h.home);
+    writeSeeds(h.evalDir, harnessSeeds(h.home));
+    writeJudged(h.evalDir, []);
+    const r = run(HARNESS, ["--arm", "baseline"], h.home, h.stubCommit);
+    const recs = existsSync(resultsPath(h.home))
+      ? readFileSync(resultsPath(h.home), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l))
+      : [];
+    check("(k) a COMMITTING baseline agent is measured, not failed (exit 0)", r.code === 0,
+      `(got ${r.code})`);
+    check("(k) both seeds appended their efficiency records",
+      recs.length === 2 && recs.every((x) => x.arm === "baseline"),
+      `(results.jsonl holds ${recs.length} record(s))`);
+    const summary = r.stdout.split("\n").filter((l) => /h[12]:/.test(l)).join(" | ");
+    check("(k) the summary reports both seeds as measured",
+      /h1: measured/.test(r.stdout) && /h2: measured/.test(r.stdout), `(summary: "${summary}")`);
+  } finally { rmSync(h.home, { recursive: true, force: true }); }
+}
+
+// --- (l) judge-RUN non-numeric overall: unscored, never a fabricated 0.0 ----------------------
+// consult-remediation step 2 (2026-08-19): remediate-1 flagged judge.mjs's --double path as
+// having the SAME coercion GAP 1 fixed in --compare — and reading it confirmed the single-pass
+// path shares it: `Number(verdict.overall) || 0` records a null/absent overall as a REAL 0.0
+// score in judged.jsonl (Number(null) is 0 and finite; Number(undefined) is NaN, and NaN||0 is
+// 0). A judge that declined to score would enter the corpus as a measured zero — a fabricated
+// score, on the instrument whose premise is that its numbers are real. Fix contract: non-numeric
+// → `overall: null` (unscored); --double's diff/flag/mean arithmetic runs on NUMERIC pairs only —
+// a non-numeric pass is disclosed, never coerced to 0 and averaged in as fake agreement.
+{
+  const h = makeHome();
+  try {
+    const repo = makeFixtureRepo(h.home, ["tl-zodyssey"]);
+    writeSeeds(h.evalDir, [judgeSeed(h.home, "tl")]);
+    writeJudged(h.evalDir, []);
+    let r = run(JUDGE, [repo, "tl-zodyssey", "tl"], h.home, h.stubNull);
+    check("(l) judge exits 0 on a null-overall verdict", r.code === 0,
+      `(got ${r.code}) ${r.stderr.slice(0, 120)}`);
+    let rec = judgedLines(h.home)[judgedLines(h.home).length - 1];
+    check("(l) null-overall verdict appends overall:null — never a fabricated 0.0",
+      !!rec && rec.overall === null, `(got ${JSON.stringify(rec && rec.overall)})`);
+    r = run(JUDGE, [repo, "tl-zodyssey", "tl"], h.home, h.stubAbsent);
+    rec = judgedLines(h.home)[judgedLines(h.home).length - 1];
+    check("(l) absent-overall verdict appends overall:null — never 0.0",
+      !!rec && rec.overall === null, `(got ${JSON.stringify(rec && rec.overall)})`);
+    r = run(JUDGE, [repo, "tl-zodyssey", "tl", "--double"], h.home, h.stubMixed);
+    check("(l) --double exits 0 with a half-non-numeric pair", r.code === 0, `(got ${r.code})`);
+    rec = judgedLines(h.home)[judgedLines(h.home).length - 1];
+    check("(l) --double: the numeric pass stands alone (0.8, not the with-zero mean 0.4)",
+      !!rec && rec.overall === 0.8, `(got ${JSON.stringify(rec && rec.overall)})`);
+    check("(l) --double: the non-numeric pass is disclosed, no fabricated delta/flag",
+      !!rec && !!rec.double_judge && rec.double_judge.second_score === null &&
+        rec.double_judge.unscored_pass === true && rec.double_judge.delta === undefined &&
+        rec.double_judge.flagged === undefined,
+      `(double_judge: ${JSON.stringify(rec && rec.double_judge)})`);
+    r = run(JUDGE, [repo, "tl-zodyssey", "tl", "--double"], h.home, h.stubNull);
+    rec = judgedLines(h.home)[judgedLines(h.home).length - 1];
+    check("(l) --double: both passes non-numeric appends overall:null, still disclosed",
+      !!rec && rec.overall === null && !!rec.double_judge && rec.double_judge.unscored_pass === true,
+      `(overall: ${JSON.stringify(rec && rec.overall)}, double_judge: ${JSON.stringify(rec && rec.double_judge)})`);
+    r = run(JUDGE, [repo, "tl-zodyssey", "tl", "--double"], h.home, h.stubOk);
+    rec = judgedLines(h.home)[judgedLines(h.home).length - 1];
+    check("(l) regression: --double numeric pair unchanged (mean 0.72, delta 0, agree)",
+      !!rec && rec.overall === 0.72 && !!rec.double_judge && rec.double_judge.second_score === 0.72 &&
+        rec.double_judge.delta === 0 && rec.double_judge.flagged === false,
+      `(overall: ${JSON.stringify(rec && rec.overall)}, double_judge: ${JSON.stringify(rec && rec.double_judge)})`);
   } finally { rmSync(h.home, { recursive: true, force: true }); }
 }
 

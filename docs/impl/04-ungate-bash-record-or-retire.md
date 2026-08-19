@@ -1,7 +1,7 @@
 # 04 — Record every ungated Bash call (`ZODYSSEY_UNGATE_BASH`)
 
 Build order **04** · depends-on **—** (no build edge; sequenced after 01's and 03's releases only by
-the one-security-change-per-release cadence, `CHANGELOG.md:239` — grouped adjacently with 01/03
+the one-security-change-per-release cadence, `CHANGELOG.md:256` — grouped adjacently with 01/03
 because all three touch `skills/odyssey/hooks/pre-tool.mjs`, explicitly NOT merged with either) ·
 queue row: [`docs/impl/00-INDEX.md`](00-INDEX.md) `04 ungate-bash-record-or-retire` ·
 security-class · patch · shipped alone.
@@ -25,7 +25,7 @@ deliberate and documented: the hook's own comment (`skills/odyssey/hooks/pre-too
 "POWER-USER ESCAPE HATCH"), the installer's AGENTS.md template written into every user's repo at
 `scripts/install.mjs:883` ("set \`ZODYSSEY_UNGATE_BASH=1\` to disable if you trust your agents"),
 the env table at `docs/INSTALL.md:152`, and the README comparison row at `README.md:124`. It
-originated as the author's personal low-friction setup (`CHANGELOG.md:766`).
+originated as the author's personal low-friction setup (`CHANGELOG.md:783`).
 
 The defect is not that the hatch exists — it is that the hatch is **silent and ambient-leakable**.
 Two pieces of in-repo history prove the silence is the dangerous part, not the openness:
@@ -36,8 +36,8 @@ Two pieces of in-repo history prove the silence is the dangerous part, not the o
   `skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11` ("the Bash gate has been silently deleted
   TWICE … v0.1.1 shipped it deleted — the author's local ZODYSSEY_UNGATE_BASH=1 copy was mirrored
   to the public repo verbatim"). During the ungated v0.2.0 window, "`ZODYSSEY_UNGATE_BASH` survived
-  in four documentation locations and **zero lines of executable code**" (`CHANGELOG.md:601`), and
-  the v0.1.2 restore entry (`CHANGELOG.md:768`) carries the post-mortem note that the first fix
+  in four documentation locations and **zero lines of executable code**" (`CHANGELOG.md:618`), and
+  the v0.1.2 restore entry (`CHANGELOG.md:785`) carries the post-mortem note that the first fix
   "did not hold".
 - Observed live during this queue's own probing (2026-08-16, prompt 01's Bash-twin probe, recorded
   in run `impl-prompts-v0-6`): an executor shell whose ambient environment carried
@@ -159,7 +159,7 @@ run, or the plan is deliberately widened to list each doc literally. Do not wide
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; the
   recorder is an additive sibling at the hatch site, not an edit inside a `SEC-x` block.
 - Do not batch this into 01's or 03's release in the CHANGELOG — one security change per release
-  (`CHANGELOG.md:239`: a structural gate change "wants its own release and its own paired run").
+  (`CHANGELOG.md:256`: a structural gate change "wants its own release and its own paired run").
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — the ledger is
   `appendFileSync`, the count is `wc -l`, and every verification in this change is an exit code.
 
@@ -287,7 +287,7 @@ the ambient-leakage incident recorded in "What is broken".
 ## What it breaks
 
 Operators who relied on **totally silent** ungating — the documented personal low-friction setup
-(`docs/INSTALL.md:152`, `CHANGELOG.md:766`). After this change, every ungated run leaves: a ledger
+(`docs/INSTALL.md:152`, `CHANGELOG.md:783`). After this change, every ungated run leaves: a ledger
 file under `.zcode/state/` (one JSON line per Bash call — bounded by the run's Bash call count,
 gitignored with all of `.zcode/`, and small next to the transcript itself), an
 `ungated_bash_calls` integer on every scorecard, and that same integer in every trend-log record
@@ -296,7 +296,7 @@ for anyone — not the operator with the variable set (still 0), not anyone with
 unchanged), and the existing hatch assertion at `:157-158` still passes untouched.
 
 Visible-by-default beats silent here for a reason this repo has paid for twice: the gate's two
-deletions (`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11`, `CHANGELOG.md:599`) were both
+deletions (`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11`, `CHANGELOG.md:616`) were both
 silent ambient leakage of exactly this variable becoming shipped code, and neither was noticed
 until after release — three external audits missed the second one. The 2026-08-16 ambient-leak
 incident is the same shape at miniature scale: a probe quietly passed and nothing on the operator's
@@ -310,7 +310,7 @@ quoted in the regression suite's header.
 **A silent authority-bypass affordance** — an opt-out that removes enforcement without leaving a
 witness. This is the affordance-class sibling of the divergence family 01 and 03 close (enforcement
 present in one build and absent in another): v0.1.1's public/private divergence
-(`CHANGELOG.md:766`) was not a logic bug at all — it was this variable's silent ambient presence in
+(`CHANGELOG.md:783`) was not a logic bug at all — it was this variable's silent ambient presence in
 a private copy being mirrored verbatim. The silence, not the openness, was the failure mode both
 times, which is also why the committed decision records rather than retires.
 
@@ -318,7 +318,7 @@ How this change could reintroduce the class: the hatch pattern is one copy-paste
 contributor adding availability or debugging affordances ("`ZODYSSEY_SKIP_SCOPE=1`",
 "`ZODYSSEY_DEBUG_BYPASS=1`", or the UNGATE check moved during a refactor so the recorder no longer
 sits between the env read and the exit) recreates a silent bypass with zero ill intent — the exact
-path by which the second deletion shipped unnoticed (`CHANGELOG.md:606`: audits review the diff in
+path by which the second deletion shipped unnoticed (`CHANGELOG.md:623`: audits review the diff in
 front of them). What prevents it: (a) the **shared structural assertion** in the regression suite —
 it scans the hook source for every `process.env.ZODYSSEY_*` read whose branch guards an early
 `exit(0)` and requires the recorder to be routed between read and exit, so a second bypass variable
@@ -357,7 +357,7 @@ A fix that leaves any of these asserting the old behaviour has created the next 
 New patch version — the next free patch at ship time (`0.5.3` if nothing has shipped since
 `0.5.2`; 01, 02 and 03 each claim their own release ahead of this one in build order). **One
 security change per release, shipped alone** — the repo rule, with its precedent at
-`CHANGELOG.md:239`. Do NOT batch queue items 01 or 03 into this release even though all three touch
+`CHANGELOG.md:256`. Do NOT batch queue items 01 or 03 into this release even though all three touch
 `skills/odyssey/hooks/pre-tool.mjs`.
 
 - **Fixed** — one entry: every `ZODYSSEY_UNGATE_BASH=1` Bash call is now recorded — one JSON line

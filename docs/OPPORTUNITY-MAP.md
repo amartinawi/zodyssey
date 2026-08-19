@@ -70,13 +70,13 @@ Reproduction script: Appendix C.
 `REPLACE_WITH` sentinel match was replaced with `existsSync`, and the runner now exits 4 when every
 seed skips.
 
-`judge.mjs:278` hardcoded `arm: "zodyssey"` (**fixed 2026-08-17**: now derives from the slug suffix via `lib/arm.mjs`), and the damage was visible in the data
+`judge.mjs:311` hardcoded `arm: "zodyssey"` (**fixed 2026-08-17**: now derives from the slug suffix via `lib/arm.mjs`), and the damage was visible in the data
 (`slug: "std-01-baseline", arm: "zodyssey"`). But `dashboard.mjs:20` states the field is unreliable
 and derives the arm from the slug suffix instead. **The arm bug is a data-hygiene defect, not the
 Phase C blocker.**
 
 The real blocker is `harness.mjs:13-16` plus the baseline arm printing instructions to a human —
-the pre-item-09 state, narrated at `CHANGELOG.md:47`; the zodyssey arm is not automated either.
+the pre-item-09 state, narrated at `CHANGELOG.md:64`; the zodyssey arm is not automated either.
 Every datapoint costs an operator. So: n=1 per arm, 14 days and 12 releases stale, and the lone
 `+0.25` on arch-01 is both the project's entire empirical basis and `ROADMAP.md §A6`'s retraction.
 

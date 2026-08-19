@@ -293,7 +293,7 @@ the filename before the line number, and CHANGELOG.md keys are exempt from the l
   that carries no
   filename, so a shifted file leaves it stale while the suite stays green (found by external
   audit round 2; reconciled via git-hunk-derived shift bands, commit `7b33454`).
-- **comma/slash continuations** — `CHANGELOG.md:568, :660`, `:470/:570`, `md:65,63` — same
+- **comma/slash continuations** — `CHANGELOG.md:585, :677`, `:487/:587`, `md:65,63` — same
   blindness inside the then-exempt CHANGELOG target (found by round 3; impl-21 ended the exemption — every number is checked and pinned now).
 - **path-then-parenthetical-range** — the file named with no `:NNN` while the claim's range rides
   inside parentheses later in the entry, like `docs/impl/05`'s append-site cite `` (`:430-457`) ``

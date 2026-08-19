@@ -20,7 +20,9 @@
 //     reads: ~/.zcode/orchestration/eval/judged.jsonl (READ-ONLY — appends nothing, spawns
 //       nothing)
 //     prints: per-seed {zodyssey, baseline, delta} of `overall` + per-arm means/n, with
-//       warnings for unknown arm values and slug/stamp mismatches
+//       warnings for unknown arm values and slug/stamp mismatches. Records with a
+//       non-numeric `overall` (null / absent / NaN) are excluded from every mean and n and
+//       reported as their own `unscored: k` line — never scored as 0.0 (GAP 1 remediation).
 //   exit: 0 scored / report rendered · 2 bad args (--arm outside the enum included) ·
 //     3 state/seed missing, or nothing to compare · 4 judge failed
 //
@@ -67,7 +69,7 @@ function runCompare() {
   const r2 = (x) => Math.round(x * 100) / 100;
   const armOf = (rec) => (rec.arm === undefined || rec.arm === null ? "(no arm field)" : String(rec.arm));
 
-  // seed → arm → overalls; arm → {n, sum}; first-seen order for a stable report
+  // seed → arm → overalls; arm → {n, sum, unscored}; first-seen order for a stable report
   const bySeed = new Map();
   const armTotals = new Map();
   for (const rec of records) {
@@ -75,10 +77,21 @@ function runCompare() {
     const seedKey = rec.seed_id === undefined ? "(no seed_id)" : String(rec.seed_id);
     if (!bySeed.has(seedKey)) bySeed.set(seedKey, new Map());
     if (!bySeed.get(seedKey).has(arm)) bySeed.get(seedKey).set(arm, []);
-    const t = armTotals.get(arm) || { n: 0, sum: 0 };
-    t.n += 1;
-    const o = Number(rec.overall);
-    if (Number.isFinite(o)) { t.sum += o; bySeed.get(seedKey).get(arm).push(o); }
+    // consult-remediation GAP 1 (external audit): parse `overall` ONCE and gate BOTH counters
+    // on the same test. `Number(null)` is 0 (finite!), so the old shape scored an overall:null
+    // record as a real 0.0, while a record with `overall` absent yielded NaN — excluded from
+    // the sum but only AFTER `t.n += 1` had run, inflating the mean's denominator and making
+    // the per-arm line contradict the per-seed rows (which filter first). Non-numeric records
+    // now count only into `unscored` and print as their own line — never as 0.0, never as n.
+    const t = armTotals.get(arm) || { n: 0, sum: 0, unscored: 0 };
+    const o = typeof rec.overall === "number" && Number.isFinite(rec.overall) ? rec.overall : null;
+    if (o === null) {
+      t.unscored += 1;
+    } else {
+      t.n += 1;
+      t.sum += o;
+      bySeed.get(seedKey).get(arm).push(o);
+    }
     armTotals.set(arm, t);
   }
 
@@ -101,7 +114,14 @@ function runCompare() {
   for (const arm of armOrder) {
     const t = armTotals.get(arm);
     if (!t) { console.log(`  ${arm}: no records (missing)`); continue; }
+    if (!t.n) {
+      // every record for this arm was non-numeric — a mean over nothing is "no scored
+      // records", not NaN/0.0 (the GAP 1 rule: unscored is data, never a score).
+      console.log(`  ${arm}: no scored records${t.unscored ? ` (unscored: ${t.unscored})` : ""}${KNOWN_ARMS.includes(arm) ? "" : "  [unknown arm — its own group, NOT folded into zodyssey]"}`);
+      continue;
+    }
     console.log(`  ${arm}: mean ${r2(t.sum / t.n)} (n=${t.n})${KNOWN_ARMS.includes(arm) ? "" : "  [unknown arm — its own group, NOT folded into zodyssey]"}`);
+    if (t.unscored) console.log(`    unscored: ${t.unscored} record(s) with non-numeric overall — excluded from the mean and n`);
   }
   for (const rec of records) {
     if (typeof rec.slug !== "string") continue;
@@ -256,16 +276,29 @@ function runJudgeOnce() {
 }
 
 const verdict = runJudgeOnce();
-let finalOverall = Number(verdict.overall) || 0;
+// consult-remediation step 2: the LIVE verdict gets the same gate --compare's aggregation uses
+// (above, in runCompare) — `Number(x) || 0` laundered a null/absent/string `overall` into a real
+// 0.0 score in judged.jsonl the model never gave (a judge refusing to score entered the corpus
+// as a measured zero). Non-numeric now records `overall: null` (unscored), never a fabricated 0.
+const num = (x) => (typeof x === "number" && Number.isFinite(x) ? x : null);
+let finalOverall = num(verdict.overall);
 let disagreement = null;
 if (doubleJudge) {
-  // T3-#8: run a second independent pass; flag if the two scores disagree by > 0.15
+  // T3-#8: run a second independent pass; flag if the two scores disagree by > 0.15. The
+  // diff/flag/mean arithmetic needs a NUMERIC pair: a non-numeric pass is disclosed as
+  // unscored_pass (no fabricated delta, no fake agreement), and a lone numeric pass stands alone.
   const v2 = runJudgeOnce();
-  const o2 = Number(v2.overall) || 0;
-  const diff = Math.abs(finalOverall - o2);
-  disagreement = { second_score: o2, delta: Math.round(diff * 100) / 100, flagged: diff > 0.15 };
-  finalOverall = Math.round(((finalOverall + o2) / 2) * 100) / 100; // mean of the two
-  process.stderr.write(`double-judge: pass1=${Number(verdict.overall)||0} pass2=${o2} mean=${finalOverall} ${diff > 0.15 ? "⚠ DISAGREEMENT >0.15 — flag for human review" : "✓ agree"}\n`);
+  const o1 = finalOverall, o2 = num(v2.overall);
+  if (o1 !== null && o2 !== null) {
+    const diff = Math.abs(o1 - o2);
+    disagreement = { second_score: o2, delta: Math.round(diff * 100) / 100, flagged: diff > 0.15 };
+    finalOverall = Math.round(((o1 + o2) / 2) * 100) / 100; // mean of the two
+    process.stderr.write(`double-judge: pass1=${o1} pass2=${o2} mean=${finalOverall} ${diff > 0.15 ? "⚠ DISAGREEMENT >0.15 — flag for human review" : "✓ agree"}\n`);
+  } else {
+    disagreement = { second_score: o2, unscored_pass: true };
+    finalOverall = o1 !== null ? o1 : o2; // the scored pass alone; null when neither scored
+    process.stderr.write(`double-judge: pass1=${o1} pass2=${o2} non-numeric pass — no pair arithmetic; overall=${finalOverall === null ? "unscored" : finalOverall}\n`);
+  }
 }
 
 const record = {
