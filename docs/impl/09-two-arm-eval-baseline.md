@@ -62,7 +62,7 @@ this is what makes the run judgeable, `judge.mjs:182-185`) — is UNCHANGED and 
 Then, instead of printing instructions, the harness spawns **one** external CLI agent (the same
 binary `judge.mjs:262` already resolves: `env.CLAUDE_CLI || "claude"`), with cwd = the fresh copy,
 input = the seed's `prompt` field verbatim (nothing else — the pipeline arm does not see the
-success_criteria either; `harness.mjs:202` scaffolds from `seed.prompt` only), a bounded timeout
+success_criteria either; `harness.mjs:218` scaffolds from `seed.prompt` only), a bounded timeout
 (one named constant; **the corpus does not support the 60 minutes this brief originally
 proposed** — see the 2026-08-19 amendment at the end of this file for the measured distribution
 and for why a short cap biases this experiment), and waits synchronously. On completion the
@@ -504,3 +504,34 @@ append, an all-failed batch exits 4) is the load-bearing requirement of this ite
 handling. A too-short constant must be visible as a capability failure and must never be
 summarizable as an arm result. Keep failed baselines out of any per-arm mean; report them as their
 own count.
+
+## Amendment — 2026-08-20, SEC-M12 narrowed to its stated invariant
+
+v0.6.9's git-baseline safety check (SEC-M12, `skills/odyssey/scripts/harness.mjs:181-190`) skipped
+EVERY live seed it ran. All four fixtures under the eval dir ship as already-committed repositories,
+so the shared prefix's `git add -A` stages nothing and `commit` fails "nothing to commit" on the
+clean tree — and the catch treated ANY failure in that sequence as fatal. Reproduced live:
+`--task std-01 --arm baseline` exited 4 with zero seeds measured (leftover run dir
+`runs/std-01-baseline-1787172158255`). The baseline arm — the thing this item exists for — was
+unusable on the exact fixture shape production uses.
+
+The check is narrowed to the invariant it was always stated in: `run_start_sha` must not end up
+empty. The catch (`skills/odyssey/scripts/harness.mjs:197-211`) now resolves `git rev-parse HEAD`
+in the run repo: unresolvable or empty → the seed still SKIPs loudly, pushes the same
+`reason: "git baseline failed"` record, and the SKIP line names both "git baseline failed" and
+"HEAD is unresolvable" (`skills/odyssey/scripts/harness.mjs:206`); resolvable → the harness logs
+`git baseline: riding fixture HEAD <short-sha>` (`skills/odyssey/scripts/harness.mjs:210`) and
+proceeds to the scaffold. The config-before-commit order — SEC-M12's other half — is untouched.
+
+The precedent was already in the corpus: the judged `std-01-baseline` run rode fixture HEAD
+`f9dd73a` pre-SEC-M12 and judged fine — a resolvable starting point was never what the invariant
+protected against.
+
+Both directions are pinned in `skills/odyssey/scripts/two-arm-eval.test.mjs`. Case (m)
+(`skills/odyssey/scripts/two-arm-eval.test.mjs:673-697`) builds a committed fixture — two commits,
+clean tree, no untracked files, the mirror of every live fixture (`makeCommittedFixtureDir` at
+`skills/odyssey/scripts/two-arm-eval.test.mjs:248`) — and asserts exit 0, the riding-HEAD line, no
+git-baseline SKIP, and both seeds scaffolded. Case (n)
+(`skills/odyssey/scripts/two-arm-eval.test.mjs:699-721`) uses an empty fixture dir
+(`makeEmptyFixtureDir` at `skills/odyssey/scripts/two-arm-eval.test.mjs:269`) and asserts exit 4,
+both SKIP wordings, and no scaffold line.

@@ -180,8 +180,14 @@ for (const seed of selected) {
   // init as a fresh git repo so run_start_sha + diffs work
   // SEC-M12 (external audit #14): git config MUST run BEFORE add/commit — on a machine without a
   // global git identity, the commit used to fail silently (empty `catch {}`), leaving
-  // run_start_sha="" and making every eval run's F1 vacuously pass. Now config-first, and on any
-  // git-baseline failure we SKIP the seed loudly (so the eval corpus doesn't record false success).
+  // run_start_sha="" and making every eval run's F1 vacuously pass. Now config-first, and on a
+  // git-baseline failure with HEAD UNRESOLVABLE we SKIP the seed loudly (so the eval corpus
+  // doesn't record false success). Narrowed 2026-08-20: all 4 live fixtures ship as
+  // already-committed repos, so `commit` fails "nothing to commit" on a clean tree while
+  // rev-parse HEAD still resolves — v0.6.9's any-failure skip fired on EVERY seed that way
+  // (exit 4, nothing measured; live repro --task std-01 --arm baseline, leftover
+  // runs/std-01-baseline-1787172158255). A resolvable HEAD was never the invariant's target
+  // (the judged std-01-baseline rode fixture HEAD f9dd73a pre-SEC-M12): we log it and ride.
   try {
     execFileSync("git", ["init", "-q"], { cwd: runRepo, shell: false, stdio: "pipe" });
     execFileSync("git", ["config", "user.email", "eval@zodyssey"], { cwd: runRepo, shell: false, stdio: "pipe" });
@@ -189,9 +195,19 @@ for (const seed of selected) {
     execFileSync("git", ["add", "-A"], { cwd: runRepo, shell: false, stdio: "pipe" });
     execFileSync("git", ["commit", "-qm", "fixture baseline"], { cwd: runRepo, shell: false, stdio: "pipe" });
   } catch (e) {
-    console.log(`  SKIP — git baseline failed (run_start_sha would be empty, F1 vacuous): ${(e.message || e).toString().slice(0, 160)}`);
-    results.push({ id: seed.id, status: "skipped", reason: "git baseline failed" });
-    continue;
+    // narrowed 2026-08-20: only an unresolvable HEAD makes a failed baseline fatal — a fixture
+    // that already has a HEAD is a valid starting point; proceed on it.
+    let head = "";
+    try {
+      head = execFileSync("git", ["rev-parse", "HEAD"],
+        { cwd: runRepo, encoding: "utf8", shell: false, stdio: "pipe" }).trim();
+    } catch { head = ""; }
+    if (!head) {
+      console.log(`  SKIP — git baseline failed, HEAD is unresolvable (run_start_sha would be empty, F1 vacuous): ${(e.message || e).toString().slice(0, 160)}`);
+      results.push({ id: seed.id, status: "skipped", reason: "git baseline failed" });
+      continue;
+    }
+    console.log(`  git baseline: riding fixture HEAD ${head.slice(0, 7)}`);
   }
 
   // scaffold the ZOdyssey run for this task (the conductor will then drive it; on set-phase done,

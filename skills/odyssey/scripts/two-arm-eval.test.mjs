@@ -23,6 +23,16 @@
 //       leaves the hermetic HOME byte-identical: nothing written, nothing spawned.
 //   (g) nothing-measured — a baseline batch whose CLI stub fails every seed produces zero
 //       success appends and the harness exits 4.
+//   Cases (h)-(l) live at their blocks below (v0.6.8 consult-remediation wave). Two further
+//   cases pin the SEC-M12 narrowing (impl-09-secm12-narrowing, 2026-08-20):
+//   (m) committed fixture rides HEAD — a fixture that arrives as an already-committed repo (the
+//       shape of ALL live fixtures: two commits, clean tree, NO untracked files) must NOT
+//       mass-skip at git-baseline: exit 0, a `git baseline: riding fixture HEAD <7-hex-sha>`
+//       line, no `SKIP — git baseline failed`, summary shows every seed scaffolded.
+//   (n) no-HEAD still skips — an empty fixture dir (copy ok, git init ok, `add -A` stages
+//       nothing, `commit` fails, `rev-parse HEAD` unresolvable) is the one shape that must still
+//       SKIP loudly: exit 4, the SKIP line carrying BOTH "git baseline failed" AND
+//       "HEAD is unresolvable", no scaffold line.
 //
 // Hermeticity: every judge/harness spawn runs with env.HOME pointed at a mkdtemp dir holding
 // its own .zcode/orchestration/eval/seed.jsonl + judged.jsonl, a git fixture repo with a valid
@@ -213,15 +223,52 @@ function makeFixtureRepo(home, slugs) {
   return dir;
 }
 
-// Plain (non-git) fixture for HARNESS cases: the harness's own flow git-inits the fresh copy and
-// commits the baseline, which requires uncommitted content — a fixture that arrives with its own
-// .git makes the harness's `git add -A` stage nothing and `git commit` fail with "nothing to
-// commit", so every seed SKIPs (witnessed in the todo-2 red run: exit 4 for the wrong reason).
-// Judge cases use the git fixture above; harness cases never reach the judge.
+// Plain (non-git) fixture for HARNESS cases. Since SEC-M12's skip was narrowed to fire only when
+// HEAD is unresolvable (2026-08-20), BOTH fixture shapes are valid harness inputs: this plain
+// content dir (the harness's own git init + add -A + commit succeeds on uncommitted content,
+// creating the baseline commit itself) AND a fixture that arrives already committed
+// (makeCommittedFixtureDir below) — the harness rides a committed fixture's HEAD instead of
+// erroring on the clean tree's "nothing to commit". The one shape that must still SKIP is the
+// no-HEAD one (makeEmptyFixtureDir). Judge cases use the git fixture above; harness cases never
+// reach the judge.
 function makeFixtureDir(home) {
   const dir = join(home, "fixture-repo");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "greeting.txt"), "greeting module v2 (the work under test)\n");
+  return dir;
+}
+
+// Committed fixture (case m): the shape ALL live eval fixtures ship in — two commits ("start",
+// "work"), EVERYTHING committed, clean tree, NO untracked files. Deliberately NOT
+// makeFixtureRepo: that builder leaves .zcode/state/*.json untracked, which lets the harness's
+// own `git add -A; commit` succeed and the ride-HEAD case would never go red. On a fully
+// committed tree the harness's `commit` fails "nothing to commit" (the old catch's trigger)
+// while `rev-parse HEAD` resolves — exactly the live v0.6.9 mass-skip repro (every seed
+// skipped, exit 4) that the narrowing exists to fix.
+function makeCommittedFixtureDir(home) {
+  const dir = join(home, "fixture-repo");
+  mkdirSync(dir, { recursive: true });
+  const g = (...a) => execFileSync("git", a, { cwd: dir, stdio: "pipe" });
+  const f = join(dir, "greeting.txt");
+  writeFileSync(f, "greeting module v1\n");
+  g("init", "-q");
+  g("config", "user.email", "eval@example.com");
+  g("config", "user.name", "eval-bot");
+  g("add", "-A");
+  g("commit", "-qm", "start");
+  writeFileSync(f, "greeting module v2 (the work under test)\n");
+  g("add", "-A");
+  g("commit", "-qm", "work");
+  return dir;
+}
+
+// No-HEAD fixture (case n): an EMPTY directory. cpSync copies it fine, the harness's `git init`
+// succeeds, `add -A` stages nothing, `commit` fails, and `rev-parse HEAD` is unresolvable — the
+// one baseline failure the narrowed SEC-M12 skip must still catch (run_start_sha would be
+// empty, F1 vacuous).
+function makeEmptyFixtureDir(home) {
+  const dir = join(home, "fixture-repo");
+  mkdirSync(dir, { recursive: true });
   return dir;
 }
 
@@ -620,6 +667,56 @@ console.log("two-arm-eval tests (judge --arm/--compare, harness --dry-run/baseli
       !!rec && rec.overall === 0.72 && !!rec.double_judge && rec.double_judge.second_score === 0.72 &&
         rec.double_judge.delta === 0 && rec.double_judge.flagged === false,
       `(overall: ${JSON.stringify(rec && rec.overall)}, double_judge: ${JSON.stringify(rec && rec.double_judge)})`);
+  } finally { rmSync(h.home, { recursive: true, force: true }); }
+}
+
+// --- (m) a COMMITTED fixture rides its HEAD: the git-baseline skip must not fire on a clean tree
+// impl-09-secm12-narrowing (2026-08-20): ALL live eval fixtures ship as already-committed repos,
+// so v0.6.9's git-baseline catch — `commit` fails "nothing to commit" on a clean tree, and the
+// catch treated ANY failure as fatal — skipped EVERY seed (exit 4, zero measured) on the exact
+// fixture shape production uses (live repro: --task std-01 --arm baseline, exit 4). The narrowed
+// invariant: skip only when HEAD is unresolvable; a resolvable HEAD is ridden. RED at pre-fix
+// HEAD: the harness mass-skips this fixture for the wrong reason.
+{
+  const h = makeHome();
+  try {
+    makeCommittedFixtureDir(h.home);
+    writeSeeds(h.evalDir, harnessSeeds(h.home));
+    writeJudged(h.evalDir, []);
+    const r = run(HARNESS, [], h.home, h.stubOk);
+    check("(m) committed fixture proceeds (exit 0, no mass-skip)", r.code === 0, `(got ${r.code})`);
+    check("(m) harness rides the fixture HEAD (7-hex sha on its own line)",
+      /git baseline: riding fixture HEAD [0-9a-f]{7}\s*$/m.test(r.stdout),
+      `(no riding-HEAD line; output tail: ${JSON.stringify((r.stdout + r.stderr).slice(-200))})`);
+    check("(m) no `SKIP — git baseline failed` on a committed tree",
+      !r.stdout.includes("SKIP — git baseline failed"), "(a git-baseline SKIP fired anyway)");
+    check("(m) summary reports both seeds scaffolded",
+      /h1: scaffolded/.test(r.stdout) && /h2: scaffolded/.test(r.stdout),
+      `(summary: ${JSON.stringify(r.stdout.split("\n").filter((l) => /h[12]:/.test(l)).join(" | "))})`);
+  } finally { rmSync(h.home, { recursive: true, force: true }); }
+}
+
+// --- (n) a fixture with NO HEAD still SKIPs loudly — the narrowing keeps its teeth -------------
+// The other direction of the same narrowing: the empty-dir shape reaches git-baseline with
+// nothing committable, `commit` fails, and `rev-parse HEAD` is unresolvable — run_start_sha
+// would be empty and F1 vacuous, so the seed must SKIP with reason "git baseline failed" (exit 4
+// when every seed skips). RED at pre-fix HEAD only on the NEW wording: the skip itself already
+// holds, but today's SKIP line does not yet name "HEAD is unresolvable".
+{
+  const h = makeHome();
+  try {
+    makeEmptyFixtureDir(h.home);
+    writeSeeds(h.evalDir, harnessSeeds(h.home));
+    writeJudged(h.evalDir, []);
+    const r = run(HARNESS, [], h.home, h.stubOk);
+    const out = r.stdout + r.stderr;
+    check("(n) no-HEAD fixture still exits 4 (every seed skipped)", r.code === 4, `(got ${r.code})`);
+    check("(n) SKIP line carries the SEC-M12 reason", out.includes("SKIP — git baseline failed"),
+      "(no `SKIP — git baseline failed` line)");
+    check("(n) SKIP line names the narrowed cause (HEAD is unresolvable)",
+      out.includes("HEAD is unresolvable"),
+      `(skip lines: ${JSON.stringify(out.split("\n").filter((l) => /SKIP/.test(l)).join(" | "))})`);
+    check("(n) nothing scaffolded", !/scaffolded:/.test(out), "(a scaffold line printed despite the skip)");
   } finally { rmSync(h.home, { recursive: true, force: true }); }
 }
 
