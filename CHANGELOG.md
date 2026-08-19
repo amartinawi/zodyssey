@@ -1,6 +1,22 @@
 # Changelog
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+## [0.6.6] — 2026-08-19
+
+### Fixed — the consult-r1 remediations, cut as a release (audit gap r2-1)
+
+The consult-round-2 audit accepted both remediation commits and rejected the record: they sat on main after the v0.6.5 tag, unreleased — the tagged v0.6.5 did not carry them and no entry documented them. This release is that entry; it carries commits 8aeedab and 8a56eba.
+
+8aeedab — the ledger's row 9 was registered under a transposed id, `UNGUATED-CALLS-RECORDED`, where the plan's seed table, the v0.6.5 entry below, `docs/ROADMAP.md`, and `docs/DESIGN.md` had all spelled it `UNGATED-CALLS-RECORDED`; the row's id matched none of its namesakes, and v0.6.5 as tagged shipped the typo. Corrected in `scripts/claims-ledger.mjs` and in the row table of `docs/impl/08-claim-assertion-coverage-ledger.md` (where the typo originated), so `scripts/check-claims.mjs` prints `ok: UNGATED-CALLS-RECORDED` and every surface names the same id.
+
+8a56eba — two checker defects from the same audit. The skip-dir scan matched `run-tests.mjs`'s skip directory names (`build/`, `coverage/`, …) against the assertion target's absolute path, so a checkout cloned under a skip-named segment — `~/build/ZOdyssey` is the case that fired — false-reded every suite row: findings for suites nothing runs, in a path shape the runner never walks from the repo root. The scan now checks the repo-root-relative portion of the target and leaves targets resolving outside the root alone (outside the root is none of the checker's business). And the CLI's failure summary was a hardcoded `0/9 rows resolve` — one broken marker read as nine broken rows. The count is now derived from the rows the findings actually name (`failedIds`), so a single mutated BASH-GATE-REGRESSION marker reports `8/9 rows resolve, 1 finding(s)` and exits 1 naming the row.
+
+Both fixes landed test-first: `scripts/check-claims.test.mjs` cases (i) and (j) were committed red against the unmodified checker and are green since (10/10).
+
+**Known, not fixed:**
+- Rows sharing a duplicate id produce one finding naming that id, so the honest summary reads `rows.length - 1` for them — the specified semantics (a set of row ids named by findings), kept as designed.
+- The in-root skip-dir firing (a genuine `build/` suite under the repo root) is preserved by construction — for in-root rows the repo-relative path IS the declared path — not by a hermetic test; testing it would need a real file under `ROOT/build/`.
+
 ## [0.6.5] — 2026-08-19
 
 ### Added — the claim→assertion coverage ledger (item 08)

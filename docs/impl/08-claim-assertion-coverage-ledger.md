@@ -82,7 +82,7 @@ that defends it:
   asserted_by: "skills/odyssey/hooks/pre-tool.bash-gate.test.mjs", // where it is PROVEN (code)
   marker: "silently deleted TWICE", // literal string that must occur in asserted_by — the binding
   kind: "suite",                   // "suite" = run by run-tests.mjs · "release-gate" = release cadence
-  note: "v0.1.1/v0.2.0 deletions; CHANGELOG.md:515, :680", // optional context
+  note: "v0.1.1/v0.2.0 deletions; CHANGELOG.md:531, :696", // optional context
 }
 ```
 
