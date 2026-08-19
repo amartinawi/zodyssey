@@ -204,10 +204,17 @@ for (const rel of allFiles) {
   // document for its TOP SECTION only — line 1 through the line BEFORE the second `## [version]`
   // heading — so the in-progress section is checked while released history below it is never
   // rescanned and never rewritten. A file with fewer than two such headings is scanned whole.
+  // The boundary counter is FENCE-AWARE: a column-0 `## [x.y.z]` line inside a ``` fence is an
+  // illustration, not a heading. Counting it made the fence the second heading and silently
+  // truncated the window above every cite below it (oracle, impl-21 final wave) — an under-sized
+  // window is the silent failure direction, so heading detection errs toward NOT matching.
   let scanEnd = docLines.length;
   if (rel === "CHANGELOG.md") {
     let versionHeadings = 0;
+    let inFence = false;
     for (let i = 0; i < docLines.length; i++) {
+      if (/^\s{0,3}```/.test(docLines[i])) { inFence = !inFence; continue; }
+      if (inFence) continue;
       if (/^## \[/.test(docLines[i]) && ++versionHeadings === 2) { scanEnd = i; break; }
     }
   }
@@ -241,6 +248,19 @@ for (const rel of allFiles) {
       for (const an of anchors) if (an.start < bm.index) antecedent = an;
       if (!antecedent) continue;   // no same-line path-form cite → not a citation
       record(rel, i, antecedent.citedAs, parseInt(bm[1], 10), bm[2] ? parseInt(bm[2], 10) : null);
+      // A bound bare token can carry its own comma chain (`…pre-tool.mjs:875 … and :905-930,42`):
+      // absorb it with the same loop shape as the path-form branch above, or the tail is silently
+      // dropped (F2 low, impl-21 final wave). Advancing lastIndex keeps absorbed elements from
+      // being re-parsed as fresh bare tokens — the same hygiene the CITE branch applies.
+      let bareEnd = BARE_CONTINUATION.lastIndex;
+      for (;;) {
+        CHAIN_ELEMENT.lastIndex = bareEnd;
+        const cm = CHAIN_ELEMENT.exec(line);
+        if (!cm) break;
+        record(rel, i, antecedent.citedAs, parseInt(cm[1], 10), cm[2] ? parseInt(cm[2], 10) : null);
+        bareEnd = CHAIN_ELEMENT.lastIndex;
+      }
+      BARE_CONTINUATION.lastIndex = bareEnd;
     }
   }
 }

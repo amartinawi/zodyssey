@@ -292,14 +292,17 @@ console.log("check-anchors.mjs — a cited line must still say what the citation
 
 // (d) CHANGELOG top section: the top section is a citing doc; released history below the
 // second `## [` version heading is never scanned. NOTES.md carries a STABLE cite (`:1`) so the
-// only `src/thing.mjs:3` citation in the fixture lives inside CHANGELOG's top section.
+// only `src/thing.mjs:3` citation in the fixture lives inside CHANGELOG's top section. The frozen
+// broken cite sits on the line IMMEDIATELY after the second heading (F2 low, impl-21 final wave):
+// a scanEnd off-by-one in EITHER direction must fail — one line lower and the frozen cite would
+// enter the window at seeding (exit 9), one line higher and the live `:3` cite would leave it.
 {
   const root = fixture(undefined, "src/thing.mjs:1");
   writeFileSync(join(root, "CHANGELOG.md"), [
     "# Changelog", "",
     "## [9.9.9] - 2026-08-19", "",
     "Fixed the gate per `src/thing.mjs:3`.", "",
-    "## [9.9.8] - 2026-08-12", "",
+    "## [9.9.8] - 2026-08-12",
     "Frozen history: broken `src/thing.mjs:99` and backwards `src/thing.mjs:8-6` live here.", "",
   ].join("\n") + "\n");
   check("CHANGELOG top section: seeding (top-section cite + frozen broken cites) exits 0", seed(root).code === 0);
@@ -330,6 +333,64 @@ console.log("check-anchors.mjs — a cited line must still say what the citation
   const keys = Object.keys(lockOf(root).citations);
   check("comma-pair no-flood: the lock holds exactly the one real citation",
     keys.length === 1 && keys[0] === "src/thing.mjs:3", `(keys: ${keys.join(" ")})`);
+}
+
+// (f) CHANGELOG fenced heading (oracle, impl-21 final wave): a column-0 `## [x.y.z]` line inside
+// a ``` fence is an ILLUSTRATION, not a version boundary. The heading counter that sizes the scan
+// window used to count it as the second heading, silently truncating the window AT the fence —
+// every cite between the fence and the real second heading went unscanned (the oracle reproduced
+// a backwards-range and an out-of-range cite in the top section passing --update unflagged). The
+// window must survive to the REAL second heading: cites below the fence but above the real
+// boundary are live, cites below the real boundary stay frozen.
+{
+  const root = fixture(undefined, "src/thing.mjs:1");
+  writeFileSync(join(root, "CHANGELOG.md"), [
+    "# Changelog", "",
+    "## [9.9.9] - 2026-08-19", "",
+    "Fixed the gate per `src/thing.mjs:3`.", "",
+    "Entry shape (illustrative, do not copy):", "",
+    "```",
+    "## [9.9.7] - 2026-01-01",
+    "- a released entry looks like this",
+    "```", "",
+    "Also touched `src/thing.mjs:4`, still above the released boundary.", "",
+    "## [9.9.8] - 2026-08-12", "",
+    "Frozen history: broken `src/thing.mjs:99` and backwards `src/thing.mjs:8-6` live here.", "",
+  ].join("\n") + "\n");
+  const s = seed(root);
+  check("fenced heading: seeding (fenced heading example inside the top section) exits 0",
+    s.code === 0, `(exit ${s.code}) ${s.err.slice(0, 200)}`);
+  const keys = Object.keys(lockOf(root).citations);
+  check("fenced heading: a live cite BELOW the fence but ABOVE the real second heading is discovered",
+    keys.includes("src/thing.mjs:4"), `(keys: ${keys.join(" ")})`);
+  writeFileSync(join(root, "src", "thing.mjs"), "alpha\nbravo\nCHARLIE-the-cited-line\nEDITED-LINE-FOUR\n");
+  const c = run(root);
+  check("fenced heading: editing that cite's target in place is caught", c.code === 9, `(exit ${c.code})`);
+  check("fenced heading: …[drift] names `src/thing.mjs:4` specifically",
+    c.err.includes("[drift]") && c.err.includes("src/thing.mjs:4"), c.err.slice(0, 300));
+  check("fenced heading: frozen cites below the REAL second heading are IGNORED",
+    !c.err.includes("src/thing.mjs:99") && !c.err.includes("src/thing.mjs:8-6"), c.err.slice(0, 300));
+}
+
+// (g) bare-colon chain tail (F2 low, impl-21 final wave): a bare continuation can carry its own
+// comma chain. `…`src/thing.mjs:2` … and `:3,5`` must check EVERY number — the bare loop used to
+// pin `:3` and silently drop the `,5` tail, contradicting the header's EVERY NUMBER rule. An
+// antecedent-less bare chain stays invisible; that accepted under-coverage is unchanged (group e).
+{
+  const root = fixture("alpha\nbravo\nCHARLIE-the-cited-line\ndelta\nfoxtrot\n");
+  writeFileSync(join(root, "docs", "NOTES.md"),
+    "# Notes\n\nThe gate lives at `src/thing.mjs:2` with its twin at `:3,5`.\n");
+  const s = seed(root);
+  check("bare chain: seeding (`…src/thing.mjs:2 … :3,5`) exits 0", s.code === 0,
+    `(exit ${s.code}) ${s.err.slice(0, 200)}`);
+  const keys = Object.keys(lockOf(root).citations);
+  check("bare chain: the tail (`:5`) of a bare continuation is discovered and locked",
+    keys.includes("src/thing.mjs:5"), `(keys: ${keys.join(" ")})`);
+  writeFileSync(join(root, "src", "thing.mjs"), "alpha\nbravo\nCHARLIE-the-cited-line\ndelta\nEDITED-LINE-FIVE\n");
+  const c = run(root);
+  check("bare chain: editing the chain tail's line in place is caught", c.code === 9, `(exit ${c.code})`);
+  check("bare chain: …[drift] names `src/thing.mjs:5` specifically",
+    c.err.includes("[drift]") && c.err.includes("src/thing.mjs:5"), c.err.slice(0, 300));
 }
 
 // ─── stdout must survive a pipe (process.exit truncates buffered writes) ───

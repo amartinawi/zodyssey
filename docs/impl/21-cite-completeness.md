@@ -50,12 +50,12 @@ the grammar never guesses and never crosses a line boundary.
 Three consequences, each enforced:
 
 - **Reversed ranges are their own failure.** `a ≤ b` is validated at parse time, before any
-  slicing: a reversed pair is problem kind `backwards-range` (scripts/check-anchors.mjs:293), and
+  slicing: a reversed pair is problem kind `backwards-range` (scripts/check-anchors.mjs:313-319), and
   the empty-slice vacuous pass is gone.
 - **CHANGELOG.md is a full citizen as a target.** No longer in `NO_PIN_TARGETS` — citations INTO
   it are content-pinned like any other target, so a +16-line release insertion fails as drift.
 - **It is scanned as a citing document for its TOP SECTION only** — line 1 through just before
-  the second `## [version]` heading (scripts/check-anchors.mjs:203-213). Released history below
+  the second `## [version]` heading (scripts/check-anchors.mjs:203-220). Released history below
   that line is never rescanned, never rewritten. This window is an operator-proxy decision,
   recorded as OVERRIDABLE in the checker's header; the fallback re-adds the exemption, and
   content-pinning of CHANGELOG targets stays either way. `EXEMPT_DOCS`
