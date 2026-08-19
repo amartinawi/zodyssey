@@ -21,7 +21,7 @@ slash, or bare colon was invisible, and invisible meant unpinned, unrange-checke
   `ideation-report.md:416` citing `harness.mjs:69-70,19,128-131`. In each, only the first number
   was ever checked; the rest were free to rot.
 - **Slash and bare-colon continuations.** In `CHANGELOG.md:618/:783` — the gate-deletion history
-  row 04 cites — only the `:578` half was ever seen, and prose continuations ("the verdict gate
+  row 04 cites — only the `:618` half was ever seen, and prose continuations ("the verdict gate
   at :1105" after a path-form range) were equally invisible.
 - **The half-shift, real.** When a release entry landed, the path-form CHANGELOG pins were
   re-anchored and the continuation halves silently kept their old numbers: 3afd81c (2026-08-18)

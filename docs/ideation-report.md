@@ -125,12 +125,12 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
   been measured. This is the only entry whose output is a decision rather than a defect fix.
 - **Evidence:** `skills/odyssey/scripts/judge.mjs:311` (`arm: "zodyssey"` literal in the record
   constructor; only `--double` is parsed, `judge.mjs:150`); `skills/odyssey/scripts/harness.mjs:21-23`
-  (baseline marked TODO), `:41-42` (already parses `--arm zodyssey|baseline`), `:128-131` (prints
-  instructions instead of running); `~/.zcode/orchestration/eval/judged.jsonl` — 5 scored records,
-  all `arm: "zodyssey"` (notepad 1, rows b-judge-1..3; re-read during synthesis, see Corrections);
-  the settling-experiment design already exists (notepad 4, §5). **no published outcome evidence**
-  that orchestration gates help (notepad 4 §5.3: no replicated evidence that enforcement
-  specifically wins; the harness-leverage primaries are vendor conflations — see Corrections).
+  (baseline marked TODO), `skills/odyssey/scripts/harness.mjs:79-80` (already parses `--arm zodyssey|baseline`),
+  `CHANGELOG.md:64` (prints instructions instead of running — pre-09 state); `~/.zcode/orchestration/eval/judged.jsonl` — 5 scored
+  records, all `arm: "zodyssey"` (notepad 1, rows b-judge-1..3; re-read during synthesis, see Corrections); the
+  settling-experiment design already exists (notepad 4, §5). **no published outcome evidence** that
+  orchestration gates help (notepad 4 §5.3: no replicated evidence that enforcement specifically
+  wins; the harness-leverage primaries are vendor conflations — see Corrections).
 - **Cost:** high (automate both arms over `seed.jsonl`, operator time for ≥25 judged runs per arm,
   blind-judging discipline).
 - **What it breaks:** nothing mechanical; it consumes operator time and may produce an
@@ -413,7 +413,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B9-2) check-imports has a test and is wired into a phase | PARTIAL | skills/odyssey/scripts/check-imports.test.mjs:1; skills/odyssey/references/scripts.md:46 | test passes (part of 32/32), but the ONLY caller is documentation — prose instructs the conductor; zero code callers repo-wide |
 | (b-B10) Pre-edit lint baseline "absent" | CONFIRMED | skills/odyssey/hooks/post-tool.mjs:96-177; skills/odyssey/scripts/lint-untrusted.mjs:1 | post-tool lints AFTER the edit, no baseline capture; lint-untrusted is injection scanning (different mechanism) |
 | (b-judge-1) judge.mjs:311 hardcodes `arm: "zodyssey"` | CONFIRMED | skills/odyssey/scripts/judge.mjs:311 | literal in the record constructor |
-| (b-judge-2) judge.mjs "never reads --arm" | CONFIRMED for judge.mjs (nuance: harness parses it) | skills/odyssey/scripts/judge.mjs:150; skills/odyssey/scripts/harness.mjs:79-80, skills/odyssey/scripts/harness.mjs:19, skills/odyssey/scripts/harness.mjs:138-141 | judge parses only `--double`; harness parses `--arm` but baseline is TODO and prints instructions |
+| (b-judge-2) judge.mjs "never reads --arm" | CONFIRMED for judge.mjs (nuance: harness parses it) | skills/odyssey/scripts/judge.mjs:150; skills/odyssey/scripts/harness.mjs:79-80, skills/odyssey/scripts/harness.mjs:19, skills/odyssey/scripts/harness.mjs:138-141 | judge parses only `--double`; harness parses `--arm` but baseline is TODO and prints instructions (state at measurement, 2026-08-16; the baseline arm EXECUTES since v0.6.7 — `harness.mjs:138-141` then described the pre-09 instructions block) |
 | (b-judge-3) "The eval has never produced a number" | REFUTED — code/filesystem wins | ~/.zcode/orchestration/eval/judged.jsonl:1-5; ~/.zcode/orchestration/eval/results.jsonl (177 lines) | judged.jsonl holds 5 real scored records (2026-08-01); results.jsonl 177 run records. Narrower true statement: the arm FIELD never records baseline (judge.mjs:311) and the harness cannot run the baseline arm (harness.mjs:21-23) — see Reconciliation D1 for the slug-derived baseline records |
 | (b-seed) REPLACE_WITH seed bug fixed | CONFIRMED | skills/odyssey/scripts/seed.jsonl:1-5 | `grep REPLACE_WITH` → zero matches; concrete ids/prompts/criteria |
 | (b-B1) Verdict ambiguity → `missing` | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:96-111; skills/odyssey/scripts/record-final-artifact.mjs:76-86 | "AMBIGUITY RESOLVES TO 'missing', NEVER 'approve'" |

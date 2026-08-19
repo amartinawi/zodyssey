@@ -111,7 +111,7 @@ authority. The two arms compare under the ONE existing judge.
 flip rate under paraphrase. Neither arm's absolute score is meaningful at this corpus size; what
 the two-arm design buys is that the SAME judge, rubric (`judge.mjs:226-233`), criteria, and seeds
 score BOTH arms, so systematic judge error is shared and largely cancels in the DELTA.
-Per-record variance stays visible through the existing `--double` (`judge.mjs:150,286-302-268`;
+Per-record variance stays visible through the existing `--double` (`judge.mjs:150,286-302`;
 `docs/MEASUREMENT.md` §6.1: judge twice, flag disagreements > 0.15) — the settling run should use
 it. Per `docs/MEASUREMENT.md` §6.2 the result is directional, not statistically tight.
 
