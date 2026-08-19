@@ -63,8 +63,10 @@ Then, instead of printing instructions, the harness spawns **one** external CLI 
 binary `judge.mjs:142` already resolves: `env.CLAUDE_CLI || "claude"`), with cwd = the fresh copy,
 input = the seed's `prompt` field verbatim (nothing else — the pipeline arm does not see the
 success_criteria either; `harness.mjs:120` scaffolds from `seed.prompt` only), a bounded timeout
-(one named constant; 60 minutes is a sound default — the corpus's longest real run measured 61.6
-`wall_clock_min`), and waits synchronously. On completion the harness itself appends an efficiency
+(one named constant; **the corpus does not support the 60 minutes this brief originally
+proposed** — see the 2026-08-19 amendment at the end of this file for the measured distribution
+and for why a short cap biases this experiment), and waits synchronously. On completion the
+harness itself appends an efficiency
 record to `~/.zcode/orchestration/eval/results.jsonl` (operator lane — a baseline run IS a real
 eval run, and no `set-phase` transition ever fires for it, so the CRIT-4a appender cannot; the
 harness is the appender of last resort) in the existing run-report schema with pipeline-only
@@ -459,3 +461,46 @@ override the runner controls, not a suffix inference) and the **baseline arm aut
 (`harness.mjs:19`) this item exists for. The mislabeling defect in the corpus ("every judged record
 wore one label", `:347`) is fixed for all *future* records; historical judged.jsonl rows stay as
 written.
+
+## Amendment — 2026-08-19, the timeout constant
+
+The original text justified a 60-minute default with "the corpus's longest real run measured 61.6
+`wall_clock_min`". That figure does occur in the corpus, but it is not the longest run and never
+was a sound basis for the constant. Re-measured 2026-08-19 against the operator lane (398 records),
+the two eval seeds this harness actually runs:
+
+| slug | `wall_clock_min` |
+|---|---|
+| `std-01-zodyssey` | 4.0 |
+| `arch-01-zodyssey` | 99.1 |
+| `arch-01-zodyssey` | 158.9 |
+| `arch-01-zodyssey` | 160.9 |
+| `std-01-zodyssey` | 1074.4 |
+| `std-01-zodyssey` | 1075.2 |
+
+The longest real run anywhere in the lane is **3106.5** (`impl-prompts-v0-6`). A 60-minute cap
+would have killed four of the six seed runs above.
+
+Two corrections follow, and the second matters more than the number.
+
+**`wall_clock_min` is the wrong instrument for sizing a compute timeout.** It measures elapsed time
+from `started_at` to close, idle included — a run left open overnight reads as seventeen hours. The
+1074/1075 pair are almost certainly session gaps, not seventeen hours of work. So the distribution
+above bounds the constant from below and tells you nothing reliable from above. Choose the constant
+deliberately, state the reasoning in the header where it lives, and do not cite a corpus figure as
+if it settled the question. The baseline arm is a single agent with no pipeline and should be far
+faster than any row above; that argument is available and honest, and it is not the argument the
+brief made.
+
+**A short cap biases this experiment in the project's favour.** This item exists to make the core
+bet falsifiable — that code-enforced orchestration beats a single capable agent. If the cap kills
+the baseline arm, the run records `status: "failed"`, and a reader comparing arms sees the control
+lose. A timeout that silently converts "did not finish" into "did worse" is confirmation bias
+compiled into a constant, sitting inside the one instrument built to let this project be wrong
+about itself.
+
+That is why requirement 3 (**baseline failures are loud** — `status: "failed"`, no vacuous success
+append, an all-failed batch exits 4) is the load-bearing requirement of this item, not its error
+handling. A too-short constant must be visible as a capability failure and must never be
+summarizable as an arm result. Keep failed baselines out of any per-arm mean; report them as their
+own count.

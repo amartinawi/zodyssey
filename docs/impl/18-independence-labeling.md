@@ -89,7 +89,7 @@ exists on disk; this change only reads it.
 
 Exposure on arrival: **7 pinned citations** into `run-report.mjs` + 3 into `dashboard.test.mjs`,
 reconciled at source during this change (impl/04:98, impl/05:162/:320/:324/:409, impl/06:19/:53,
-impl/09:212, `00-INDEX.md:30`, `docs/ideation-report.md:88` — shifted by the inserted derivation
+impl/09:214, `00-INDEX.md:30`, `docs/ideation-report.md:88` — shifted by the inserted derivation
 block). Procedure: [`docs/impl/02-wire-zero-caller-checks.md`](02-wire-zero-caller-checks.md)
 §Anchor-drift reconciliation; never `--update` before reconciling.
 

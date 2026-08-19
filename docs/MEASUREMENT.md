@@ -31,7 +31,7 @@ toy. We measure both, and the ratio between them is the headline number.
 | Metric | What it tells us | Source | Target (v1) |
 |---|---|---|---|
 | **Tokens consumed** | cost; the variable that correlates with success | provider usage | per-intent budget |
-| **Wall-clock time** | latency the user feels | state started_at → done | standard <10min |
+| **Wall-clock time** | latency the user feels | state started_at → done — **elapsed, idle included; not compute time** | standard <10min (unmet — §6.6) |
 | **Sub-agent dispatches** | parallelism efficiency; over-dispatch = waste | state checkpoints | ≤ plan-todo count +2 |
 | **Tokens / todo completed** | unit economics | tokens ÷ done todos (telemetry needs Node >= 22.5 via `node:sqlite`; on the engines floor >= 18 the record carries a stamped inert, never a failure) | trending down |
 | **Review rounds used** | plan quality (1 = great, 3 = poor) | state.review.round | median 1 |
@@ -201,6 +201,18 @@ with what state.json already gives us, add the judge last.
    totals, not per-dispatch. Acceptable for v1; refine if it blocks insight.
 5. **Quality of success criteria** — garbage in, garbage out. If a task's criteria are weak, the
    judge has nothing to anchor to. The seed set's criteria quality bounds everything.
+6. **Wall-clock is elapsed time, and the v1 target is unmet by two orders of magnitude.** The
+   metric reads `started_at → done`, so an interrupted or overnight run counts every idle minute.
+   Measured 2026-08-19 across the operator lane (398 records), the two eval seeds ran 4.0, 99.1,
+   158.9, 160.9, 1074.4 and 1075.2 `wall_clock_min` against a stated target of `standard <10min`;
+   the longest real run in the lane is 3106.5. Do not read those tails as compute — the 1074/1075
+   pair are almost certainly session gaps. The consequence is practical: **`wall_clock_min` cannot
+   size a timeout.** It bounds a constant from below and says nothing reliable from above, and a
+   timeout derived from it will fire on idle rather than on work. This bit queue item 09, whose
+   original 60-minute default cited a corpus figure that would have killed four of the six seed
+   runs above (`docs/impl/09-two-arm-eval-baseline.md`, amendment 2026-08-19). Until the metric
+   separates active from elapsed, treat the target as aspirational and size timeouts from the
+   work, not from this column.
 
 ## 7. Build order (what to actually construct)
 
