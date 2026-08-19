@@ -19,7 +19,7 @@ import.meta.url))`, with the in-code comment "so it is found from the plugin cac
 `skills/odyssey/scripts/run-report.mjs:114` calls `collectRunTokens`, which reads ZCode's durable
 telemetry — the SQLite DB at `~/.zcode/cli/db/db.sqlite` (`skills/odyssey/scripts/lib/tokens.mjs:36`,
 table `model_usage` joined to `session` at `:105-114`). Token accounting shipped in 0.5.2
-(`CHANGELOG.md:194` dated 2026-08-15, entry at `CHANGELOG.md:318`; commit `6b0b428`
+(`CHANGELOG.md:310` dated 2026-08-15, entry at `CHANGELOG.md:370`; commit `6b0b428`
 "feat(telemetry): real per-run token accounting").
 
 **The corpus says "2 of ~193 populated" — and that number decomposes into three eras, none of which

@@ -1,6 +1,29 @@
 # Changelog
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+## [0.6.9] — 2026-08-19
+
+### Fixed — every number of a citation is checked; CHANGELOG targets content-pinned (item 21)
+
+The anchor checker verified only the first number of a citation: its regex required a path
+prefix per number, so comma pairs (`harness.mjs:88,62`), slash continuations, and bare-colon
+continuations were invisible — unpinned and unswept. CHANGELOG.md lines were not pinned at
+all, which is how 3afd81c's +17 half-shift shipped unnoticed: the path-form halves were
+re-anchored and the continuation halves silently kept their old numbers.
+
+Discovery is now structural: a contiguous number chain binds to its path-form cite, a bare
+`:1105`-style token binds to the nearest preceding path form on the same line, ambiguity
+fails, and every number gets its own range, contentless, pin, and drift check. Reversed
+ranges are refused as `backwards-range` instead of passing the contentless check vacuously.
+CHANGELOG.md is pinned as a target and scanned as a citing document for its TOP SECTION only
+(operator-proxy decision, OVERRIDABLE — released history below the second version heading is
+never rescanned; the fallback restores the exemption, not the pinning).
+
+Paired probes, RED first: four groups (comma-pair, backwards-range, a +16-line CHANGELOG
+shift, the CHANGELOG top section) failed against the unmodified checker — exit 1, 43 passed,
+11 failed — and pass after the change. `--update` ran ONCE, after every newly discovered
+citation was verified at source.
+
 ## [0.6.8] — 2026-08-19
 
 ### Fixed — the baseline arm's tool surface is pinned, and a no-op baseline is a capability failure (item 09 follow-up)

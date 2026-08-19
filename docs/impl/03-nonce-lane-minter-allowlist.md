@@ -1,7 +1,7 @@
 # 03 — Allowlist the nonce-lane minters
 
 Build order **03** · depends-on **—** (no build edge; sequenced after 01's release only by the
-one-security-change-per-release cadence, `CHANGELOG.md:200` — grouped adjacently with 01/04 because
+one-security-change-per-release cadence, `CHANGELOG.md:239` — grouped adjacently with 01/04 because
 all three touch `skills/odyssey/hooks/pre-tool.mjs`, explicitly NOT merged with either) · queue
 row: [`docs/impl/00-INDEX.md`](00-INDEX.md) `03 nonce-lane-minter-allowlist` · security-class ·
 patch · shipped alone.
@@ -23,7 +23,7 @@ for `zodyssey:momus`. The lane decides identity with a routing-grade matcher:
   segment only: `evil:momus`, `someplugin:momus`, `feature-dev:momus` all compare equal to `momus`.
 - The mint site consumed that matcher (pre-fix): `if (isAgent("momus")) {` →
   `mintNonceFor("review")`, which writes `state.review.pending_nonce` (the function at
-  `skills/odyssey/hooks/pre-tool.mjs:1456-1485`, the write at `:1459`, the operator-visible stderr
+  `skills/odyssey/hooks/pre-tool.mjs:1456-1485`, the write at `:1478`, the operator-visible stderr
   line at `:1464`). Post-fix the site is `if (isDeclaredMinter("review")) {` at `:1554`, minting
   at `:1560`. The namespacing extractor does not save it: `:1309-1310` strips only a leading
   `zodyssey:` prefix (`_rawSubagent.replace(/^zodyssey:/, "")`), so `zodyssey:momus` normalizes to
@@ -43,7 +43,7 @@ asserted the hole as *intended* behavior — pre-fix, the Class C block (now the
 was green (33/33, 2026-08-16) with the tolerance enforced as a feature — the self-grading this
 item flips. There is also an in-repo prior
 that already named this exact shape as a bug: v0.5.1, audit-3 finding 7
-(`CHANGELOG.md:206-208` and the comment at `skills/odyssey/hooks/pre-tool.mjs:1510-1517`) —
+(`CHANGELOG.md:276` and the comment at `skills/odyssey/hooks/pre-tool.mjs:1510-1517`) —
 "`evil:momus` skipped the cap and the pre-dispatch lint, then minted a review nonce" — fixed the
 round-cap twin (now `if (isDeclaredMinter("review"))` at `:1499`) by making **both** sites
 tolerant, so the lookalike was capped but still minted.
@@ -128,13 +128,13 @@ exactly that). Do not widen the set by default.
   `record-final-wave.mjs`, `record-final-artifact.mjs` stay byte-identical. Nonce consumption is
   already correct; only minting identity is wrong.
 - Do not tighten the read-only phase gate (`READONLY_AGENTS` / `inSet` at
-  `skills/odyssey/hooks/pre-tool.mjs:1351-1371`). Its own comment (`:1338-1341`) is right: widening
+  `skills/odyssey/hooks/pre-tool.mjs:1351-1371`). Its own comment (`:1368-1370`) is right: widening
   who counts as read-only "grants no write capability". Tightening it would block third-party
   read-only dispatches — over-blocking, a new failure of this change's own class.
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; new
   checks are additive siblings.
 - Do not batch this into 01's or 04's release in the CHANGELOG shape — one security change per
-  release (`CHANGELOG.md:200`: a structural gate change "wants its own release and its own paired
+  release (`CHANGELOG.md:239`: a structural gate change "wants its own release and its own paired
   run").
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — the warning is a
   deterministic stderr line, and every verification in this change is an exit code or a state-file
@@ -219,7 +219,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
 
 1. **Enumeration instead of structure.** Not a deny-list of lookalike names: it is an identity
    allowlist of the three declared minter types — the same direction as the v0.5.2 terminus at
-   `CHANGELOG.md:200` (classify by known-safe identity, not by denied shapes). There is no shape to
+   `CHANGELOG.md:239` (classify by known-safe identity, not by denied shapes). There is no shape to
    bypass because nothing is matched loosely.
 2. **A check that cannot detect the class of failure it exists for.** Criterion 7 is the tripwire:
    the flipped assertions are demonstrated failing against the broken code. Note the twist this
@@ -278,10 +278,10 @@ point: reviewer identity becomes an explicit declaration, not a substring accide
 
 **Authority granted by name-segment tolerance** — a loose matcher built for routing (F5, phase
 gates) consumed by an authority-bearing check (nonce minting). This is the same class family as
-the v0.5.2 head-allowlist inversion named at `CHANGELOG.md:200`: identity questions ("who may
+the v0.5.2 head-allowlist inversion named at `CHANGELOG.md:239`: identity questions ("who may
 execute", "who may grant") answered by tolerant matching instead of exact identity, where the
 structural fix is to invert to an allowlist of declared identities. The direct in-lane prior is
-v0.5.1 audit-3 finding 7 (`CHANGELOG.md:206-208`): the round-cap twin and the minter disagreed, and
+v0.5.1 audit-3 finding 7 (`CHANGELOG.md:276`): the round-cap twin and the minter disagreed, and
 the fix agreed them **downward** (both tolerant) instead of upward (both exact) — closing the cap
 bypass while leaving the mint open. This change completes that agreement in the right direction.
 
@@ -321,7 +321,7 @@ A fix that leaves any of these asserting the old behaviour has created the next 
 
 New patch version — the next free patch at ship time (`0.5.3` if nothing has shipped since
 `0.5.2`; 01 and 02 each claim their own release ahead of this one in build order). **One security
-change per release, shipped alone** — the repo rule with its precedent at `CHANGELOG.md:200`. Do
+change per release, shipped alone** — the repo rule with its precedent at `CHANGELOG.md:239`. Do
 NOT batch queue items 01 or 04 into this release even though all three touch
 `skills/odyssey/hooks/pre-tool.mjs`; that is a reason for adjacent sequencing, not for merging.
 

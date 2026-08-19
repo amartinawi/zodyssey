@@ -19,9 +19,26 @@
 // count — which is exactly how the sisyphus-junior anchors went wrong, plausible numbers pointing
 // at moved content.
 //
+// EVERY NUMBER OF A CITATION, not just its first (impl-21). Docs cite one path with several
+// numbers: comma chains (`harness.mjs:88,62`, `:69-70,19,128-131`), slash continuations
+// (`CHANGELOG.md:578/:696`), and bare-colon continuations (`…pre-tool.mjs:875 … and :905-930`)
+// that bind to the nearest preceding path-form cite on the SAME line. Every number gets its own
+// range check, contentless check, pin, and drift check, and every `a-b` range is validated a ≤ b
+// at parse time — a reversed pair is its own problem kind `backwards-range`, because
+// `lines.slice(a-1, b)` with a > b is EMPTY and an empty span used to slide through the
+// contentless check vacuously.
+//
+// CHANGELOG.md, formerly exempt from scanning and unpinned as a target, is now a full citizen
+// under a SCAN WINDOW (operator-proxy decision, OVERRIDABLE — the fallback is re-adding it to
+// EXEMPT_DOCS below; content-pinning stays either way): citations INTO it are content-pinned like
+// any other target, and it is scanned as a citing document from line 1 to just before the second
+// `## [version]` heading, so released history is never rescanned and never rewritten.
+//
 // WHAT IT DOES NOT DO: it verifies a line is UNCHANGED, not that it SUPPORTS the claim citing it.
 // A citation can be perfectly anchored and still be wrong about what the code does. That is a
-// judgment call, and judgment calls need a judge.
+// judgment call, and judgment calls need a judge. The discovery grammar is also deliberately
+// conservative: a bare `:N` with no same-line path-form antecedent is NOT discovered, so some
+// real continuations stay invisible — under-coverage is accepted where inventing citations is not.
 //
 // Enforcement lives in check-anchors.test.mjs, discovered automatically by run-tests.mjs. This
 // script has no other caller BY DESIGN — see that file's header.
@@ -51,25 +68,16 @@ if (!existsSync(ROOT)) { console.error(`check-anchors.mjs: no such root: ${ROOT}
 
 // Same skip list as run-tests.mjs, plus the run-artifact dirs. `.zcode/` holds per-run notepads,
 // verify artifacts and audit reports — historical records of what a run saw, not standing claims,
-// and its filenames collide by design (1-1.json in every run). CHANGELOG.md is exempt for the same
-// reason: it records what was believed at a version and is deliberately never amended.
+// and its filenames collide by design (1-1.json in every run). CHANGELOG.md is NOT skipped as a
+// citing document — since impl-21 it is scanned under the top-section window (see the scan loop).
 const SKIP_DIRS = new Set(["node_modules", ".git", ".zcode", "dist", "build", "coverage",
   ".claude-flow", ".swarm", ".zcode-cache"]);
-const EXEMPT_DOCS = new Set(["CHANGELOG.md"]);
-// Files whose citations are RESOLVED and RANGE-CHECKED but not content-pinned.
-//
-// CHANGELOG.md is append-at-top by format (Keep a Changelog), so every release shifts every line
-// below the new section. 21 citations point into it; content-pinning them means 21 drift reports at
-// every release, for a structural reason rather than a real defect. A gate that fires predictably
-// and unavoidably gets switched off — the same reasoning regression-gate.mjs uses to never punish
-// inherited breakage. So: a citation into CHANGELOG.md must still resolve and still be in range
-// (catching "points past the end"), but its content is not pinned.
-//
-// KNOWN, NOT FIXED, and stated rather than hidden: this means a CHANGELOG citation can silently
-// come to point at the wrong entry after a release. The real fix is to cite the changelog by
-// heading anchor rather than by line, which is a documentation-convention change and out of scope
-// for this item.
-const NO_PIN_TARGETS = new Set(["CHANGELOG.md"]);
+// Documents never scanned as citing documents. Intentionally EMPTY since impl-21: CHANGELOG.md
+// used to sit here as a whole-file exemption, but it is now scanned for its top section under the
+// scan window, and nothing else has ever needed a whole-file pass. Re-adding a doc here is the
+// operator override that reverses the CHANGELOG scan decision (pinning of CHANGELOG targets stays
+// either way). Per-document opt-out remains available via IGNORE_MARKER below.
+const EXEMPT_DOCS = new Set();
 // A document may opt out entirely with this marker anywhere in its body.
 const IGNORE_MARKER = "<!-- anchor-lock: ignore -->";
 
@@ -78,6 +86,18 @@ const DOC_EXT = /\.md$/;
 // the head of the pattern admits an optional one; a naive [A-Za-z]-anchored class drops it and the
 // path silently fails to resolve.
 const CITE = /(?<![\w/.\-])(\.?[A-Za-z0-9_][A-Za-z0-9_./\-]*\.(?:mjs|md|json|jsonl|js|cjs|yml|yaml|sh|py|toml|ts))[:](\d+)(?:\s*[-–]\s*(\d+))?/g;
+// A citation may continue past its first number. The rule is STRUCTURAL, not an enumeration of
+// today's separator shapes: after a path-form cite, a contiguous run of further number elements —
+// each `N` or `N-M` (en dash included), each joined to the previous element by `,` or `/` with
+// optional whitespace and an optional leading `:` — belongs to the same path. Live dialects this
+// covers: `harness.mjs:88,62`, `:69-70,19,128-131`, `CHANGELOG.md:578/:696`. Sticky-flagged so it
+// can only ever match exactly where the preceding element ended.
+const CHAIN_ELEMENT = /\s*[,/]\s*:?\s*(\d+)(?:\s*[-–]\s*(\d+))?/y;
+// A bare `:N`/`:N-M` whose colon is not preceded by a word char, dot, or dash — so `12:30`,
+// `impl/05:162`, and `md:65,63` never match — binds to the NEAREST preceding path-form cite on
+// the SAME line; it never reaches past a nearer cite to a farther one. With no same-line
+// path-form antecedent it is not a citation at all. Discovery never crosses a line boundary.
+const BARE_CONTINUATION = /(?<![\w.\-]):(\d+)(?:\s*[-–]\s*(\d+))?/g;
 
 function walk(dir, out = []) {
   let entries;
@@ -160,7 +180,17 @@ function fingerprint(path, a, b) {
 }
 
 // ── scan ──────────────────────────────────────────────────────────────────────
+// Discovery runs per LINE: first every path-form cite (the seven-dialect regex above), then the
+// contiguous number chain hanging off each, then bare-colon continuations bound to their nearest
+// same-line antecedent. A number-only continuation with no same-line path-form cite is simply not
+// discovered — see the header's under-coverage statement.
 const found = new Map();   // key "path:a" or "path:a-b" → {path,a,b,citedAs,sites:[{doc,line}]}
+const record = (doc, lineNo, citedAs, a, b) => {
+  const res = resolveCitation(citedAs);
+  const key = res.path ? `${res.path}:${a}${b ? "-" + b : ""}` : `?${citedAs}:${a}`;
+  if (!found.has(key)) found.set(key, { ...res, citedAs, a, b, sites: [] });
+  found.get(key).sites.push({ doc, line: lineNo + 1 });
+};
 let scannedDocs = 0;
 for (const rel of allFiles) {
   if (!DOC_EXT.test(rel)) continue;
@@ -170,17 +200,47 @@ for (const rel of allFiles) {
   if (body.includes(IGNORE_MARKER)) continue;
   scannedDocs++;
   const docLines = body.split("\n");
-  for (let i = 0; i < docLines.length; i++) {
+  // CHANGELOG scan window (the operator-proxy decision from the header): CHANGELOG.md is a citing
+  // document for its TOP SECTION only — line 1 through the line BEFORE the second `## [version]`
+  // heading — so the in-progress section is checked while released history below it is never
+  // rescanned and never rewritten. A file with fewer than two such headings is scanned whole.
+  let scanEnd = docLines.length;
+  if (rel === "CHANGELOG.md") {
+    let versionHeadings = 0;
+    for (let i = 0; i < docLines.length; i++) {
+      if (/^## \[/.test(docLines[i]) && ++versionHeadings === 2) { scanEnd = i; break; }
+    }
+  }
+  for (let i = 0; i < scanEnd; i++) {
+    const line = docLines[i];
+    const anchors = [];   // every path-form cite on this line: {start, end, citedAs}, in order
     CITE.lastIndex = 0;
     let m;
-    while ((m = CITE.exec(docLines[i])) !== null) {
-      const citedAs = m[1];
-      const a = parseInt(m[2], 10);
-      const b = m[3] ? parseInt(m[3], 10) : null;
-      const res = resolveCitation(citedAs);
-      const key = res.path ? `${res.path}:${a}${b ? "-" + b : ""}` : `?${citedAs}:${a}`;
-      if (!found.has(key)) found.set(key, { ...res, citedAs, a, b, sites: [] });
-      found.get(key).sites.push({ doc: rel, line: i + 1 });
+    while ((m = CITE.exec(line)) !== null) {
+      record(rel, i, m[1], parseInt(m[2], 10), m[3] ? parseInt(m[3], 10) : null);
+      // Absorb the contiguous chain of further number elements, if any.
+      let end = CITE.lastIndex;
+      for (;;) {
+        CHAIN_ELEMENT.lastIndex = end;
+        const cm = CHAIN_ELEMENT.exec(line);
+        if (!cm) break;
+        record(rel, i, m[1], parseInt(cm[1], 10), cm[2] ? parseInt(cm[2], 10) : null);
+        end = CHAIN_ELEMENT.lastIndex;
+      }
+      anchors.push({ start: m.index, end, citedAs: m[1] });
+      CITE.lastIndex = end;
+    }
+    // Bare-colon continuations (`:545, :637`, `…at :1105` with an antecedent): bind each to the
+    // nearest PRECEDING path-form cite on this line — the last anchor that starts before it, so a
+    // nearer cite is never skipped in favor of a farther one.
+    BARE_CONTINUATION.lastIndex = 0;
+    let bm;
+    while ((bm = BARE_CONTINUATION.exec(line)) !== null) {
+      if (anchors.some((an) => bm.index >= an.start && bm.index < an.end)) continue;  // already parsed as a chain element
+      let antecedent = null;
+      for (const an of anchors) if (an.start < bm.index) antecedent = an;
+      if (!antecedent) continue;   // no same-line path-form cite → not a citation
+      record(rel, i, antecedent.citedAs, parseInt(bm[1], 10), bm[2] ? parseInt(bm[2], 10) : null);
     }
   }
 }
@@ -227,6 +287,16 @@ for (const [key, c] of [...found.entries()].sort((x, y) => x[0].localeCompare(y[
       detail: `no file in the tree matches \`${c.citedAs}\`` });
     continue;
   }
+  // Range sanity, validated on the parsed pair BEFORE any slicing or fingerprinting: a reversed
+  // range made `lines.slice(a-1, b)` EMPTY, and an empty span passed the contentless check
+  // vacuously — the defect was real but the label was a lie, so it gets its own kind.
+  if (c.b !== null && c.b < c.a) {
+    problems.push({ kind: "backwards-range", key, citedAs: c.citedAs, where,
+      detail: `the range \`${c.a}-${c.b}\` is reversed — lines.slice(${c.a - 1}, ${c.b}) is empty, ` +
+        `so the span was never actually checked (it used to pass the contentless check vacuously). ` +
+        `Swap the pair so the smaller line comes first.` });
+    continue;
+  }
   const fp = fingerprint(c.path, c.a, c.b);
   if (!fp) { problems.push({ kind: "unreadable", key, citedAs: c.citedAs, where, detail: `cannot read ${c.path}` }); continue; }
   if (fp.outOfRange !== undefined) {
@@ -241,8 +311,8 @@ for (const [key, c] of [...found.entries()].sort((x, y) => x[0].localeCompare(y[
         `Re-anchor to the line that actually carries the claim.` });
     continue;
   }
-  // Resolved and in range. Unstable-by-format targets stop here — see NO_PIN_TARGETS.
-  if (NO_PIN_TARGETS.has(c.path)) continue;
+  // Resolved, in range, and carrying content: pin it. Every target is treated alike — CHANGELOG.md
+  // included since impl-21; the exemption that used to stop here is gone by design.
   nextLock[key] = fp.hash;
   if (UPDATE) continue;
   const pinned = lock.citations[key];
@@ -289,7 +359,7 @@ if (UPDATE) {
   // holds. A bare "anchor drift" would be worse than nothing — the reader has to be able to decide
   // whether the citation or the code is wrong, and that decision needs the current text.
   console.error(`check-anchors: ${problems.length} problem(s) across ${found.size} citations in ${scannedDocs} documents\n`);
-  const order = { drift: 0, contentless: 1, "out-of-range": 2, unresolved: 3, ambiguous: 4, unlocked: 5, unreadable: 6 };
+  const order = { drift: 0, contentless: 1, "out-of-range": 2, "backwards-range": 3, unresolved: 4, ambiguous: 5, unlocked: 6, unreadable: 7 };
   for (const p of problems.sort((x, y) => (order[x.kind] ?? 9) - (order[y.kind] ?? 9))) {
     console.error(`  [${p.kind}] ${p.key}`);
     console.error(`      cited as \`${p.citedAs}\` at ${p.where}`);

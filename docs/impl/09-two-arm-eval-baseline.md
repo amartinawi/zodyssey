@@ -111,7 +111,7 @@ authority. The two arms compare under the ONE existing judge.
 flip rate under paraphrase. Neither arm's absolute score is meaningful at this corpus size; what
 the two-arm design buys is that the SAME judge, rubric (`judge.mjs:206-213`), criteria, and seeds
 score BOTH arms, so systematic judge error is shared and largely cancels in the DELTA.
-Per-record variance stays visible through the existing `--double` (`judge.mjs:130,161-169`;
+Per-record variance stays visible through the existing `--double` (`judge.mjs:130,261-268`;
 `docs/MEASUREMENT.md` §6.1: judge twice, flag disagreements > 0.15) — the settling run should use
 it. Per `docs/MEASUREMENT.md` §6.2 the result is directional, not statistically tight.
 
@@ -347,7 +347,7 @@ The intended break: the baseline arm stops being a paragraph and starts costing 
 The repo's core bet (enforced orchestration over a single capable agent,
 `docs/ideation-report.md:296`, falsifiable only by "this repo's own two-arm eval", `:325-327`)
 was structurally untestable: every judged record wore one label (`judge.mjs:278`) and the control
-arm was documentation (`harness.mjs:21-23,128-132`). The class's observable damage: five judged
+arm was documentation (`harness.mjs:21-23`, pre-fix state narrated at `CHANGELOG.md:47`). The class's observable damage: five judged
 records, zero comparisons possible, and a consumer reduced to slug sniffing (`dashboard.mjs:20`).
 
 How this change could reintroduce the class: a **future arm — a third treatment, a renamed arm,
