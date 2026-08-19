@@ -1,6 +1,22 @@
 # Changelog
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+## [0.6.8] — 2026-08-19
+
+### Fixed — the baseline arm's tool surface is pinned, and a no-op baseline is a capability failure (item 09 follow-up)
+
+v0.6.7 shipped the baseline arm as the only external-CLI spawn in the repo with no permission flags. Every other spawn pins its surface deliberately — `judge.mjs` and `consult.mjs` both pass `--permission-mode plan --allowedTools ""`, because an auditor must not write — and the baseline arm is the one spawn that *must* write. Flagless, its tool access was an **uncontrolled variable in a controlled experiment**: what the control arm was permitted to do depended on whichever `CLAUDE_CLI` binary was on PATH, and nothing recorded it. Pinned now via `BASELINE_PERMISSION_MODE` (default `acceptEdits`, overridable with `ZODYSSEY_BASELINE_PERMISSION_MODE`), and stamped into the appended record as `baseline_permission_mode` so the experiment's conditions live in the data rather than in the operator's memory.
+
+The second half is the one that bites. Requirement 3's loud-failure rule fires on spawn error, non-zero exit and timeout — a permission-starved agent does none of those. It runs, writes nothing, exits 0. At v0.6.7 that was appended as a **measured** baseline, handing the judge an empty diff to score near zero, so a dead tool surface would have entered the corpus as an arm loss. The bias runs one way: it flatters the pipeline arm, inside the one instrument built to let this project be wrong about itself. An empty baseline diff is now a capability failure on the same terms as a timeout — `status: "failed"`, no append, excluded from per-arm means — decided mechanically (any change outside `.zcode/`, via `git status --porcelain`) rather than left to a reader noticing a suspiciously empty diff. Unreadable git fails closed.
+
+Paired probe: a stub CLI that consumes stdin, writes nothing and exits 0 produced **two measured baseline records** and a batch exit of 0 before the fix; after, it appends nothing and the batch exits 4 naming the capability failure. A writing stub still measures, and its record carries the permission mode. Both directions pinned in `two-arm-eval.test.mjs` (cases (h) and (i), 47/47); criterion 4's stash proof re-proves the red on demand. Suite 44/44.
+
+### Fixed — the citation work two earlier commits promised to fold in
+
+`a461f5e` (ideation-report bare-continuation cite broken by the v0.6.6 sweep) and `632478b` (the four unswept `CHANGELOG.md` citations, +32) each shipped with "folded into the next release entry" in their message; the `[0.6.7]` entry did not carry it. Discharged here, together with the citations this release's own `harness.mjs` edit shifted (+10): `impl/09:65`, `:265`, `ideation-report.md:370`, `:416`, `ROADMAP.md:33`.
+
+Two of those were already wrong before this change and neither was catchable: `ROADMAP.md:33` cited `harness.mjs:88,62`, where `:62` was the `USAGE` constant and never a `REPLACE_WITH` gate, and `ideation-report.md:416` cited `harness.mjs:69-70,19,128-131`. `check-anchors`' `CITE` regex requires a path prefix per citation, so in both cases only the **first** number was ever checked — the rest were invisible and free to rot. Both are rewritten as separately-prefixed citations so the checker can see every one. The general fix (teaching `CITE` comma-pairs, and content-pinning `NO_PIN_TARGETS`) stays queued as candidate C2; this release only stops the two known instances from lying.
+
 ## [0.6.7] — 2026-08-19
 
 ### Added — the two-arm eval instrument (item 09)

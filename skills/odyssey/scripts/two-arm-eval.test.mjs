@@ -102,7 +102,32 @@ function makeHome() {
   const stubFail = join(home, "stub-claude-fail.sh");
   writeFileSync(stubFail, ["#!/bin/sh", "cat > /dev/null", 'echo "stub CLI failure (exit 1)" >&2', "exit 1", ""].join("\n"));
   chmodSync(stubFail, 0o755);
-  return { home, evalDir, stubOk, stubFail, capture, invoked };
+  // (h)/(i): argv-logging stubs that EXIT 0. stubNoop writes nothing to cwd — the permission-
+  // starved agent shape; stubWrite produces real work. Both log their argv so the permission
+  // surface is assertable.
+  const argvLog = join(home, "stub-argv.log");
+  const stubNoop = join(home, "stub-claude-noop.sh");
+  writeFileSync(stubNoop, [
+    "#!/bin/sh",
+    "cat > /dev/null",
+    `printf '%s\\n' "$*" >> "${argvLog}"`,
+    `printf '%s\\n' '{"usage":null}'`,
+    "exit 0",
+    "",
+  ].join("\n"));
+  chmodSync(stubNoop, 0o755);
+  const stubWrite = join(home, "stub-claude-write.sh");
+  writeFileSync(stubWrite, [
+    "#!/bin/sh",
+    "cat > /dev/null",
+    `printf '%s\\n' "$*" >> "${argvLog}"`,
+    'printf "baseline agent output\\n" > baseline-work.txt',
+    `printf '%s\\n' '{"usage":null}'`,
+    "exit 0",
+    "",
+  ].join("\n"));
+  chmodSync(stubWrite, 0o755);
+  return { home, evalDir, stubOk, stubFail, stubNoop, stubWrite, argvLog, capture, invoked };
 }
 
 // Git fixture repo: two commits so judge has a real diff (start sha → work commit), plus an
@@ -376,6 +401,55 @@ console.log("two-arm-eval tests (judge --arm/--compare, harness --dry-run/baseli
     check("(g) zero success records appended", recs.every((x) => x.success !== true),
       `(results.jsonl holds ${recs.length} record(s), ${recs.filter((x) => x.success === true).length} with success:true)`);
     check("(g) failure is loud (output says failed)", /fail/i.test(r.stdout + r.stderr));
+  } finally { rmSync(h.home, { recursive: true, force: true }); }
+}
+
+// --- (h) the baseline arm's permission surface is explicit and recorded -------------------
+// Every other CLI spawn in the repo pins its permission surface (judge.mjs, consult.mjs pass
+// `--permission-mode plan --allowedTools ""`). The baseline arm is the only spawn that must
+// WRITE, and shipping it flagless made its tool access an uncontrolled variable: what the
+// control arm may do would depend on whichever CLAUDE_CLI binary is on PATH.
+{
+  const h = makeHome();
+  try {
+    makeFixtureDir(h.home);
+    writeSeeds(h.evalDir, harnessSeeds(h.home));
+    writeJudged(h.evalDir, []);
+    run(HARNESS, ["--arm", "baseline"], h.home, h.stubWrite);
+    const argv = existsSync(h.argvLog) ? readFileSync(h.argvLog, "utf8") : "";
+    check("(h) baseline spawn pins --permission-mode", /--permission-mode\s+\S+/.test(argv),
+      `(argv was ${JSON.stringify(argv.trim().slice(0, 120))})`);
+    const recs = existsSync(resultsPath(h.home))
+      ? readFileSync(resultsPath(h.home), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l))
+      : [];
+    check("(h) a productive baseline run IS measured", recs.length > 0, `(got ${recs.length} record(s))`);
+    check("(h) the record carries the permission mode it ran under",
+      recs.length > 0 && typeof recs[0].baseline_permission_mode === "string" && recs[0].baseline_permission_mode.length > 0,
+      `(got ${JSON.stringify(recs[0] && recs[0].baseline_permission_mode)})`);
+  } finally { rmSync(h.home, { recursive: true, force: true }); }
+}
+
+// --- (i) an empty baseline diff is a CAPABILITY FAILURE, never an arm result ---------------
+// The loud-failure rule (req 3) fires on spawn error, non-zero exit and timeout. A permission-
+// starved agent does none of those: it runs, writes nothing, exits 0. Recording that as a
+// measured baseline hands the judge an empty diff to score near zero — a silent, DIRECTIONAL
+// bias in the arm the experiment exists to give a fair hearing.
+{
+  const h = makeHome();
+  try {
+    makeFixtureDir(h.home);
+    writeSeeds(h.evalDir, harnessSeeds(h.home));
+    writeJudged(h.evalDir, []);
+    const r = run(HARNESS, ["--arm", "baseline"], h.home, h.stubNoop);
+    const recs = existsSync(resultsPath(h.home))
+      ? readFileSync(resultsPath(h.home), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l))
+      : [];
+    check("(i) a no-op baseline appends NO record", recs.length === 0,
+      `(results.jsonl holds ${recs.length} record(s))`);
+    check("(i) the batch reports nothing measured (exit 4)", r.code === 4, `(got ${r.code})`);
+    check("(i) the failure names it as a capability failure, not a loss",
+      /produced no changes.*capability failure, not an arm result/is.test(r.stdout + r.stderr),
+      `(output: ${JSON.stringify((r.stdout + r.stderr).slice(-240))})`);
   } finally { rmSync(h.home, { recursive: true, force: true }); }
 }
 

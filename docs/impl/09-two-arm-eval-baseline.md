@@ -62,7 +62,7 @@ this is what makes the run judgeable, `judge.mjs:162-165`) — is UNCHANGED and 
 Then, instead of printing instructions, the harness spawns **one** external CLI agent (the same
 binary `judge.mjs:242` already resolves: `env.CLAUDE_CLI || "claude"`), with cwd = the fresh copy,
 input = the seed's `prompt` field verbatim (nothing else — the pipeline arm does not see the
-success_criteria either; `harness.mjs:192` scaffolds from `seed.prompt` only), a bounded timeout
+success_criteria either; `harness.mjs:202` scaffolds from `seed.prompt` only), a bounded timeout
 (one named constant; **the corpus does not support the 60 minutes this brief originally
 proposed** — see the 2026-08-19 amendment at the end of this file for the measured distribution
 and for why a short cap biases this experiment), and waits synchronously. On completion the
@@ -262,7 +262,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
    not a per-callsite label list; `--compare` groups by the stamped field with no catch-all
    default, so an unknown value surfaces instead of silently joining the treatment arm. The
    rejected alternative (deriving arm from slug suffixes, as `lib/arm.mjs:14-17` does) is
-   sentinel matching — the exact shape `harness.mjs:94-95`'s own comment condemns.
+   sentinel matching — the exact shape `harness.mjs:104-105`'s own comment condemns.
 2. **A check that cannot detect the class of failure it exists for.** Criterion 4 proves the stamp
    assertions go red; case (f) proves a "dry-run" that writes anything fails; case (g) plus
    criterion 3's exit-4 rule keep the harness's vacuous-green rule honest for the new arm.

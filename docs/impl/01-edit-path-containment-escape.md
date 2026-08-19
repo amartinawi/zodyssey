@@ -45,7 +45,7 @@ repo, phase `execute`):**
   bypasses the entire Bash gate; that escape hatch is queue item 04's territory, not this
   change's.)
 
-Already named in the ledger: `CHANGELOG.md:214` (v0.5.1, *Known, not fixed*) — "The Edit-path scope
+Already named in the ledger: `CHANGELOG.md:230` (v0.5.1, *Known, not fixed*) — "The Edit-path scope
 gate is skipped for targets outside `PROJECT_DIR` (`if (rel)` with `rel` empty), while the Bash
 twin fails closed."
 
@@ -112,7 +112,7 @@ deliberately widened to list each doc literally. Do not widen it by default.
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; new
   checks are additive siblings.
 - Do not fix the adjacent named residuals (new-file lexical-resolution symlink redirect,
-  `CHANGELOG.md:229`; the unlocked state writes) — separate releases.
+  `CHANGELOG.md:245`; the unlocked state writes) — separate releases.
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — every verification
   in this change is an exit code.
 
@@ -239,10 +239,10 @@ suites are Bash-path commands, not Edit targets.
 **A guard added to one path and not its twin.** In this repo's own words:
 `skills/odyssey/hooks/pre-tool.mjs:287-289` — the v0.5.0 fix for T1-5 "armed `isState` on the Edit
 path only, which is the very Class A shape this release exists to close — a guard added to one
-path and not its Bash twin" (full account at `CHANGELOG.md:256-258`, including that the suite did
+path and not its Bash twin" (full account at `CHANGELOG.md:272-274`, including that the suite did
 NOT catch it — a re-verification against 0.4.1 did); and v0.5.1 shipped the same shape again in the
 nonce lane — exact-match guard on one site, segment-tolerant matching on its twin
-(`CHANGELOG.md:206`). This instance is the shape inverted in origin but identical in effect: the
+(`CHANGELOG.md:222`). This instance is the shape inverted in origin but identical in effect: the
 Bash path's classifier never returns an empty `rel` for a real target (`:298-299`), while the Edit
 path's does (`:677` init, assignment only inside guarded branches) — so every guard hanging off
 `if (rel)` exists on one path and not the other.
@@ -260,7 +260,7 @@ there is no list to keep in sync.
 Every doc that states the claim this change alters ("an executor may only edit declared files" /
 "fails closed"), each checked against the 2026-08-16 tree:
 
-- `CHANGELOG.md:214` — move the v0.5.1 *Known, not fixed* bullet into the new version's **Fixed**
+- `CHANGELOG.md:230` — move the v0.5.1 *Known, not fixed* bullet into the new version's **Fixed**
   (shape below).
 - `README.md:121` — comparison-table row "Executor stays in declared scope … blocks edits outside
   it. **Fails closed** on unreadable/empty plan": extend to state that containment covers targets
@@ -282,7 +282,7 @@ Every doc that states the claim this change alters ("an executor may only edit d
 ## CHANGELOG entry shape
 
 New version `0.5.3` (patch). **One security change per release, shipped alone** — the repo rule,
-with its own precedent at `CHANGELOG.md:184` (a structural gate change "wants its own release and
+with its own precedent at `CHANGELOG.md:200` (a structural gate change "wants its own release and
 its own paired run"). Do NOT batch queue items 03 or 04 into this release even though they touch
 the same file.
 
@@ -297,7 +297,7 @@ the same file.
   - Root-equality edge: a target exactly equal to the run repo or `PROJECT_DIR` returns `rel: ""`
     on both twins; the tools reject directory targets themselves.
   - Pre-existing residuals this change does not touch: the new-file lexical fallback / symlink
-    redirect (`CHANGELOG.md:229`), the unlocked state writes.
+    redirect (`CHANGELOG.md:245`), the unlocked state writes.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   re-Get/Update the plugin so the marketplace cache picks up the hook — a fix that stays only in
   the repo protects no run.

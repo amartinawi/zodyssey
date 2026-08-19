@@ -59,6 +59,16 @@ const WORKDIR = join(env.HOME || "", ".zcode", "orchestration", "eval", "runs");
 //     into "did worse" would be confirmation bias compiled into a constant.
 const BASELINE_TIMEOUT_MIN = 240;
 
+// BASELINE_PERMISSION_MODE — the tool-permission surface the baseline arm runs under.
+// Every other CLI spawn in this repo pins its surface deliberately (judge.mjs, consult.mjs pass
+// `--permission-mode plan --allowedTools ""`, because an auditor must not write). The baseline
+// arm is the ONLY spawn that must WRITE, and it shipped flagless — which made the control arm's
+// tool access an UNCONTROLLED VARIABLE in a controlled experiment: what it was permitted to do
+// depended on whichever CLAUDE_CLI binary happened to be on PATH, and nothing recorded it.
+// Pinned here, overridable per-CLI, and stamped into the appended record so the experiment's
+// conditions live in the data rather than in the operator's memory.
+const BASELINE_PERMISSION_MODE = env.ZODYSSEY_BASELINE_PERMISSION_MODE || "acceptEdits";
+
 const USAGE = "usage: harness.mjs [--task <id>] [--arm zodyssey|baseline] [--dry-run] [--list]";
 
 const args = argv.slice(2);
@@ -204,7 +214,7 @@ for (const seed of selected) {
     // cwd = the fresh copy; bounded by BASELINE_TIMEOUT_MIN (reasoning in its header).
     const claudeBin = env.CLAUDE_CLI || "claude";
     const t0 = Date.now();
-    const res = spawnSync(claudeBin, ["-p", "--output-format", "json"], {
+    const res = spawnSync(claudeBin, ["-p", "--output-format", "json", "--permission-mode", BASELINE_PERMISSION_MODE], {
       cwd: runRepo, encoding: "utf8", input: seed.prompt, shell: false,
       maxBuffer: 200 * 1024 * 1024, timeout: BASELINE_TIMEOUT_MIN * 60 * 1000,
     });
@@ -221,6 +231,37 @@ for (const seed of selected) {
             : `exited ${res.status}`);
       console.log(`  FAILED — baseline agent ${why}; no success append for this seed.`);
       if (res.stderr) console.log(`  agent stderr: ${String(res.stderr).slice(0, 200)}`);
+      results.push({ id: seed.id, slug, repo: runRepo, arm, status: "failed", reason: why });
+      continue;
+    }
+    // EMPTY-WORK GUARD (v0.6.8): req 3's loud-failure rule fires on spawn error, non-zero exit
+    // and timeout. A permission-starved agent does NONE of those — it runs, writes nothing, and
+    // exits 0. Recording that as a measured baseline hands the judge an empty diff to score near
+    // zero, so a capability failure would enter the corpus as an ARM LOSS. That bias runs one
+    // way: it flatters the pipeline arm, inside the one instrument built to let this project be
+    // wrong about itself. Same rule as the timeout, mechanically enforced rather than left to a
+    // reader noticing a suspiciously empty diff.
+    //
+    // The check is deliberately coarse — ANY change outside .zcode/ counts as work. Judging the
+    // work's quality is the judge's job; this only separates "did something" from "did nothing",
+    // which is the difference between an arm result and a dead tool surface.
+    let worked = false;
+    try {
+      const porcelain = execFileSync("git", ["-C", runRepo, "status", "--porcelain", "--untracked-files=all"],
+        { encoding: "utf8", shell: false, maxBuffer: 50 * 1024 * 1024 });
+      worked = porcelain.split("\n").map((l) => l.slice(3).trim()).filter(Boolean)
+        .some((f) => !f.startsWith(".zcode/") && !/^(node_modules|dist|build|target|coverage|\.cache|\.next)\//.test(f));
+    } catch (e) {
+      // git unreadable here means we cannot tell work from no-work. Fail closed: an
+      // unverifiable state blocks, it never passes (Step-5 constraint).
+      worked = false;
+    }
+    if (!worked) {
+      const why = `produced no changes under ${JSON.stringify(BASELINE_PERMISSION_MODE)} — ` +
+        `the agent exited 0 having written nothing outside .zcode/, which is a capability ` +
+        `failure, not an arm result (check the CLI's permission surface: ` +
+        `ZODYSSEY_BASELINE_PERMISSION_MODE overrides it)`;
+      console.log(`  FAILED — baseline agent ${why}; no success append for this seed.`);
       results.push({ id: seed.id, slug, repo: runRepo, arm, status: "failed", reason: why });
       continue;
     }
@@ -241,6 +282,7 @@ for (const seed of selected) {
       consult_rounds: 0,
       success: null,     // the harness cannot know this — the judge scores the run later
       arm: "baseline",   // provenance stamp: this harness constructed the run under --arm baseline
+      baseline_permission_mode: BASELINE_PERMISSION_MODE, // the tool surface this arm actually ran under
       wall_clock_min: wallClockMin,
       review_rounds: 0,
       todos_total: 0, todos_done: 0, todos_failed: 0, todo_retries: 0,
