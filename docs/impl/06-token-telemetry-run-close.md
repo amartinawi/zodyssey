@@ -19,7 +19,7 @@ import.meta.url))`, with the in-code comment "so it is found from the plugin cac
 `skills/odyssey/scripts/run-report.mjs:114` calls `collectRunTokens`, which reads ZCode's durable
 telemetry — the SQLite DB at `~/.zcode/cli/db/db.sqlite` (`skills/odyssey/scripts/lib/tokens.mjs:36`,
 table `model_usage` joined to `session` at `:105-114`). Token accounting shipped in 0.5.2
-(`CHANGELOG.md:344` dated 2026-08-15, entry at `CHANGELOG.md:404`; commit `6b0b428`
+(`CHANGELOG.md:362` dated 2026-08-15, entry at `CHANGELOG.md:422`; commit `6b0b428`
 "feat(telemetry): real per-run token accounting").
 
 **The corpus says "2 of ~193 populated" — and that number decomposes into three eras, none of which
@@ -323,9 +323,9 @@ Every doc that states the claim this change alters, each checked against the 202
   tokens-per-successful-todo headline): add the platform floor (token telemetry requires
   Node >= 22.5 via `node:sqlite`; on the engines floor >= 18 it records a stamped inert) and the
   canonical fraction command partitioning records into populated / inert-with-reason /
-  historical. The record-schema sketch at `docs/MEASUREMENT.md:161-166` gains the inert shape.
+  historical. The record-schema sketch at `docs/MEASUREMENT.md:173-178` gains the inert shape.
 - `CHANGELOG.md` — new version's **Fixed** (shape below) plus the *Known, not fixed* residuals.
-- `skills/odyssey/references/scripts.md:35` (the run-report entry): state the emitted `tokens`
+- `skills/odyssey/references/scripts.md:36` (the run-report entry): state the emitted `tokens`
   shapes (populated / inert-with-reason / historical null) and the two attribution modes
   (`session`+exact vs `time-window`+estimate, and what witnesses the id). The set-phase entry at
   `:9` needs no change — the auto-append contract is untouched.

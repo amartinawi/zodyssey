@@ -83,7 +83,7 @@ Because paths are non-deterministic, we judge the **end state**, not the sequenc
 >   callers**. The baseline is taken; the comparison never runs; the refusal reads a field nothing
 >   populates.
 > - **`check-imports.mjs`** (imports must resolve against the repo's declared dependencies) —
->   **built, never invoked from code.** Its only caller is prose (`references/scripts.md:46`).
+>   **built, never invoked from code.** Its only caller is prose (`references/scripts.md:47`).
 >
 > All three landed 2026-08-11 as *scripts*. Two of the three were never wired to anything, which is
 > why this section previously read as though the targets were met. A mechanism that exists is not a
@@ -103,6 +103,18 @@ Because paths are non-deterministic, we judge the **end state**, not the sequenc
 - Verification rigor — real tests, not assertions (0.2)
 - Code quality — no regressions/clutter (0.1)
 - Efficiency — tokens/time reasonable for the task (0.1)
+
+### Prompt-surface evidence statuses (item 10, v0.6.11)
+
+`node skills/odyssey/scripts/prompt-surface.mjs [eval-dir] [repo-root]` tags every unit of the
+guidance surface (SKILL.md sections, capability-matrix rows, agent prompts) with an evidence
+status — `measured-load-bearing` / `unmeasured` / `contradicted` — computed from the two-arm
+deltas (`MIN_N = 3`, band ±0.15, both printed as header conventions). Headline: the unmeasured
+fraction, with a `substrate: <k> of <N> run states carry a capabilities key` header line so an
+instrumentation-coverage cause (today `0 of 6`) is never mistaken for a guidance claim. Exit
+contract 0/2/3 — exit 3 (not 0) when no seed is judged under both arms (the item-09
+precondition), a deliberate divergence from `dashboard.mjs`'s exit-0-on-empty convention.
+stdout-only; mutates nothing.
 
 ## 3. The seed eval set (the ground truth)
 

@@ -154,6 +154,18 @@ if (existsSync(runsDir)) {
   } catch { runRepoDirs = []; } // unreadable runs/ → no witnesses, never a crash
 }
 
+// Substrate bookkeeping (release-pass rider 2026-08-20): count what the join actually resolves —
+// N = run-state FILES the glob below finds over the paired seeds' zodyssey-arm slugs, k = those
+// whose JSON carries a `capabilities` key AT ALL (the key post-tool.mjs:204/:250 writes into).
+// The header prints `k of N` so the `unmeasured fraction` headline cannot read as a claim about
+// the guidance when the real cause is instrumentation coverage. A slug is globbed when an
+// arm-FIELD "zodyssey" record carries it — live, that includes the mislabeled `*-baseline` slugs
+// (slug suffixes are never consulted; the arm FIELD decides), and every matching repo counts
+// (harness re-runs mint fresh dirs; each match is a resolved file). Corrupt JSON counts toward
+// N (the file resolved) but never toward k.
+let substrateN = 0;
+let substrateK = 0;
+
 for (const p of pairedSeeds) {
   const caps = new Set();
   for (const slug of p.zodSlugs) {
@@ -163,8 +175,10 @@ for (const p of pairedSeeds) {
     for (const repo of runRepoDirs) {
       const sp = join(runsDir, repo, ".zcode", "state", `${slug}.json`);
       if (!existsSync(sp)) continue;
+      substrateN++; // a resolved run-state file — counted whether or not it is instrumented
       let st;
       try { st = JSON.parse(readFileSync(sp, "utf8")); } catch { continue; }
+      if (st && typeof st === "object" && Object.hasOwn(st, "capabilities")) substrateK++;
       if (st && Array.isArray(st.capabilities)) {
         for (const c of st.capabilities) {
           if (c && typeof c.capability === "string") caps.add(c.capability); // exact recorded string
@@ -273,6 +287,7 @@ push(`- repo root: \`${repoRoot}\``);
 push(`- judged records read: ${judged.length}`);
 push(`- paired seeds (arm-field pairs): ${pairedSeeds.length}`);
 push(`- constants: MIN_N = ${MIN_N} · delta band ±${DELTA_THRESHOLD} (judge.mjs:294's double-judge noise flag)`);
+push(`- substrate: ${substrateK} of ${substrateN} run states carry a capabilities key`);
 push("");
 push("## Evidence status per unit");
 push("");

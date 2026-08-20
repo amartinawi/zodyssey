@@ -214,6 +214,14 @@ console.log("prompt-surface.mjs — evidence-status report (item 10)\n");
       /MIN_N\s*=\s*3/.test(stdout) && /0\.15/.test(stdout));
     check("tagged-report: unmeasured fraction headline rendered",
       stdout.split("\n").some((l) => /unmeasured/i.test(l) && /fraction/i.test(l) && /\d/.test(l)));
+    // Substrate line (release-pass rider 2026-08-20): the fraction headline alone reads like a
+    // claim about the guidance; the header must also name the instrumentation substrate it was
+    // computed over. Pinned to THIS fixture's exact shape: 1 resolved zodyssey-arm run-state file
+    // (s1-zodyssey) carrying a capabilities array → "1 of 1". The extraEmptyStateSlugs decoy
+    // (s1-baseline) mints a state DIR with no file and a BASELINE slug — never consulted, never
+    // counted; an implementation counting dirs or baseline repos would print "2 of 2" and fail.
+    check("tagged-report: header substrate line — 1 of 1 run states carry a capabilities key",
+      stdout.split("\n").some((l) => l.includes("substrate: 1 of 1 run states carry a capabilities key")));
   } finally {
     rmSync(t1, { recursive: true, force: true });
   }
@@ -257,6 +265,10 @@ console.log("prompt-surface.mjs — evidence-status report (item 10)\n");
       !rowWith(stdout, "agents/prometheus.md", "n=6") && !rowWith(stdout, "agents/oracle.md", "n=6"));
     check("tagged-report: aggregate over 6 pairs (mean delta 0.00, inside band) reads unmeasured",
       rowWith(stdout, "pipeline (aggregate)", "n=6", "unmeasured"));
+    // Substrate pin for this fixture: 6 resolved zodyssey-arm run-state files (s1..s6-zodyssey),
+    // every one carrying a capabilities array → "6 of 6".
+    check("tagged-report: header substrate line — 6 of 6 run states carry a capabilities key",
+      stdout.split("\n").some((l) => l.includes("substrate: 6 of 6 run states carry a capabilities key")));
   } finally {
     rmSync(t2, { recursive: true, force: true });
   }

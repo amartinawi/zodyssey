@@ -2,6 +2,24 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.11] — 2026-08-20
+
+### Added — prompt-surface measurement: evidence statuses for the guidance text (item 10)
+
+`skills/odyssey/scripts/prompt-surface.mjs` renders a census of the guidance surface (every `## ` section of SKILL.md, every capability-matrix row, every agent prompt) tagged with an evidence status — `measured-load-bearing` / `unmeasured` / `contradicted` — computed mechanically from the two-arm deltas item 09 produces, joined to hook-witnessed capability activity in run state by exact identity (`MIN_N = 3`, delta band ±0.15, both printed as header conventions). The report is stdout-only and mutates nothing. Without a seed judged under both arms it refuses: exit 3, stderr naming `two-arm` and the producing commands — a deliberate divergence from `dashboard.mjs`'s exit-0-on-empty convention, because an absent substrate is a named blocker here, not an empty table.
+
+The header carries a substrate line — `substrate: <k> of <N> run states carry a capabilities key` — so the headline unmeasured fraction cannot be quoted as a claim about the guidance when the cause is instrumentation coverage. Today it reads `0 of 6` (the field-not-slug join consults four slugs, each resolving state in both the harness-stamped and legacy repo layouts): the first quotable fraction is 1.000 for a named, checkable reason.
+
+This repo cites its probes: refusal proven live against the pre-09 ledger; all three statuses threshold-proven in the suite; the layout-agnostic state join (`runs/*/.zcode/state/<slug>.json`) proven against both layouts on disk — the first cut resolved a fictional `-live`-only layout, was caught by the final-wave code review, and was fixed fixtures-first RED→GREEN before release.
+
+**Known, not fixed:**
+
+- Initial tagging is coarse: two arms measure the pipeline as a whole; per-section and per-agent attribution require ablation runs. Agent blocks inherit the aggregate delta's status; SKILL.md sections read `unmeasured` by construction.
+- The witnessed-activity substrate is empty beyond the brief's prediction — the `capabilities` key is absent entirely from every eval-run state on disk (both layouts, both arms; the two zodyssey-arm `-live` states predate the capability-observation write). The fraction cannot move until a fresh zodyssey-arm run is driven on a seed — the same interactive-conductor bottleneck as the eval itself; nothing automatable clears it.
+- Guidance-version skew: eval runs are driven by the *cached* plugin's prompt surface; the report tags the tree it is pointed at (`repo-root` argv). Exact version pinning is follow-up work.
+- `MIN_N = 3` and the ±0.15 band are named conventions, not laws.
+- The report mutates nothing; pruning, if any, is a human decision in a separate change.
+
 ## [0.6.10] — 2026-08-20
 
 ### Added — compaction now fires from the final-phase transition (item 11)

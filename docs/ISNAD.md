@@ -30,7 +30,7 @@ The source document covered seven areas. The study's brief was explicit that dup
 
 Cross-run reliability for agent *configurations*, not agent names. Evidence comes from consult ACCEPT/REJECT gaps and judged criterion results; trust is a Laplace-smoothed ratio `(s+1)/(s+m+2)` with a 0.50 cold-start prior (`registry-report.mjs:32`), and **`n` is always printed beside the score** so a 1.00 at n=1 cannot masquerade as a track record.
 
-The load-bearing detail is the key: configs are keyed on `sha256(agents/<name>.md)`, so editing a prompt starts a **new** narrator at the cold-start prior rather than inheriting its predecessor's reputation. That is the stochastic-narrator rule — trust attaches to the exact configuration that produced the evidence, never to the label. Full contract at [`references/scripts.md:52`](../skills/odyssey/references/scripts.md).
+The load-bearing detail is the key: configs are keyed on `sha256(agents/<name>.md)`, so editing a prompt starts a **new** narrator at the cold-start prior rather than inheriting its predecessor's reputation. That is the stochastic-narrator rule — trust attaches to the exact configuration that produced the evidence, never to the label. Full contract at [`references/scripts.md:53`](../skills/odyssey/references/scripts.md).
 
 **Advisory only.** metis folds low-trust/high-n narrators into Identified Risks at consult. Nothing gates on it.
 
@@ -70,11 +70,11 @@ No stylistic or fluency feature may enter trust scoring. Style-correlated confid
 
 Written 2026-08-19, reconstructed from committed artifacts. Two limits worth stating plainly:
 
-**The original rule-by-rule mapping was never written down.** It lived in the study conversation. `CHANGELOG.md:227` asserts the unadopted rules were skipped "precisely because ZOdyssey already enforces the rest in stronger form" — a claim with no supporting mapping in the repo. The "already covered" rows above are *this document's* verification against the current tree, each with a citation you can check. They are not a transcript of what the study concluded, and where the study's reasoning differed it is lost.
+**The original rule-by-rule mapping was never written down.** It lived in the study conversation. `CHANGELOG.md:245` asserts the unadopted rules were skipped "precisely because ZOdyssey already enforces the rest in stronger form" — a claim with no supporting mapping in the repo. The "already covered" rows above are *this document's* verification against the current tree, each with a citation you can check. They are not a transcript of what the study concluded, and where the study's reasoning differed it is lost.
 
 **The rule numbering is sparse.** Only R2, R4, R5 and R8 appear anywhere in the repo. R1, R3, R6 and R7 are never named, so the domains above are listed by description rather than assigned numbers that cannot be verified.
 
-**A numbering collision to watch.** `R2` and `R3` already denote something unrelated in this repo — bash command-classification remediation rounds ([`docs/OPPORTUNITY-MAP.md:333`](OPPORTUNITY-MAP.md), `CHANGELOG.md:319-320`). Two rule namespaces share the same tokens; read the surrounding context, not the number.
+**A numbering collision to watch.** `R2` and `R3` already denote something unrelated in this repo — bash command-classification remediation rounds ([`docs/OPPORTUNITY-MAP.md:333`](OPPORTUNITY-MAP.md), `CHANGELOG.md:337-338`). Two rule namespaces share the same tokens; read the surrounding context, not the number.
 
 **Both CHANGELOG citations above were, at writing time, into an exempt target.** `CHANGELOG.md` sat in `check-anchors`' `NO_PIN_TARGETS` (since removed by impl-21: CHANGELOG targets are content-pinned now, with only the released-history window below the second version heading unscanned). Both drifted by +14 within hours of this document being written, when v0.6.4 was cut above them, and the checker reported green throughout. Re-verify them by string, not by trusting the suite.
 

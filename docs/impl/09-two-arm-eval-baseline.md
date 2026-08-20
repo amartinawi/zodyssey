@@ -347,7 +347,7 @@ The intended break: the baseline arm stops being a paragraph and starts costing 
 The repo's core bet (enforced orchestration over a single capable agent,
 `docs/ideation-report.md:296`, falsifiable only by "this repo's own two-arm eval", `:325-327`)
 was structurally untestable: every judged record wore one label (`judge.mjs:311`) and the control
-arm was documentation (`harness.mjs:21-23`, pre-fix state narrated at `CHANGELOG.md:81`). The class's observable damage: five judged
+arm was documentation (`harness.mjs:21-23`, pre-fix state narrated at `CHANGELOG.md:99`). The class's observable damage: five judged
 records, zero comparisons possible, and a consumer reduced to slug sniffing (`dashboard.mjs:20`).
 
 How this change could reintroduce the class: a **future arm — a third treatment, a renamed arm,
@@ -376,7 +376,7 @@ record zodyssey; the baseline is manual"), each checked against the 2026-08-16 t
   claim; §7 items 3 and 5 (the judge's new signature; the internal baseline arm distinguished
   from the optional external omo cross-eval). Compose with 05's corpus-hygiene block — 05 lands
   first; do not clobber it.
-- `skills/odyssey/references/scripts.md:36-37` — the eval section: harness usage gains `--dry-run`
+- `skills/odyssey/references/scripts.md:37-38` — the eval section: harness usage gains `--dry-run`
   and loses "TODO"; judge usage gains `[--arm zodyssey|baseline]` and `--compare`, with the
   extended exit codes.
 - `docs/DESIGN.md` — pointer correction first: the queue brief said "§6", but §6 is the hooks
