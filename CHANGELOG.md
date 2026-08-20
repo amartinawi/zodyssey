@@ -2,6 +2,39 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.15] — 2026-08-20
+
+### Fixed — the eval harness declares its synthetic lane at every producer site (item 22)
+
+The two-arm evaluation harness built synthetic runs end to end — fresh-copied fixtures, a
+spawnable external CLI, self-appended measurement records — and never declared itself
+synthetic anywhere: no `ZODYSSEY_EVAL_LANE` at the scaffold spawn or the baseline CLI spawn,
+and the baseline arm's efficiency record self-appended straight to the operator-lane
+`results.jsonl`. The lane contract (references/scripts.md) says fixture harnesses MUST declare
+the lane at spawn; the harness postdated item 05's lane split and reopened exactly that class —
+measured 2026-08-20, 2 fake `arm:"baseline"` records sat among the operator's 418 real ones.
+
+The fix is producer-side and unconditional: both spawns stamp
+`ZODYSSEY_EVAL_LANE: "synthetic"` (the run-tests declaration idiom) so everything they start
+inherits the declaration, and the baseline self-append routes to `results.synthetic.jsonl` by
+CONSTANT — the harness IS the synthetic generator, so it declares its lane at source rather
+than asking the operator's env (`env.ZODYSSEY_EVAL_LANE ||` is forbidden in it). A spawn-only
+fix could not have routed the direct append, and the 2 polluted records went through exactly
+that path.
+
+Paired probes, RED first: a hermetic baseline run (temp HOME, stub CLI, scrubbed env) landed
+one `arm:"baseline"` record in the operator lane with the synthetic file absent — exit 0 with
+the defect present; after the fix the mirrored probe holds exactly one record in
+`results.synthetic.jsonl` with the operator file never created, and the spawned CLI witnesses
+`ZODYSSEY_EVAL_LANE=synthetic`. The new suite `harness.eval-lane.test.mjs` was RED at 2/9 on
+the unmodified harness and is 9/9 after; the suite count goes 48 → 49.
+
+Known, not fixed: the dashboard's default view reads the operator lane, so harness baseline
+rows now render only from the synthetic lane; zodyssey-arm scorecards from the operator's
+interactive conductor sessions cannot be harness-tagged (no harness spawn to tag — routing
+them would need lane persistence in run state); and the 2 polluted records are documented and
+retained pending an operator-side data decision.
+
 ## [0.6.14] — 2026-08-20
 
 ### Fixed — the live cache dir can never be pruned, including on a mismatched registry (item 13, consult r1)

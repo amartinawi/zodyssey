@@ -43,6 +43,17 @@ const SEED = join(env.HOME || "", ".zcode", "orchestration", "eval", "seed.jsonl
 const RESULTS = join(env.HOME || "", ".zcode", "orchestration", "eval", "results.jsonl");
 const WORKDIR = join(env.HOME || "", ".zcode", "orchestration", "eval", "runs");
 
+// SYNTH — the synthetic lane (item 22). This harness builds fake runs end to end (fresh-copied
+// fixtures, a spawnable CLI, self-appended records), so it IS a synthetic generator, and a
+// generator declares its lane at source instead of letting its telemetry land in the operator's
+// corpus (the exact contamination item 05's lane split closed for set-phase). Both spawns below
+// stamp `ZODYSSEY_EVAL_LANE: "synthetic"` (the run-tests.mjs declaration idiom) so everything
+// they start inherits the declaration, and the baseline self-append routes to SYNTH, never
+// RESULTS (RESULTS stays the operator lane the summary reads). The lane is an unconditional
+// constant — never `env.ZODYSSEY_EVAL_LANE || …`: the generator does not ask the operator's env
+// which lane the generator itself is.
+const SYNTH = join(env.HOME || "", ".zcode", "orchestration", "eval", "results.synthetic.jsonl");
+
 // BASELINE_TIMEOUT_MIN — the wall-clock budget for ONE baseline-arm external-CLI run (item 09;
 // 2026-08-19 amendment, docs/impl/09-two-arm-eval-baseline.md "Amendment — the timeout
 // constant", and MEASUREMENT.md §6 item 6). The amendment directs the reasoning to live in the
@@ -151,7 +162,7 @@ if (dryRun) {
       console.log(`  spawn: ${env.CLAUDE_CLI || "claude"} -p --output-format json`);
       console.log(`  cwd:   ${runRepo}   timeout: ${BASELINE_TIMEOUT_MIN} min (BASELINE_TIMEOUT_MIN)`);
       console.log(`  input: the seed's prompt, verbatim (${seed.prompt.length} chars) — no criteria, no plan`);
-      console.log(`  on completion: self-append the efficiency record (arm "baseline") to ${RESULTS}`);
+      console.log(`  on completion: self-append the efficiency record (arm "baseline") to ${SYNTH}`);
     } else {
       console.log(`  spawn: none — the conductor drives /orchestrate on the scaffolded run (interactive boundary)`);
       console.log(`  on set-phase done|audited: the scorecard auto-appends to ${RESULTS}`);
@@ -216,7 +227,7 @@ for (const seed of selected) {
   try {
     execFileSync("node", [
       join(SCRIPTS, "scaffold.mjs"), runRepo, slug, seed.prompt.slice(0, 60), seed.intent, seed.prompt,
-    ], { shell: false, stdio: "pipe", encoding: "utf8" });
+    ], { shell: false, stdio: "pipe", encoding: "utf8", env: { ...env, ZODYSSEY_EVAL_LANE: "synthetic" } });
   } catch (e) {
     console.log(`  scaffold note: ${(e.stderr || e.message || "").slice(0, 120)}`);
   }
@@ -233,6 +244,7 @@ for (const seed of selected) {
     const res = spawnSync(claudeBin, ["-p", "--output-format", "json", "--permission-mode", BASELINE_PERMISSION_MODE], {
       cwd: runRepo, encoding: "utf8", input: seed.prompt, shell: false,
       maxBuffer: 200 * 1024 * 1024, timeout: BASELINE_TIMEOUT_MIN * 60 * 1000,
+      env: { ...env, ZODYSSEY_EVAL_LANE: "synthetic" },
     });
     // Loud failure (item 09 req 3): CLI absent / non-zero exit / timeout → status "failed", NO
     // vacuous success append. A timed-out or crashed baseline is a capability failure, never an
@@ -334,8 +346,8 @@ for (const seed of selected) {
       generated_at: new Date().toISOString(),
     };
     mkdirSync(join(env.HOME || "", ".zcode", "orchestration", "eval"), { recursive: true });
-    appendFileSync(RESULTS, JSON.stringify(record) + "\n");
-    console.log(`  baseline agent completed in ${wallClockMin} min — efficiency record appended to ${RESULTS}`);
+    appendFileSync(SYNTH, JSON.stringify(record) + "\n");
+    console.log(`  baseline agent completed in ${wallClockMin} min — efficiency record appended to ${SYNTH}`);
     console.log(`  after the run, score it:  node judge.mjs ${runRepo} ${slug} ${seed.id} --arm baseline`);
     console.log(`  success_criteria for this task (judge end-state against these):`);
     for (const c of seed.success_criteria) console.log(`    - ${c}`);
@@ -354,7 +366,6 @@ console.log("\n=== harness summary ===");
 for (const r of results) console.log(`  ${r.id}: ${r.status}${r.repo ? " → " + r.repo : ""}`);
 // Item 05: both lanes, or the summary silently under-reports — the miniature of the
 // vacuous-dashboard problem the lane split exists to close.
-const SYNTH = join(env.HOME || "", ".zcode", "orchestration", "eval", "results.synthetic.jsonl");
 const count = (p) => (existsSync(p) ? readFileSync(p, "utf8").split("\n").filter((l) => l.trim()).length + " records" : "empty");
 console.log(`\nresults.jsonl (operator lane): ${count(RESULTS)}${existsSync(RESULTS) ? "" : " (will populate as runs complete)"}`);
 console.log(`results.synthetic.jsonl (synthetic lane): ${count(SYNTH)}`);

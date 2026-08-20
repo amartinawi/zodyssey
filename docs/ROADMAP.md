@@ -30,7 +30,7 @@ had no mechanism that notices when a safeguard stops working.
 
 The same absence shows up everywhere it was looked for:
 
-- `harness.mjs:98-99` gate on `seed.repo.includes("REPLACE_WITH")`; the seeds say
+- `harness.mjs:109-110` gate on `seed.repo.includes("REPLACE_WITH")`; the seeds say
   `/path/to/throwaway/repo`. The string never matches, so `--list` prints ✓ for all 5 seeds and
   every run then dies on `cpSync` ENOENT. **The eval has never produced a number.**
 - `record-final-wave.mjs` F2/F4 never open the review artifact. They check path-under-`reviews/`,
