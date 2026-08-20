@@ -14,11 +14,11 @@ them has a single code caller**. Census re-measured 2026-08-16 (this run, not an
 number): grep for each script's name across `skills/`, `scripts/`, `agents/`, `commands/`
 (`*.mjs`, `*.bash`), excluding the script itself and its `.test.mjs` → **zero hits for all three**.
 Every remaining reference is doc prose: `check-imports` at
-`skills/odyssey/references/scripts.md:47`, `docs/MEASUREMENT.md:85`, `README.md:132`;
+`skills/odyssey/references/scripts.md:47`, `docs/MEASUREMENT.md:85`, `README.md:133`;
 `resolve-capabilities` at `skills/odyssey/SKILL.md:393`,
 `skills/odyssey/references/capabilities.md:106`,
 `skills/odyssey/references/scripts.md:50`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
-`docs/DESIGN.md:433`; `coverage-delta` at `CHANGELOG.md:843` only (it has no
+`docs/DESIGN.md:433`; `coverage-delta` at `CHANGELOG.md:857` only (it has no
 `references/scripts.md` entry at all). The three detectors:
 
 - `skills/odyssey/scripts/check-imports.mjs` — exits **9** on an import that resolves against
@@ -38,7 +38,7 @@ files." — an imperative addressed to the conductor. The repo's B8 comment expl
 enforcement: `skills/odyssey/scripts/set-phase.mjs:330-332` — "Wired here rather than as a SKILL.md
 instruction on purpose: an instruction to a conductor is the prompt-convention 'enforcement' this
 project exists to replace." v0.3.2 shipped these as "the three gates `MEASUREMENT.md` promised and
-never had" (`CHANGELOG.md:675`) — and shipped them unwired:
+never had" (`CHANGELOG.md:689`) — and shipped them unwired:
 `docs/MEASUREMENT.md:74-78` still lists `check-imports.mjs` among "the mechanisms behind" the
 factual-accuracy target, a claim with no mechanism behind it. Both ideation passes found this
 independently (`docs/ideation-report.md:38`, `:263`, `:308` — "convention measurably failed to
@@ -296,7 +296,7 @@ after the fix, not a bypass flag.
 
 **A check that exists, passes its own tests, and cannot fire from the pipeline** — ceremony
 without mechanism, failure mode 3. Three instances shipped together on 2026-08-11 under the
-heading "the three gates `MEASUREMENT.md` promised and never had" (`CHANGELOG.md:675`), each
+heading "the three gates `MEASUREMENT.md` promised and never had" (`CHANGELOG.md:689`), each
 documented with an imperative sentence addressed to a conductor
 (`skills/odyssey/references/scripts.md:47`) that no mechanism ever executed. The class has a
 finer-grained member this run found: a check wired on ONE side only — invoke without consumer, or
@@ -335,7 +335,7 @@ checked against the 2026-08-16 tree:
 - `docs/MEASUREMENT.md:74-78` — the "Honest status" block: the `check-imports.mjs` clause now
   carries its enforcement clause ("invoked at verify entry, enforced at `done`, inert without a
   manifest") matching the regression-gate clause's form.
-- `README.md:131-132` — comparison-table rows: "Imports resolve" (`:132`) can now name the
+- `README.md:132-133` — comparison-table rows: "Imports resolve" (`:133`) can now name the
   invoking transition; the pass-to-pass row (`:128`) states "green→red blocks `done`" — that claim
   depends on the conventionally-invoked `--check` (see *Known, not fixed*); leave the row's text
   or add the caveat per the release's judgment, but do not silently let it outrun mechanism.

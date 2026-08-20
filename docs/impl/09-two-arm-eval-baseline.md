@@ -347,7 +347,7 @@ The intended break: the baseline arm stops being a paragraph and starts costing 
 The repo's core bet (enforced orchestration over a single capable agent,
 `docs/ideation-report.md:296`, falsifiable only by "this repo's own two-arm eval", `:325-327`)
 was structurally untestable: every judged record wore one label (`judge.mjs:311`) and the control
-arm was documentation (`harness.mjs:21-23`, pre-fix state narrated at `CHANGELOG.md:99`). The class's observable damage: five judged
+arm was documentation (`harness.mjs:21-23`, pre-fix state narrated at `CHANGELOG.md:113`). The class's observable damage: five judged
 records, zero comparisons possible, and a consumer reduced to slug sniffing (`dashboard.mjs:20`).
 
 How this change could reintroduce the class: a **future arm — a third treatment, a renamed arm,

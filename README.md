@@ -71,7 +71,8 @@ flowchart TD
 *The conductor drives this state machine; every transition checkpoints to `state.json` so a crashed run resumes.* Full topology + agent roles in [`docs/diagrams.md`](docs/diagrams.md).
 
 ```
-  -1  PRIME        prompt-master refines the raw task into a sharp brief
+  -1  PRIME        prompt-master refines the raw task into a sharp brief;
+                    measurable criteria get ONE user-confirmation round (never blocks)
    0  TRIAGE       trivial → just answer; standard → single-track; architecture → full pipeline
    1  CONSULT      metis classifies intent, surfaces questions/risks
    2  PLAN         prometheus writes <repo>/.zcode/plans/<slug>.md  (cannot edit product code)

@@ -56,7 +56,7 @@
 ## Detail — when to reach for each, by phase
 
 ### Phase -1 — Prime (before everything)
-- **`skill: prompt-master`** — ALWAYS load this first. Feed it the raw user task; it returns a primed brief (intent, success criteria, surfaced constraints, ambiguities, rewritten prompt). The rewritten prompt REPLACES the original for all downstream phases. This is the single highest-leverage step in the pipeline: a sharp brief makes triage, Metis, and planning all more accurate for negligible cost.
+- **`skill: prompt-master`** — ALWAYS load this first. Feed it the raw user task; it returns a primed brief (intent, success criteria, surfaced constraints, ambiguities, rewritten prompt). The rewritten prompt REPLACES the original for all downstream phases. This is the single highest-leverage step in the pipeline: a sharp brief makes triage, Metis, and planning all more accurate for negligible cost. When the primed brief's success criteria are measurable, PRIME adds ONE criteria-confirmation round (AskUserQuestion: ≤3 proposed criteria, ≤4 options incl. an explicit skip — confirm/adjust/skip) inside the standing max-3 budget; the outcome is recorded via `scaffold --criteria-state` as a first-line stamp on the task brief. No answer, qualitative criteria, or headless (tool unavailable) → `skipped`; the round never blocks.
 
 ### Phase 0 — Triage
 - **`skill: brainstorming`** — if the PRIMED brief is still fuzzy/creative ("build me a way to…"), load brainstorming before triage decides. A fuzzy request shouldn't be deflected as "trivial"; it needs shaping.

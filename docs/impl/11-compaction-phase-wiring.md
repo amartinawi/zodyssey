@@ -16,7 +16,7 @@ Census re-measured 2026-08-16 (this run, not an ideation-doc number): grep for `
 run `scripts/compact.mjs <repo> <slug>`" — an instruction addressed to the conductor, inside the
 phase-6 OPTIONAL COMPACTION box at `:172-179`), `skills/odyssey/SKILL.md:227` ("the **optional**
 `_compact-brief.md`"), `skills/odyssey/references/scripts.md:17` ("OPTIONAL pre-final-wave
-notepad compactor"), `README.md:59`, `README.md:81`, `README.md:280`, `CHANGELOG.md:772`. The
+notepad compactor"), `README.md:59`, `README.md:82`, `README.md:281`, `CHANGELOG.md:786`. The
 script's own header admits it: `skills/odyssey/scripts/compact.mjs:20-21` — "OPT-IN: the
 orchestrator MAY call this before phase-6 dispatch. It is not mandatory and not wired into any
 phase transition or hook."
@@ -286,7 +286,7 @@ lines)_` (`compact.mjs:114`), the source notepads remain on disk byte-identical 
 full-fidelity path, and SKILL.md's own framing (`:226`) already positions the brief as the
 large-run alternative to delegated full reads — an F-wave needing depth reads the source by path;
 the brief is the map. Blast radius beyond that, honestly: (a) every "(optional)" claim about
-compaction goes stale the moment it auto-fires — `README.md:59`, `README.md:81`, `README.md:280`,
+compaction goes stale the moment it auto-fires — `README.md:59`, `README.md:82`, `README.md:281`,
 `references/scripts.md:17`, `SKILL.md:172-179`, `:226` — a doc-code drift manufactured by this
 change unless the doc pass lands with it (see "Docs to update"); (b) the `final` transition gains
 one node child-process spawn and a directory walk — milliseconds, with a ~10s timeout and a
@@ -346,9 +346,9 @@ its own"), each checked against the 2026-08-16 tree:
 - `skills/odyssey/references/scripts.md:17` — the `compact.mjs` entry: invoked automatically by
   `set-phase.mjs` on entering `final` above `AUTO_COMPACT_MIN_LINES`; direct two-arg invocation
   unchanged; `--min-lines` documented; the additive invariant stated as tested, not promised.
-- `README.md:59`, `README.md:81` — the diagram and phase-list "(optional)" qualifiers update to
+- `README.md:59`, `README.md:82` — the diagram and phase-list "(optional)" qualifiers update to
   "automatic for large runs".
-- `README.md:280` — the comparison-table row ("Notepad compaction (#8)") states the transition
+- `README.md:281` — the comparison-table row ("Notepad compaction (#8)") states the transition
   and the never-mutates-sources claim now carries "asserted by test".
 - `docs/DESIGN.md` — the phase-transition/state-flow description gains the final-entry compaction
   as a derived artifact (verify the exact section — §6 and the components table — at build time;

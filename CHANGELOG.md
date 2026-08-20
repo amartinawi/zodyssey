@@ -2,6 +2,20 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.12] — 2026-08-20
+
+### Added — acceptance criteria can be user-confirmed at PRIME (item 12)
+
+The acceptance criteria that gate every run were model-authored end-to-end; the user — the one party independent of the model — never saw them before execution. PRIME now appends **one** AskUserQuestion round to the existing ambiguity ritual when the primed brief's success criteria are **measurable** (phrasable as command + expected outcome): it presents at most 3 proposed criteria in at most 4 options, one always an explicit skip — confirm / adjust / skip — **inside** the standing max-3-questions budget, never beside it. The outcome is a machine-readable artifact, not a claim: the conductor passes it to the scaffold it already invokes, and `scaffold --criteria-state confirmed|adjusted|skipped` stamps a single first line — `<!-- criteria-confirmation: <state>@<ISO-8601> -->` — on `plans/<slug>.task.md`; the brief body stays byte-identical (additive, asserted by Buffer equality). At PLAN, the stamp keys transcription: `adjusted` criteria are transcribed verbatim as executable commands (the user's wording is the source of truth); `confirmed` uses the presented criteria; `skipped` or no stamp keeps today's authorship unchanged. Skip, no answer, or AskUserQuestion unavailable (headless/autonomous) → `skipped` → the run proceeds exactly as today — **the mechanism never blocks**; there is no gate, precondition, or state-lane anywhere. Bad flag values exit 2 before any file is written; no flag is byte-identical legacy output.
+
+Paired probe, both directions: before, `grep -c AskUserQuestion skills/odyssey/SKILL.md` → 1 (the momus rail only) and `grep -rn criteria-confirmation` → 0 hits (no confirmation state existed to record; the flag was silently ignored); after → 2 and 3 (PRIME round + PLAN rule + invocation line). The recording suite (33 checks, RED-proven 17/33 against the unmodified scaffold; the stash-form paired-direction proof re-reddens with only the scaffold reverted) asserts byte-additivity, the no-brief warning path, plan.md/state.json independence, and the legacy byte-identity. External evidence, carried with its caveat labels and **not re-fetched**: TiCoder reports +22.49–37.71 (MBPP) and +24.79–53.98 (HumanEval) absolute pass@1 with 1–5 user queries, follow-up avg +45.97% with human study; caveats: single corporate research group, simulated (oracle) user, MBPP/HumanEval only — generalization to orchestration acceptance criteria is an extrapolation (`docs/ideation-report.md:450`). The mechanism supports asking the *user*; it is why this change adds no model anywhere.
+
+**Known, not fixed:**
+
+- The act of asking remains conductor prose. The mechanism guarantees a confirmation, when obtained, is recorded and honored downstream; it cannot force the question to be asked. The SKILL.md tripwires (`criteria-confirmation` ≥2, `AskUserQuestion` ≥2, budget clause ==1) assert the contract's presence, not the conductor's behavior.
+- The external accuracy numbers keep their caveat labels and were not re-fetched; no ZOdyssey-native measurement exists that the round improves outcomes here. The two-arm eval (queue items 09/10) is the instrument that could produce one.
+- A forged `--criteria-state confirmed` stamp is inert-but-possible: the flag records a label, it authenticates nothing (no argv flag authenticates anyone). Hardening it into a credential would be a new change with its own audit.
+
 ## [0.6.11] — 2026-08-20
 
 ### Added — prompt-surface measurement: evidence statuses for the guidance text (item 10)

@@ -20,7 +20,7 @@ slash, or bare colon was invisible, and invisible meant unpinned, unrange-checke
   `harness.mjs:88,62` — where `:62` was the USAGE constant, never the gate the claim named — and
   `ideation-report.md:416` citing `harness.mjs:69-70,19,128-131`. In each, only the first number
   was ever checked; the rest were free to rot.
-- **Slash and bare-colon continuations.** In `CHANGELOG.md:653/:818` — the gate-deletion history
+- **Slash and bare-colon continuations.** In `CHANGELOG.md:667/:832` — the gate-deletion history
   row 04 cites — only the `:653` half was ever seen, and prose continuations ("the verdict gate
   at :1105" after a path-form range) were equally invisible.
 - **The half-shift, real.** When a release entry landed, the path-form CHANGELOG pins were
@@ -168,7 +168,7 @@ target, unscanned citing document — that let 3afd81c's +17 half-shift ship unn
 One class is explicitly NOT closed: the fourth. A citation resolves, the fingerprint matches, and the claim is false — semantic drift no mechanical pin can see. This change pins what a line
 SAYS, not whether it says what the citing claim means; closing that needs a judge, not a hash.
 The live instance this run opened on: a queue row cites its gate-deletion evidence at
-`CHANGELOG.md:801`, which resolves and will pin happily — and points at installer prose, not the
+`CHANGELOG.md:815`, which resolves and will pin happily — and points at installer prose, not the
 deletion history, which sits 17 lines lower. Mechanical checks make such lies stable; only
 reading closes them.
 
