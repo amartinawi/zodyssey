@@ -17,10 +17,10 @@ below were re-derived on 2026-08-19 and this file moves fast. Do exactly this on
 slash, or bare colon was invisible, and invisible meant unpinned, unrange-checked, and unswept:
 
 - **Comma pairs and chains.** CHANGELOG `[0.6.8]` documents two live ones: `ROADMAP.md:33` citing
-  `harness.mjs:88,62` — where `:62` was the USAGE constant, never the gate the claim named — and
-  `ideation-report.md:416` citing `harness.mjs:69-70,19,128-131`. In each, only the first number
+  `harness.mjs:99,73` — where `:73` was the USAGE constant, never the gate the claim named — and
+  `ideation-report.md:416` citing `harness.mjs:80-81,19,139-142`. In each, only the first number
   was ever checked; the rest were free to rot.
-- **Slash and bare-colon continuations.** In `CHANGELOG.md:709/:874` — the gate-deletion history
+- **Slash and bare-colon continuations.** In `CHANGELOG.md:742/:907` — the gate-deletion history
   row 04 cites — only the `:653` half was ever seen, and prose continuations ("the verdict gate
   at :1105" after a path-form range) were equally invisible.
 - **The half-shift, real.** When a release entry landed, the path-form CHANGELOG pins were
@@ -168,7 +168,7 @@ target, unscanned citing document — that let 3afd81c's +17 half-shift ship unn
 One class is explicitly NOT closed: the fourth. A citation resolves, the fingerprint matches, and the claim is false — semantic drift no mechanical pin can see. This change pins what a line
 SAYS, not whether it says what the citing claim means; closing that needs a judge, not a hash.
 The live instance this run opened on: a queue row cites its gate-deletion evidence at
-`CHANGELOG.md:857`, which resolves and will pin happily — and points at installer prose, not the
+`CHANGELOG.md:890`, which resolves and will pin happily — and points at installer prose, not the
 deletion history, which sits 17 lines lower. Mechanical checks make such lies stable; only
 reading closes them.
 
@@ -192,7 +192,7 @@ reading closes them.
 ### Fixed — every number of a citation is checked; CHANGELOG targets content-pinned (item 21)
 
 The anchor checker verified only the first number of a citation: its regex required a path
-prefix per number, so comma pairs (`harness.mjs:88,62`), slash continuations, and bare-colon
+prefix per number, so comma pairs (`harness.mjs:99,73`), slash continuations, and bare-colon
 continuations were invisible — unpinned and unswept. CHANGELOG.md lines were not pinned at
 all, which is how 3afd81c's +17 half-shift shipped unnoticed: the path-form halves were
 re-anchored and the continuation halves silently kept their old numbers.

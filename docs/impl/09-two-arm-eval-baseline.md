@@ -62,7 +62,7 @@ this is what makes the run judgeable, `judge.mjs:182-185`) — is UNCHANGED and 
 Then, instead of printing instructions, the harness spawns **one** external CLI agent (the same
 binary `judge.mjs:262` already resolves: `env.CLAUDE_CLI || "claude"`), with cwd = the fresh copy,
 input = the seed's `prompt` field verbatim (nothing else — the pipeline arm does not see the
-success_criteria either; `harness.mjs:218` scaffolds from `seed.prompt` only), a bounded timeout
+success_criteria either; `harness.mjs:229` scaffolds from `seed.prompt` only), a bounded timeout
 (one named constant; **the corpus does not support the 60 minutes this brief originally
 proposed** — see the 2026-08-19 amendment at the end of this file for the measured distribution
 and for why a short cap biases this experiment), and waits synchronously. On completion the
@@ -262,7 +262,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
    not a per-callsite label list; `--compare` groups by the stamped field with no catch-all
    default, so an unknown value surfaces instead of silently joining the treatment arm. The
    rejected alternative (deriving arm from slug suffixes, as `lib/arm.mjs:14-17` does) is
-   sentinel matching — the exact shape `harness.mjs:104-105`'s own comment condemns.
+   sentinel matching — the exact shape `harness.mjs:115-116`'s own comment condemns.
 2. **A check that cannot detect the class of failure it exists for.** Criterion 4 proves the stamp
    assertions go red; case (f) proves a "dry-run" that writes anything fails; case (g) plus
    criterion 3's exit-4 rule keep the harness's vacuous-green rule honest for the new arm.
@@ -347,7 +347,7 @@ The intended break: the baseline arm stops being a paragraph and starts costing 
 The repo's core bet (enforced orchestration over a single capable agent,
 `docs/ideation-report.md:296`, falsifiable only by "this repo's own two-arm eval", `:325-327`)
 was structurally untestable: every judged record wore one label (`judge.mjs:311`) and the control
-arm was documentation (`harness.mjs:21-23`, pre-fix state narrated at `CHANGELOG.md:155`). The class's observable damage: five judged
+arm was documentation (`harness.mjs:21-23`, pre-fix state narrated at `CHANGELOG.md:188`). The class's observable damage: five judged
 records, zero comparisons possible, and a consumer reduced to slug sniffing (`dashboard.mjs:20`).
 
 How this change could reintroduce the class: a **future arm — a third treatment, a renamed arm,
@@ -507,7 +507,7 @@ own count.
 
 ## Amendment — 2026-08-20, SEC-M12 narrowed to its stated invariant
 
-v0.6.9's git-baseline safety check (SEC-M12, `skills/odyssey/scripts/harness.mjs:181-190`) skipped
+v0.6.9's git-baseline safety check (SEC-M12, `skills/odyssey/scripts/harness.mjs:192-201`) skipped
 EVERY live seed it ran. All four fixtures under the eval dir ship as already-committed repositories,
 so the shared prefix's `git add -A` stages nothing and `commit` fails "nothing to commit" on the
 clean tree — and the catch treated ANY failure in that sequence as fatal. Reproduced live:
@@ -516,11 +516,11 @@ clean tree — and the catch treated ANY failure in that sequence as fatal. Repr
 unusable on the exact fixture shape production uses.
 
 The check is narrowed to the invariant it was always stated in: `run_start_sha` must not end up
-empty. The catch (`skills/odyssey/scripts/harness.mjs:197-211`) now resolves `git rev-parse HEAD`
+empty. The catch (`skills/odyssey/scripts/harness.mjs:208-222`) now resolves `git rev-parse HEAD`
 in the run repo: unresolvable or empty → the seed still SKIPs loudly, pushes the same
 `reason: "git baseline failed"` record, and the SKIP line names both "git baseline failed" and
-"HEAD is unresolvable" (`skills/odyssey/scripts/harness.mjs:206`); resolvable → the harness logs
-`git baseline: riding fixture HEAD <short-sha>` (`skills/odyssey/scripts/harness.mjs:210`) and
+"HEAD is unresolvable" (`skills/odyssey/scripts/harness.mjs:217`); resolvable → the harness logs
+`git baseline: riding fixture HEAD <short-sha>` (`skills/odyssey/scripts/harness.mjs:221`) and
 proceeds to the scaffold. The config-before-commit order — SEC-M12's other half — is untouched.
 
 The precedent was already in the corpus: the judged `std-01-baseline` run rode fixture HEAD
@@ -528,10 +528,10 @@ The precedent was already in the corpus: the judged `std-01-baseline` run rode f
 protected against.
 
 Both directions are pinned in `skills/odyssey/scripts/two-arm-eval.test.mjs`. Case (m)
-(`skills/odyssey/scripts/two-arm-eval.test.mjs:673-697`) builds a committed fixture — two commits,
+(`skills/odyssey/scripts/two-arm-eval.test.mjs:676-700`) builds a committed fixture — two commits,
 clean tree, no untracked files, the mirror of every live fixture (`makeCommittedFixtureDir` at
 `skills/odyssey/scripts/two-arm-eval.test.mjs:248`) — and asserts exit 0, the riding-HEAD line, no
 git-baseline SKIP, and both seeds scaffolded. Case (n)
-(`skills/odyssey/scripts/two-arm-eval.test.mjs:699-721`) uses an empty fixture dir
+(`skills/odyssey/scripts/two-arm-eval.test.mjs:702-724`) uses an empty fixture dir
 (`makeEmptyFixtureDir` at `skills/odyssey/scripts/two-arm-eval.test.mjs:269`) and asserts exit 4,
 both SKIP wordings, and no scaffold line.
