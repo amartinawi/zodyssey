@@ -103,7 +103,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
   recency-ordered lists.
 - **Evidence:** `skills/odyssey/scripts/compact.mjs` header — "OPT-IN … not wired into any phase
   transition or hook" — with `:37` (`MAX_LINES_PER_NOTEPAD = 40`, truncation to the first 40
-  non-empty lines); `skills/odyssey/SKILL.md:396` (memory-MCP knowledge graph written "at end of
+  non-empty lines); `skills/odyssey/SKILL.md:411` (memory-MCP knowledge graph written "at end of
   run" by instruction, nothing in code verifies the write); `skills/odyssey/scripts/
   recall-corrections.mjs:2-25` + `recall-outcomes.mjs:2-9` (top-K=5, recency-ranked); the only
   code-enforced property in the layer is negative — append-only notepads
@@ -213,14 +213,14 @@ evidence for that verdict:
    opt-in, "not wired into any phase transition or hook," and reduces each notepad to its first
    40 non-empty lines. No context-pressure trigger, no summarization: the layer's most advanced
    feature is unwired truncation.
-2. `skills/odyssey/SKILL.md:396` — the canonical cross-run store (memory-MCP knowledge graph)
+2. `skills/odyssey/SKILL.md:411` — the canonical cross-run store (memory-MCP knowledge graph)
    is sustained purely by end-of-run prompt convention; no hook, script, or gate verifies the
    write occurred. Contrast `skills/odyssey/hooks/pre-tool.mjs:748-766`, which enforces notepads
    append-only: the only code-enforced property in this layer is a negative one (don't destroy),
    never a retrieval one.
 3. `skills/odyssey/scripts/recall-corrections.mjs:2-25` + `recall-outcomes.mjs:2-9` — the entire
    retrieval surface over past runs is two recency-ordered structured lists capped at top-K=5;
-   in-run handoff is "downstream todos read prior notepads by path" (`skills/odyssey/SKILL.md:209`)
+   in-run handoff is "downstream todos read prior notepads by path" (`skills/odyssey/SKILL.md:224`)
    — pointers the orchestrator must already know. No relevance search over notepad or outcome
    content exists anywhere in the tree.
 
@@ -307,7 +307,7 @@ Supporting argument (from notepad 4, grounded in notepads 1–3):
 - **The repo's own history is a natural experiment on the bet.** Every mechanism left to prompt
   convention measurably failed to fire: `check-imports.mjs` has zero code callers since v0.3.2
   (`skills/odyssey/references/scripts.md:47`); the canonical cross-run memory store is verified by
-  nothing (`skills/odyssey/SKILL.md:396`); token telemetry populated 1 of 177 records; `compact.mjs`
+  nothing (`skills/odyssey/SKILL.md:411`); token telemetry populated 1 of 177 records; `compact.mjs`
   is opt-in and unwired. Everything enforced in code — append-only notepads, review gate,
   regression gate — held and accumulated tests. Inside this codebase the question is already
   answered.
@@ -422,7 +422,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B4) F1 converse (declared-but-untouched) | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:45,231,300-302 | `--allow-untouched` flag; ORCH-1 extended it to waive all files for read-only runs |
 | (b-B5) Test files read-only at hook layer | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:789,1288-1292 | Edit path "test files are read-only during phase=…"; Bash path "test files are FROZEN" |
 | (b-B6) Criteria must invoke toolchain.test_cmd | CONFIRMED shipped (conditional) | skills/odyssey/scripts/parse-plan.mjs:370-373 | enforced only when .zcode/toolchain.json declares one (bare repo exempt) |
-| (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:313-327; skills/odyssey/scripts/pipeline-integration.test.mjs:98 | scaffold invokes it at run start; integration test asserts the wiring |
+| (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:341-355; skills/odyssey/scripts/pipeline-integration.test.mjs:98 | scaffold invokes it at run start; integration test asserts the wiring |
 | (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:339 | auto-snapshot entering execute; done blocked on regression |
 | (b-B9-3) Phase B item B9 shipped | CONFIRMED shipped as standalone script, NOT phase-wired | CHANGELOG.md:678; skills/odyssey/references/scripts.md:47 | shipped v0.3.2; pipeline presence is prompt-convention only |
 | (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:117-170 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |
@@ -479,7 +479,7 @@ settled by code, never by preference or seniority.
 5. **Phase B scorecard** (map §0.5 ≡ notepad 1 rows b-B1..b-B10-2): B1–B9 shipped (B9
    standalone-only), B10 unshipped — identical tables.
 6. **Context/memory weakest** (map §1.1 ≡ §2): both argue it from `compact.mjs`'s unwired
-   truncation, the convention-only memory store (`SKILL.md:396`), and the recency-list retrieval
+   truncation, the convention-only memory store (`SKILL.md:411`), and the recency-list retrieval
    surface; the repo's own `outcomes.jsonl` corpus is 8 lines, nearly all contentless template
    entries (re-checked this run).
 7. **Observability not thin** (map §1.2 "not thin" ≡ notepad 2 MEDIUM): both disconfirm the

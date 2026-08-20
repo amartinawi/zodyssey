@@ -72,6 +72,15 @@ Because sub-agents cannot load skills (trust anchor), **the orchestrator loads t
         │      · intent + success criteria                      │
         │      · implicit constraints (surfaced)                │
         │      · ambiguities → ask the user (max 3, then commit)│
+        │        criteria-confirmation round — only when the    │
+        │        primed brief's success criteria are measurable │
+        │        (a command + expected outcome): ONE            │
+        │        AskUserQuestion, ≤3 criteria, ≤4 options, one  │
+        │        always an explicit skip → confirm / adjust /   │
+        │        skip. No answer, or no question tool (headless │
+        │        / autonomous runs) → skipped; never blocks;    │
+        │        counts inside the budget clause above. Pass    │
+        │        the outcome to scaffold as --criteria-state    │
         │      · a rewritten prompt that REPLACES the original  │
         │    If ambiguities need resolving, ask the user FIRST  │
         │    and WAIT — do not triage an ambiguous brief.       │
@@ -108,6 +117,12 @@ Because sub-agents cannot load skills (trust anchor), **the orchestrator loads t
         │    etheus loads THIS skill, runs scripts/scaffold.mjs│
         │    to create the plan + state.json, drafts the plan, │
         │    and returns the plan path.                        │
+        │    The criteria-confirmation stamp on the task brief │
+        │    rules the todos' Acceptance criteria: adjusted →  │
+        │    transcribe the user's criteria from the brief body│
+        │    VERBATIM as executable commands (source of truth);│
+        │    confirmed → the presented criteria; skipped or no │
+        │    stamp → today's authorship, unchanged.            │
         │    After he returns, set state.phase = "review".     │
         └───────────────────────┬──────────────────────────────┘
                                 ▼
@@ -371,7 +386,7 @@ On `/orchestrate resume <slug>`, read `state.json`, find the last checkpoint, an
 **Full signatures, flags, and exit codes live in `references/scripts.md` — load it when you are about to invoke any trusted-writer script.** Inline below is only the load-bearing one-liner you need to remember at each transition:
 
 - **Phase transitions:** `scripts/set-phase.mjs <repo> <slug> <phase>` — the *only* sanctioned way to move phases. (Escape hatches: `blocked`/`abandoned` always allowed.)
-- **Scaffold the plan:** `scripts/scaffold.mjs <repo-root> <slug> <title> <intent> [task-brief]`.
+- **Scaffold the plan:** `scripts/scaffold.mjs <repo-root> <slug> <title> <intent> [task-brief] --criteria-state confirmed|adjusted|skipped` — the flag is optional (omit it: output stays byte-identical to today); with a brief it records the PRIME round's outcome as a first-line criteria-confirmation stamp on the task brief.
 - **Parse todos:** `scripts/parse-plan.mjs <plan.md> --lint|--files|--waves|--todo N`.
 - **Review gate (phase 3):** dispatch zodyssey:momus → read the minted nonce from `state.review.pending_nonce` → `record-momus-artifact.mjs … --nonce <nonce> --from <file under .zcode/staging/>` (SEC-6 refuses `--from` under `plans/` or `notepads/`) → `record-review.mjs … OKAY --momus-artifact <path> --plan-sha <full-64-char-sha>`. Full order + the `--from`-vs-stdin caveat in `references/scripts.md`.
 - **Record todo/verify/final-wave:** see `references/scripts.md` for exact flags (record-verify, record-final-wave, record-todo).

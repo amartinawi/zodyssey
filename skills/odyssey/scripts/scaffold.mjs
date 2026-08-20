@@ -82,6 +82,24 @@ if (!VALID_INTENT.includes(intent)) {
   exit(3); // bad intent
 }
 
+// Item 12 (--criteria-state): record the PRIME criteria-confirmation round's outcome
+// (confirmed|adjusted|skipped) as a first-line stamp on plans/<slug>.task.md (the G5 brief,
+// written below). Parsed from the FULL argv so the flag may ride anywhere after <intent>.
+// Validated HERE — after the positional/intent checks, BEFORE resolveRepo and every
+// mkdirSync/write below — so a value outside the vocabulary fails closed with the existing
+// bad-args exit 2 and nothing is written. The flag records, it does not authenticate: no
+// consumer keys blocking behaviour on it, and no flag reproduces today's byte-identical output.
+const VALID_CRITERIA_STATE = ["confirmed", "adjusted", "skipped"];
+let criteriaState = "";
+const criteriaFlagIdx = argv.indexOf("--criteria-state");
+if (criteriaFlagIdx !== -1) {
+  criteriaState = argv[criteriaFlagIdx + 1] || "";
+  if (!VALID_CRITERIA_STATE.includes(criteriaState)) {
+    console.error("usage: --criteria-state must be one of: " + VALID_CRITERIA_STATE.join(", "));
+    exit(2); // bad args — existing grammar, no new exit code
+  }
+}
+
 // Class B fix: every path derived from the repo arg is built from the RESOLVED root, so
 // plan_path (persisted into state and read by 11 downstream sites that resolve it against
 // their own cwd) can never be a relative string.
@@ -193,12 +211,14 @@ writeFileSync(planPath, body);
 // always writable, unlike state/). consult.mjs reads this as THE ORIGINAL TASK for scope-fidelity
 // judgment. Accept the brief inline (5th arg), from --task <path>, or stdin.
 // Only WRITE the file when a real brief was captured, so consult.mjs's missing-task warning can fire.
+// --criteria-state is excluded from the taskArg fallback below (item 12): a flag given with
+// no brief must fall through to the W5 no-brief warning, never be captured as an inline brief.
 const rest = argv.slice(6);
 let taskBrief = "";
 const taskFlagIdx = rest.indexOf("--task");
 if (taskFlagIdx !== -1 && rest[taskFlagIdx + 1]) {
   try { taskBrief = readFileSync(rest[taskFlagIdx + 1], "utf8"); } catch {}
-} else if (taskArg && taskArg !== "--task") {
+} else if (taskArg && taskArg !== "--task" && taskArg !== "--criteria-state") {
   if (existsSync(taskArg)) {
     try { taskBrief = readFileSync(taskArg, "utf8"); } catch {}
   } else {
@@ -214,7 +234,15 @@ const taskPath = join(plansDir, `${slug}.task.md`);
 // W5-minor: only write the task file when a real brief was captured, so consult.mjs's
 // missing-task warning can actually fire (and the file's absence is a visible signal).
 if (taskBrief && taskBrief.trim()) {
-  writeFileSync(taskPath, taskBrief);
+  // Item 12: with a captured brief AND a valid --criteria-state, prepend exactly one
+  // first-line stamp — criteria-confirmation: <state>@<ISO-8601> — on the task file ONLY
+  // (plan.md above and state.json below are byte-unaffected). Additive by construction:
+  // the body after line 1 is byte-identical to the brief. No brief → nothing to stamp
+  // (the W5 warning below fired instead); no flag → today's byte-identical output.
+  writeFileSync(taskPath,
+    criteriaState
+      ? `<!-- criteria-confirmation: ${criteriaState}@${new Date().toISOString()} -->\n${taskBrief}`
+      : taskBrief);
 } else {
   process.stderr.write(`scaffold.mjs: WARNING no primed brief captured — consult.mjs will warn that the auditor judges scope fidelity without the original task. Pass the brief as the 5th arg, via --task <file>, or stdin.\n`);
 }

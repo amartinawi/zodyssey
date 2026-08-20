@@ -38,7 +38,7 @@ before-reading"). Two adjacent facts frame the fix:
   text (`skills/odyssey/scripts/lint-untrusted.mjs:1-3`, per `docs/ideation-report.md:414`) —
   not this arm, not touched by this change.
 - The toolchain producer is wired and green: `scaffold.mjs` invokes `probe-toolchain.mjs`
-  (`skills/odyssey/scripts/scaffold.mjs:327`, rationale at `:313-316`, asserted by
+  (`skills/odyssey/scripts/scaffold.mjs:355`, rationale at `:341-344`, asserted by
   `skills/odyssey/scripts/pipeline-integration.test.mjs:98`), and the probe derives `lint_cmd`
   from the target repo's `package.json` `scripts.lint` ONLY
   (`skills/odyssey/scripts/probe-toolchain.mjs:110-114`, field at `:121`) — it never installs or

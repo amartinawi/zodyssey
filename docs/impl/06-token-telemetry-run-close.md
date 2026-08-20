@@ -78,7 +78,7 @@ already exists). The residual defects are three, all verified:
    hook payloads verifiably carry `session_id` (`skills/odyssey/hooks/pre-tool.mjs:566` lists it
    among known payload fields; `:575-577` records that the probe proved which identity fields the
    harness actually sends; `:875` consumes `payload.session_id` today), while
-   `skills/odyssey/scripts/scaffold.mjs:288` initializes `active_executor_session: null` and
+   `skills/odyssey/scripts/scaffold.mjs:316` initializes `active_executor_session: null` and
    **nothing in the tree ever writes it** — grep shows exactly two hits: that init and the read at
    `pre-tool.mjs:885`. A field scaffolded for exactly this purpose, never populated.
 

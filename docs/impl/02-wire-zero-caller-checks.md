@@ -15,7 +15,7 @@ number): grep for each script's name across `skills/`, `scripts/`, `agents/`, `c
 (`*.mjs`, `*.bash`), excluding the script itself and its `.test.mjs` → **zero hits for all three**.
 Every remaining reference is doc prose: `check-imports` at
 `skills/odyssey/references/scripts.md:47`, `docs/MEASUREMENT.md:85`, `README.md:132`;
-`resolve-capabilities` at `skills/odyssey/SKILL.md:378`,
+`resolve-capabilities` at `skills/odyssey/SKILL.md:393`,
 `skills/odyssey/references/capabilities.md:106`,
 `skills/odyssey/references/scripts.md:50`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
 `docs/DESIGN.md:433`; `coverage-delta` at `CHANGELOG.md:843` only (it has no
@@ -57,7 +57,7 @@ the design bar for this change: **the wiring precedent itself is half-wired.**
 `regression-gate.mjs --check` — the only writer of `status: "regressed"`
 (`skills/odyssey/scripts/regression-gate.mjs:179`) — has **no code caller either**, and
 `skills/odyssey/SKILL.md` never mentions it (its only regression mention is the env var at
-`:388`). The `done` refusal at `skills/odyssey/scripts/set-phase.mjs:131` therefore fires only if
+`:405`). The `done` refusal at `skills/odyssey/scripts/set-phase.mjs:131` therefore fires only if
 a conductor happens to follow the prose in `references/scripts.md:46`. This change wires **both
 sides — invoke and consume — as mechanism**, and leaves the regression-gate gap itself out of
 scope (named under *Known, not fixed*).
@@ -328,9 +328,9 @@ checked against the 2026-08-16 tree:
 - `skills/odyssey/references/scripts.md` — **add** the missing `coverage-delta.mjs` entry (it has
   none today; the check is about to be wired before it is documented, which would be a fresh
   doc-code drift in the making).
-- `skills/odyssey/SKILL.md:372-378` — the transition one-liners: entering `verify` / entering
+- `skills/odyssey/SKILL.md:387-393` — the transition one-liners: entering `verify` / entering
   `final` note that the checks fire automatically (a conductor sentence that no longer needs to
-  exist is the win; keep them to one clause each). `:377`'s diagnostics mention of
+  exist is the win; keep them to one clause each). `:393`'s diagnostics mention of
   `resolve-capabilities` stays true — manual invocation remains possible.
 - `docs/MEASUREMENT.md:74-78` — the "Honest status" block: the `check-imports.mjs` clause now
   carries its enforcement clause ("invoked at verify entry, enforced at `done`, inert without a

@@ -336,7 +336,7 @@ say "silently", which was exactly the problem), each checked against the 2026-08
 - `docs/INSTALL.md:152` — env-table row: extend the tradeoff sentence to state that every ungated
   call is recorded in `.zcode/state/<slug>.ungated.jsonl` and surfaced as `ungated_bash_calls` on
   the run report. This is the table an operator reads before setting the variable.
-- `skills/odyssey/SKILL.md:384-391` — the "Environment overrides (documented)" list omits
+- `skills/odyssey/SKILL.md:399-406` — the "Environment overrides (documented)" list omits
   `ZODYSSEY_UNGATE_BASH` entirely today; add the row with the recording semantics so the conductor
   prompt matches the installer's AGENTS.md template (`scripts/install.mjs:883`).
 - `docs/DESIGN.md:261` — §6 hook table, Bash write-gate row: the row currently does not mention the
