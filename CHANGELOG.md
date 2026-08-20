@@ -2,6 +2,27 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.14] — 2026-08-20
+
+### Fixed — the live cache dir can never be pruned, including on a mismatched registry (item 13, consult r1)
+
+The v0.6.13 "catastrophic-case guard" was dead code: it pushed the live directory into `keep` but
+never removed it from `prune`, and `prune` was ordered by the registry's `version` field while the
+live directory is `basename(installPath)`. When those two registry fields disagreed by more than
+the retained pair — the exact hand-edited-registry rollback shape — the live directory appeared in
+both lists and was deleted, by the explicit `--prune-cache` and silently by the default install's
+final step. Found by the external consult auditor (round 1); missed by the in-session review and
+the suite because no family covered `version` ≠ `basename(installPath)`.
+
+- The live dir is now carved out of the removal list itself (`prune` filters it), not merely
+  re-reported as kept; the guard's comment no longer claims more than the code provides.
+- Containment tightened: an `installPath` exactly equal to the cache base now fails closed
+  (`{ error }`) instead of walking the plugins directory (flagged by both the in-session F2 and
+  the auditor's advisories).
+- The suite gains the mismatch family: registry `version` 0.6.12 with `installPath` → `0.4.0`
+  asserts the live dir has no rm line and stays byte-identical through both consumers, plus the
+  cache-base fail-closed shape — asserted, not promised. 48/48.
+
 ## [0.6.13] — 2026-08-20
 
 ### Added — the installer prunes stale plugin-cache versions (item 13)
