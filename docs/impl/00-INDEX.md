@@ -3,7 +3,7 @@
 Sixteen Step-2 candidates opened this queue: fourteen became implementation prompts
 (`docs/impl/NN-<slug>.md`, written by todos 6-19), two are dropped with file:line reasons below.
 Six rows were added after it was written — **15 and 16** on 2026-08-16 (defects found while
-verifying the queue), **17-20** on 2026-08-17 (the ISNAD-engine adaptation study): twenty-one prompts, two drops.
+verifying the queue), **17-20** on 2026-08-17 (the ISNAD-engine adaptation study): twenty-two prompts, two drops.
 The order is a dependency DAG, not the ideation rank; the sequencing rules applied are the spec's
 (docs/implementation-prompt.md:81): blocking edges over rank, the registry wants fixes ahead of
 it, one security change per release, group by file only when that violates nothing above,
@@ -25,7 +25,7 @@ its own measurement date.
 | 01 | edit-path-containment-escape | — | **SHIPPED v0.5.3.** Cheapest and most severe open defect; the escape is post-OKAY-only (pre-OKAY targets outside PROJECT_DIR are already blocked at skills/odyssey/hooks/pre-tool.mjs:798). Own release, shipped alone. | No edit path skips the scope gate; the `if (rel)` branch is gone. |
 | 02 | wire-zero-caller-checks | — | **SHIPPED v0.6.0.** check-imports, coverage-delta and resolve-capabilities have zero code callers (re-confirmed this run); wiring follows the B8 precedent at skills/odyssey/scripts/set-phase.mjs:334. Ahead of 08 so the wired checks land as registry rows. | The three checks fire from phase transitions instead of by hand. |
 | 03 | nonce-lane-minter-allowlist | — | **SHIPPED v0.5.5.** Security-class, grouped adjacently with 01/04 (same file cluster) but explicitly not merged — own release. The false header assertion at skills/odyssey/scripts/lib/capability-name.mjs:17 is corrected in the same change. | Only the declared minter can grant the nonce lane. |
-| 04 | ungate-bash-record-or-retire | — | **SHIPPED v0.6.2 (2026-08-18).** Decision: record every ungated call, not retirement — the affordance is documented (docs/INSTALL.md:163) and the v0.1.1/v0.2.0 gate-deletion history (CHANGELOG.md:709, CHANGELOG.md:874) is the causal evidence against removal. Security-class, own release. | Every `ZODYSSEY_UNGATE_BASH=1` call is recorded in run state. |
+| 04 | ungate-bash-record-or-retire | — | **SHIPPED v0.6.2 (2026-08-18).** Decision: record every ungated call, not retirement — the affordance is documented (docs/INSTALL.md:163) and the v0.1.1/v0.2.0 gate-deletion history (CHANGELOG.md:742, CHANGELOG.md:907) is the causal evidence against removal. Security-class, own release. | Every `ZODYSSEY_UNGATE_BASH=1` call is recorded in run state. |
 | 05 | metrics-corpus-decontamination | — | **SHIPPED v0.6.1 (2026-08-17).** skills/odyssey/scripts/set-phase.mjs:474 appends every run to the trend log unconditionally: 153/184 records synthetic (83.2%, measured 2026-08-16). All measurement items are gated behind this. | The trend log holds real runs only; the synthetic share is measured, not guessed. |
 | 06 | token-telemetry-run-close | 05 | **SHIPPED v0.6.3 (2026-08-18).** The wiring already existed (set-phase auto-append, run-report collect); the defects were null reason-blindness (five null sites in skills/odyssey/scripts/lib/tokens.mjs flattened to one sentinel — measured 2026-08-18, 393-record operator lane: 8/8 real runs populated since telemetry went live, so the unobservability, not a broken mechanism, was the item) and estimate-grade attribution (skills/odyssey/scripts/lib/tokens.mjs:20-24). Fixed as inert-stamped reasons + session-exact attribution; docs/impl/06-token-telemetry-run-close.md is the build brief. Externally audited ACCEPT (round 2, zero gaps; round 1's four citation gaps remediated in 7d4d5b1); both close records populated through the fixed cached run-report (operator-lane populated 8 → 10). | Token counts are populated or reason-stamped, never bare null; attribution is session-exact when the id was witnessed. |
 | 07 | b10-pre-edit-lint-baseline | — | **SHIPPED v0.6.4 (2026-08-19).** First-touch pre-edit baseline (frozen per target per run, side-file `.zcode/state/<slug>.lint-baseline.json`) + attributed post-edit comparison via the shared `lib/lint-invocation.mjs`; blocks only diagnostics NEW to the edit; pre-existing noise, timeouts, and pre-change runs record `inert`. Paired 39-case suite demonstrated RED against the unmodified hooks before the fix. | Lint regressions are caught against a captured per-run baseline. |
@@ -43,6 +43,7 @@ its own measurement date.
 | 19 | narrator-trust-registry | — | **SHIPPED v0.6.0.** Added 2026-08-17, the ISNAD adaptation headline (rule R2). The eval loop's named biggest gap: scores everywhere, nothing feeds back. Deterministic cross-run agent-config reliability from consult verdicts + judge criterion results, keyed on agent-file content hashes (prompt edit = new identity); advisory-only consumption by metis. Ships the A0 rider that fixes the hardcoded judged-record arm via `lib/arm.mjs` — item 09's residual scope (explicit `--arm` + baseline automation) unchanged, amendment appended there. | `registry-report.mjs` scans state + judged.jsonl into a global idempotent ledger; trust = Laplace with n always shown; metis folds low-trust/high-n narrators into Identified Risks. Real-data smoke: momus 0.67 (n=4), executor 0.73 (n=9). |
 | 20 | agent-citation-discipline | — | **SHIPPED v0.6.0.** Added 2026-08-17, the ISNAD study's Pattern-A fragment (rule R5 / tadlīs): executor notepads/summaries and momus blockers must cite the span that witnessed each claim. Prompt-layer advisory only — the enforcement twins (notepad append-only, test-integrity guard, record-verify executed criteria) already exist; auditor-prompt deliberately untouched (its gap format already names files). | Both agent prompts carry the span-citation rule; no code, hooks, or scripts change. |
 | 21 | cite-completeness | — | **SHIPPED v0.6.9 (2026-08-19).** Candidate C2 promoted. Item 15 checked only the first number of a citation — the old `CITE` demanded a path prefix per number (scripts/check-anchors.mjs:88), so comma pairs, slash continuations, and bare-colon continuations were invisible and unpinned, and CHANGELOG.md targets were not pinned at all: 3afd81c's +17 half-shift shipped unnoticed, and this file's own Observations carried the twice-stale second half. The fix is structural — a contiguous-chain grammar plus same-line nearest-antecedent binding, ambiguity fails rather than guesses — reversed ranges get their own `backwards-range` kind instead of a vacuous `contentless` pass, and CHANGELOG.md becomes a full citizen: top section scanned (operator-proxy, OVERRIDABLE; released history frozen), targets content-pinned. Four paired probes demonstrated RED (11 ✗) then GREEN; the lock re-baselined once, after per-cite verification. | Every number of every citation is discovered, range-checked, and content-pinned; a +16-line CHANGELOG insertion fails as drift. |
+| 22 | harness-eval-lane | 05 | **SHIPPED v0.6.15 (2026-08-20).** Candidate C4 promoted; `docs/impl/22-harness-eval-lane.md` is the build brief. The harness violated the lane contract (skills/odyssey/references/scripts.md:9) twice over — zero `ZODYSSEY_EVAL_LANE` at either spawn AND the baseline arm self-appending `appendFileSync(RESULTS,…)` (harness.mjs:43) straight into the operator corpus: 2 `arm:"baseline"` records measured 2026-08-20 in the 418-record operator lane, the exact class item 05 closed, reopened by its own measurement tool. Row 22 stamps `ZODYSSEY_EVAL_LANE: "synthetic"` into both spawn envs (the `scripts/run-tests.mjs:81` idiom) and routes the self-append to `results.synthetic.jsonl` via an unconditional constant — the generator declares, it never consults the operator env; a spawn-only fix would have been failure modes 2+5 (a check that cannot detect its class / a fix that reopens its own class). Paired hermetic probe RED (baseline record in the operator lane, synthetic file absent) then GREEN inverted; suite 48 → 49; the 2 polluted records documented and retained pending an operator-side data decision; dashboard baseline rows now render from the synthetic lane (documented, no code change); zodyssey-arm records from interactive-conductor spawns honestly not-closed. | Harness-driven runs write only to `results.synthetic.jsonl`; the operator lane is never created by the harness. |
 
 ## Amendment — 2026-08-16, after item 15 landed
 
@@ -98,7 +99,7 @@ or `set-phase.mjs` (29).
 - The anchor problem generalised into row 15. Fixing the two above produced two more instances of the same defect inside the same day: a one-line insertion into skills/odyssey/references/scripts.md shifted check-imports from :45 to :46 and silently invalidated nine citations (seven of them in docs/ideation-report.md, a committed audit artifact); and a first draft of the ROADMAP addendum, inserted at the top, broke fourteen more across docs/ideation-report.md, docs/impl/07, docs/impl/08 and this file. Both edits were reshaped to be line-count-neutral, and the class was queued as row 15. Repo-wide surface, measured 2026-08-16: 761 citations, 28 documents, 68 cited-into files, 0 currently out of range.
 - build-capsules.mjs is a fourth zero-caller script (zero references of any kind, measured 2026-08-16). Outside the Step-2 candidate set — recorded here, not added as a 15th prompt.
 - results.jsonl drift across this task's lifetime: 172 (map, 08-15) → 177 (report, 08-15) → 181 (metis consult, 08-16 early) → 184 (notepad 2, 2026-08-16T03:05:00Z) → 185 (during todo 3, 08-16). Every prompt quoting the file stamps its own count and date.
-- CORRECTED during the run (wave 6): an earlier bullet here claimed `docs/ADAPT.md` does not exist — that was wrong. The file exists (committed in 6039199, v0.1.0) and `docs/ADAPT.md:48` is the live, canonical anchor for the ZODYSSEY_UNGATE_BASH affordance ("set ZODYSSEY_UNGATE_BASH=1 if you want the lower-friction ungated behavior"). docs/INSTALL.md:163 and CHANGELOG.md:709/:874 are additional live anchors also used in row 04. Prompt 04 may cite any of these. The false-absence claim was caught by the prompt-04 executor and re-verified by the conductor against the working tree — the exact drift class this INDEX exists to prevent, caught inside the same run that wrote it.
+- CORRECTED during the run (wave 6): an earlier bullet here claimed `docs/ADAPT.md` does not exist — that was wrong. The file exists (committed in 6039199, v0.1.0) and `docs/ADAPT.md:48` is the live, canonical anchor for the ZODYSSEY_UNGATE_BASH affordance ("set ZODYSSEY_UNGATE_BASH=1 if you want the lower-friction ungated behavior"). docs/INSTALL.md:163 and CHANGELOG.md:742/:907 are additional live anchors also used in row 04. Prompt 04 may cite any of these. The false-absence claim was caught by the prompt-04 executor and re-verified by the conductor against the working tree — the exact drift class this INDEX exists to prevent, caught inside the same run that wrote it.
 
 ## Amendment — 2026-08-17, item 05 shipped + bookkeeping catch-up
 
@@ -176,7 +177,7 @@ audited label in two commands — the master-bypass shape that scoping `--force`
 
 **C2 — item 15 is blind to continuation citations — SHIPPED as row 21, v0.6.9 (2026-08-19).** The
 old `CITE` demanded a path prefix per number (scripts/check-anchors.mjs:88), so the second half of
-a continued form was never discovered: in `CHANGELOG.md:709/:874` only the `:709` half was ever
+a continued form was never discovered: in `CHANGELOG.md:742/:907` only the `:742` half was ever
 seen — this paragraph itself carried the twice-stale halves `:531` and `:696` (blank), the class
 alive inside its own description — and in prose like "the verdict gate at :1105" after a range,
 only the range was seen. Undiscovered meant unpinned and unswept: 3afd81c's +17 half-shift in the
@@ -201,18 +202,17 @@ both the sparse cache and a future `--sync-cache`; the fail-closed alternative (
 version-mismatched syncs) trades a provenance hazard for a broken hotfix channel, and the
 smoke-gate check already covers the operator-facing half.
 
-**C4 — the eval harness never declares its telemetry lane.** `skills/odyssey/scripts/harness.mjs`
-contains zero occurrences of `ZODYSSEY_EVAL_LANE`, while the lane contract
-(`skills/odyssey/references/scripts.md:9`) says fixture harnesses MUST declare the lane at spawn —
-`scripts/run-tests.mjs:81` is the compliant precedent (`env: { ...process.env,
-ZODYSSEY_EVAL_LANE: "synthetic" }`). Consequence: every record harness-driven baseline runs append
-lands in `results.jsonl` (the operator corpus), not `results.synthetic.jsonl` — the exact
-corpus-decontamination class item 05 closed, reopened by the harness that postdates it. Found
-run-close 2026-08-20 while queueing item 12; no written brief yet.
+**C4 — the eval harness never declares its telemetry lane — SHIPPED as row 22, v0.6.15 (2026-08-20).**
+`harness.mjs` contained zero occurrences of `ZODYSSEY_EVAL_LANE` while the lane contract
+(`skills/odyssey/references/scripts.md:9`) demands the declaration at spawn — and the deviation was
+wider than the spawn gap: the baseline arm self-appended `appendFileSync(RESULTS,…)` (harness.mjs:43)
+straight to the operator corpus — 2 polluted records, measured 2026-08-20, the exact class item 05
+closed, reopened by the harness that postdates it. Row 22 tagged both spawns and routed the
+self-append synthetic; the 2 polluted records are documented, not deleted.
 
 **C5 — `--dry-run` previews a spawn that is not the spawn.** The baseline arm's real CLI spawn runs
 under the v0.6.8 permission pin (`BASELINE_PERMISSION_MODE`, skills/odyssey/scripts/
-harness.mjs:70), but the dry-run preview prints `spawn: <cli> -p --output-format json` with no
-`--permission-mode` (harness.mjs:151) — an operator auditing the surface via `--dry-run` sees a
+harness.mjs:81), but the dry-run preview prints `spawn: <cli> -p --output-format json` with no
+`--permission-mode` (harness.mjs:162) — an operator auditing the surface via `--dry-run` sees a
 different command than the one that executes, hiding exactly the tool-permission surface the pin
 exists to make visible. Found run-close 2026-08-20 while queueing item 12; no written brief yet.
