@@ -34,11 +34,14 @@
 //   documented false-green shape, one level up. A suite that exits 0 against the
 //   unmodified tree is vacuous and must be rewritten until it reddens.
 //
-// SCOPE OF THIS VERSION: NON-deletion families only. Execution cases (bare
-// --prune-cache deleting the dry-run-verified list; on-disk delta == printed
-// plan == summary) land with the delete path in a later wave. Until then every
-// spawn here is dry, and the fail-closed family is exercised through
-// --dry-run --prune-cache.
+// WAVE 3 EXTENSION — family (m), the execution cases. Bare --prune-cache (and the
+// default install run's final step) must delete EXACTLY the dry-run-verified list,
+// and only inside throwaway fixtures: on-disk delta == printed rm targets == the
+// summary's prune=N (three-way equality); the live and predecessor trees, the
+// registry, and the sibling plugin tree stay byte-identical across every execution
+// path; fail-closed holds in execution mode too (exit 1, zero deletions, byte-
+// identical fixture). Families (a)-(l) remain all-dry; the (m) spawns are the only
+// deletion spawns in this suite and every one targets an mkdtemp fixture HOME.
 //
 // FIXTURE DISCIPLINE (load-bearing):
 //   · Every fixture lives under fs.mkdtempSync(os.tmpdir()) — NEVER the real HOME.
@@ -74,7 +77,7 @@ catch (e) { libErr = e; }
 let pass = 0, fail = 0;
 const letters = new Set(); // family-coverage guard: every (a)..(l) must appear at least once
 const check = (n, c, d = "") => {
-  const m = n.match(/^\(([a-l])\)/);
+  const m = n.match(/^\(([a-m])\)/);
   if (m) letters.add(m[1]);
   if (c) { console.log(`  ✓ ${n}`); pass++; }
   else { console.log(`  ✗ ${n} ${d}`); fail++; }
@@ -257,6 +260,17 @@ function cacheRmLines(r, home) {
     .map((l) => l.replace(/^.*\[dry-run\] rm /, "").trim())
     .filter((p) => p.startsWith(parent + "/"));
 }
+// rm lines into the cache parent in EITHER form — dry prints `[dry-run] rm <path>`,
+// execution prints `rm <path>` (the phasePurge shape). The execution families use
+// this to read the printed plan from non-dry runs.
+function pruneTargets(r, home) {
+  const parent = cacheParentOf(home);
+  return (r.stdout || "").split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^(?:\[dry-run\] )?rm /.test(l))
+    .map((l) => l.replace(/^(?:\[dry-run\] )?rm /, ""))
+    .filter((p) => p.startsWith(parent + "/"));
+}
 
 // ---------- lib guards ----------
 
@@ -275,7 +289,7 @@ const isErrPlan = (p) => !!p && typeof p === "object" && !!p.error &&
 
 // ---------- fixture board ----------
 
-console.log("cache prune — suite v1 (non-deletion families, red-first)");
+console.log("cache prune — suite (non-deletion families (a)-(l) + execution families (m))");
 console.log(`lib import: ${lib ? "loaded" : `FAILED (${libErr && (libErr.code || libErr.message)}) — expected in the wave-1 red run`}\n`);
 
 const FIX_A = buildFixture(); // sparse/gapped + sibling plugin tree
@@ -514,11 +528,126 @@ if (guard("(l) provenance shapes (in-process)")) {
     `got ${fmt(noGit && noGit.provenance)}`);
 }
 
+// ---------- (m) execution: the dry-run-verified list is exactly what gets deleted ----------
+
+{
+  // (m1) exclusive bare --prune-cache on the kitchen-sink fixture — exact execution.
+  // Three-way equality: printed rm targets == on-disk delta == the summary's prune=N.
+  const ks = buildFixture({ versions: [...SPARSE, "0.7.0"], extraDirs: ["backup-tmp"], strayFiles: ["notes.txt"] });
+  const before = {
+    registry: hashFile(ks.pluginsJson),
+    live: hashTree(join(ks.parent, LIVE)),
+    pred: hashTree(join(ks.parent, PRED)),
+    other: hashTree(otherPluginDir(ks.home)),
+    dirs: readdirSync(ks.parent).sort(),
+  };
+  const r = runInstaller(ks.home, ["--prune-cache"]); // NO --dry-run: this deletes (in the fixture)
+  const s = summaryOf(r);
+  const targets = pruneTargets(r, ks.home);
+  const afterDirs = readdirSync(ks.parent).sort();
+  const removed = before.dirs.filter((n) => !afterDirs.includes(n));
+  check("(m) bare --prune-cache exits 0", r.status === 0, exitDetail(r));
+  check("(m) summary: live named, keep carries live+predecessor, prune=8",
+    !!s && s.live === LIVE && s.prune === "8" && s.keep.includes(LIVE) && s.keep.includes(PRED),
+    s ? fmt(s) : "no prune-plan: line");
+  check("(m) printed rm targets = exactly the 8 stale dirs",
+    sameSet(targets, PRUNE8.map((v) => join(ks.parent, v))), `got ${fmt(targets)}`);
+  check("(m) on-disk delta = exactly the 8 stale dirs removed",
+    sameSet(removed, PRUNE8), `got ${fmt(removed)}`);
+  check("(m) three-way equality: printed plan == on-disk delta == summary prune=N",
+    !!s && sameSet(targets, removed.map((v) => join(ks.parent, v))) &&
+      Number(s.prune) === removed.length && removed.length === targets.length,
+    `printed ${targets.length}, removed ${removed.length}, summary ${s ? s.prune : "none"}`);
+  check("(m) survivors on disk = keep set + skipped entries, exactly",
+    sameSet(afterDirs, ["0.7.0", LIVE, PRED, "backup-tmp", "notes.txt"]), `got ${fmt(afterDirs)}`);
+  check("(m) live tree byte-identical to its pre-execution hash",
+    hashTree(join(ks.parent, LIVE)) === before.live, "the live copy was touched");
+  check("(m) predecessor tree byte-identical to its pre-execution hash",
+    hashTree(join(ks.parent, PRED)) === before.pred, "the predecessor was touched");
+  check("(h) registry byte-identical after execution",
+    hashFile(ks.pluginsJson) === before.registry, "the registry must be read-only");
+  check("(g) sibling plugin tree untouched by execution",
+    hashTree(otherPluginDir(ks.home)) === before.other, "the prune walked outside the zodyssey parent");
+}
+
+{
+  // (m2) zero-stale execution: exit 0, prune=0, nothing deleted.
+  const fx = buildFixture({ versions: [LIVE] });
+  const beforeTree = hashTree(zcodeDir(fx.home));
+  const beforeReg = hashFile(fx.pluginsJson);
+  const r = runInstaller(fx.home, ["--prune-cache"]);
+  const s = summaryOf(r);
+  check("(m) zero-stale execution exits 0", r.status === 0, exitDetail(r));
+  check("(m) zero-stale summary: live named, prune=0",
+    !!s && s.live === LIVE && s.prune === "0", s ? fmt(s) : "no prune-plan: line");
+  check("(m) zero-stale execution deletes nothing (fixture byte-identical)",
+    hashTree(zcodeDir(fx.home)) === beforeTree, "something was deleted");
+  check("(h) registry byte-identical after zero-stale execution",
+    hashFile(fx.pluginsJson) === beforeReg, "the registry must be read-only");
+}
+
+{
+  // (m3) fail-closed holds WITHOUT --dry-run too — the catastrophic guardrail:
+  // nothing may be deleted before live-ness is proven, in execution mode as well.
+  for (const shape of ["missing", "outside-cache"]) {
+    const fx = buildFixture({ registry: shape });
+    const beforeTree = hashTree(zcodeDir(fx.home));
+    const beforeReg = hashFile(fx.pluginsJson);
+    const r = runInstaller(fx.home, ["--prune-cache"]); // bare: any deletion here is catastrophic
+    check(`(m) ${shape} registry: bare --prune-cache exits 1 (fail closed, execution mode)`,
+      r.status === 1, exitDetail(r));
+    check(`(m) ${shape} registry: no plan summary is printed`, !summaryOf(r), fmt(summaryOf(r)));
+    check(`(m) ${shape} registry: zero deletions, fixture byte-identical`,
+      hashTree(zcodeDir(fx.home)) === beforeTree, "something was deleted before live-ness was proven");
+    check(`(h) ${shape} registry: registry file byte-identical`,
+      hashFile(fx.pluginsJson) === beforeReg, "the registry must be read-only");
+  }
+}
+
+{
+  // (m4) the default install run's FINAL step prunes (the second consumer, executing).
+  const ks = buildFixture({ versions: [...SPARSE, "0.7.0"], extraDirs: ["backup-tmp"], strayFiles: ["notes.txt"] });
+  const before = {
+    registry: hashFile(ks.pluginsJson),
+    live: hashTree(join(ks.parent, LIVE)),
+    pred: hashTree(join(ks.parent, PRED)),
+    other: hashTree(otherPluginDir(ks.home)),
+  };
+  const r = runInstaller(ks.home, []); // plain default install run — the final step prunes
+  const afterDirs = readdirSync(ks.parent).sort();
+  check("(m) default install run exits 0", r.status === 0, exitDetail(r));
+  check("(m) the final step pruned exactly the 8 stale dirs (survivors = keep + skipped)",
+    sameSet(afterDirs, ["0.7.0", LIVE, PRED, "backup-tmp", "notes.txt"]), `got ${fmt(afterDirs)}`);
+  check("(m) the final step printed the same rm targets (one plan, two consumers)",
+    sameSet(pruneTargets(r, ks.home), PRUNE8.map((v) => join(ks.parent, v))),
+    `got ${fmt(pruneTargets(r, ks.home))}`);
+  check("(m) live + predecessor trees byte-identical after the default run",
+    hashTree(join(ks.parent, LIVE)) === before.live && hashTree(join(ks.parent, PRED)) === before.pred,
+    "the default run's final step touched a kept dir");
+  check("(h) registry byte-identical after the default run",
+    hashFile(ks.pluginsJson) === before.registry, "the registry must be read-only");
+  check("(g) sibling plugin tree untouched by the default run",
+    hashTree(otherPluginDir(ks.home)) === before.other, "the final step walked outside the zodyssey parent");
+}
+
+{
+  // (m5) default install run with an unverifiable registry: best-effort — warn,
+  // delete nothing under the cache, do not block the installer.
+  const fx = buildFixture({ registry: "missing" });
+  const cacheRoot = join(fx.home, ".zcode", "cli", "plugins", "cache");
+  const beforeCache = hashTree(cacheRoot);
+  const r = runInstaller(fx.home, []);
+  check("(m) default run with unverifiable registry exits 0 (warn + continue)",
+    r.status === 0, exitDetail(r));
+  check("(m) unverifiable registry: the best-effort step deletes nothing under the cache",
+    hashTree(cacheRoot) === beforeCache, "the best-effort step deleted something");
+}
+
 // ---------- family-coverage guard + teardown ----------
 
-check("every family (a)-(l) was exercised at least once",
-  "abcdefghijkl".split("").every((l) => letters.has(l)),
-  `missing: ${"abcdefghijkl".split("").filter((l) => !letters.has(l)).join(", ")}`);
+check("every family (a)-(m) was exercised at least once",
+  "abcdefghijklm".split("").every((l) => letters.has(l)),
+  `missing: ${"abcdefghijklm".split("").filter((l) => !letters.has(l)).join(", ")}`);
 
 for (const home of FIXTURES) {
   try { rmSync(home, { recursive: true, force: true }); } catch { /* best effort */ }
