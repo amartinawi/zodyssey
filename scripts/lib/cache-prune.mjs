@@ -130,16 +130,23 @@ export function planCachePrune({ pluginsJsonPath, pluginName = "zodyssey" } = {}
   if (!existsSync(install)) {
     return { error: `installPath does not exist: ${installPath}` };
   }
-  // Containment: the install must live under the cache base that sits beside the registry
-  // (<plugins dir>/cache — exactly where the marketplace subsystem puts it). Anything else
-  // (a marketplace source clone, a random path) is not a cache copy; refuse to reason about it.
+  // Containment: the install must live STRICTLY UNDER the cache base that sits beside the
+  // registry (<plugins dir>/cache — exactly where the marketplace subsystem puts it).
+  // Anything else (a marketplace source clone, a random path) is not a cache copy; and the
+  // base ITSELF is refused too — installPath == cacheBase would make the walked parent the
+  // plugins dir (siblings, the registry), which is never a version-dir parent. Fail closed.
   const cacheBase = join(dirname(pluginsJsonPath), "cache");
-  if (install !== cacheBase && !install.startsWith(cacheBase + "/")) {
+  if (!install.startsWith(cacheBase + "/")) {
     return { error: `installPath is not under the plugin cache base (${cacheBase}): ${installPath}` };
   }
 
   // --- the ONLY directory walked: the live version's parent ---
   const parentDir = dirname(install);
+  // The live DIR's name — the basename of the registry-resolved installPath. It can
+  // DISAGREE with the registry's version field (the hand-rollback shape: version 0.6.12
+  // while installPath → .../0.4.0), so it is computed once, here, and carved out of the
+  // removal list below: the RUNNING dir is never pruned, whatever its name.
+  const liveDir = install.slice(parentDir.length + 1);
   let children;
   try { children = readdirSync(parentDir, { withFileTypes: true }); }
   catch (e) { return { error: `cannot read the live version's parent dir ${parentDir}: ${e.message}` }; }
@@ -155,15 +162,18 @@ export function planCachePrune({ pluginsJsonPath, pluginName = "zodyssey" } = {}
     .filter((n) => compareSemver(n, liveVersion) <= 0)
     .sort((a, b) => compareSemver(b, a)); // newest → oldest
   const retained = belowOrAtLive.slice(0, CACHE_PRUNE_KEEP);
-  const prune = belowOrAtLive.slice(CACHE_PRUNE_KEEP).sort((a, b) => compareSemver(a, b));
+  const prune = belowOrAtLive.slice(CACHE_PRUNE_KEEP)
+    .filter((n) => n !== liveDir) // the live DIR is never removable, whatever its name
+    .sort((a, b) => compareSemver(a, b));
   // Never prune anything newer than live: a downloaded-but-unregistered update is
   // indistinguishable from an orphaned newer dir, and the registry cannot arbitrate.
   const newerThanLive = candidates
     .filter((n) => compareSemver(n, liveVersion) > 0)
     .sort((a, b) => compareSemver(b, a));
   const keep = [...newerThanLive, ...retained];
-  // Catastrophic-case guard: the live DIR itself is always kept, whatever its name.
-  const liveDir = install.slice(parentDir.length + 1);
+  // Catastrophic-case guard: the live DIR itself is always kept, whatever its name —
+  // excluded from prune above AND reported in keep here (never in both lists: the
+  // consumer iterates prune, so a live dir there would be printed and rmSync'd).
   if (SEMVER_NAME.test(liveDir) && !keep.includes(liveDir)) keep.push(liveDir);
 
   // Everything else in the parent (non-semver dirs, stray files): reported, never touched.

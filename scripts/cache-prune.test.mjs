@@ -43,6 +43,11 @@
 // identical fixture). Families (a)-(l) remain all-dry; the (m) spawns are the only
 // deletion spawns in this suite and every one targets an mkdtemp fixture HOME.
 //
+// REMEDIATION EXTENSION — consult-audit gap: (m6)/(m7) pin the registry-version ≠
+// live-DIR-name disagreement (version 0.6.12, installPath → .../0.4.0) — the live
+// DIR must be carved out of prune (never in keep AND prune, never rm'd, byte-identical
+// through both consumers); (e)×7 adds installPath == cache base → fail closed.
+//
 // FIXTURE DISCIPLINE (load-bearing):
 //   · Every fixture lives under fs.mkdtempSync(os.tmpdir()) — NEVER the real HOME.
 //   · Every spawn uses env { ...process.env, HOME: <fixture> } — the spread
@@ -168,7 +173,8 @@ function buildFixture({
   innerOverrides = {},   // { dirVersion: innerPluginJsonVersion } — mixture realism
   otherPlugin = true,    // sibling plugin tree under the same marketplace
   registry = "ok",       // ok | missing | unparseable | entryless | no-installpath |
-                         // nonexistent-path | outside-cache
+                         // nonexistent-path | outside-cache | live-dir-mismatch |
+                         // cache-base
   gitShapes = null,
 } = {}) {
   const home = mkdtempSync(join(tmpdir(), "zod-prune-"));
@@ -187,6 +193,14 @@ function buildFixture({
     installPath = writePluginTree(join(home, ".zcode", "cli", "plugins", "marketplaces", "zodyssey-local"), LIVE);
   } else if (registry === "nonexistent-path") {
     installPath = join(parent, "0.6.99");
+  } else if (registry === "live-dir-mismatch") {
+    // The hand-rollback shape: registry version stays 0.6.12 while installPath points
+    // at the on-disk 0.4.0 dir (a STALE-by-version dir that is actually RUNNING).
+    installPath = join(parent, "0.4.0");
+  } else if (registry === "cache-base") {
+    // installPath exactly equal to the cache base — the parent would be the plugins
+    // dir itself; must fail closed, not walk plugin siblings.
+    installPath = join(home, ".zcode", "cli", "plugins", "cache");
   }
   if (registry !== "missing") {
     writeRegistry(home, {
@@ -303,6 +317,7 @@ const FIX_E = {
   "installpath-less-entry": buildFixture({ registry: "no-installpath" }),
   "nonexistent-installpath": buildFixture({ registry: "nonexistent-path" }),
   "installpath-outside-cache": buildFixture({ registry: "outside-cache" }),
+  "installpath-equals-cache-base": buildFixture({ registry: "cache-base" }),
 };
 const FIX_F = buildFixture({ extraDirs: ["backup-tmp"], strayFiles: ["notes.txt"] });
 const FIX_J = buildFixture({ versions: [...SPARSE, "0.7.0"], extraDirs: ["backup-tmp"], strayFiles: ["notes.txt"] });
@@ -641,6 +656,62 @@ if (guard("(l) provenance shapes (in-process)")) {
     r.status === 0, exitDetail(r));
   check("(m) unverifiable registry: the best-effort step deletes nothing under the cache",
     hashTree(cacheRoot) === beforeCache, "the best-effort step deleted something");
+}
+
+{
+  // (m6) registry version ≠ live DIR name (the hand-rollback shape: version 0.6.12,
+  // installPath → .../0.4.0). The live DIR — a stale-BY-VERSION dir that is actually
+  // RUNNING — must be carved out of prune by BOTH consumers, never rm'd, byte-identical.
+  const LIVE_ELSEWHERE = "0.4.0";
+  const PRUNE7 = PRUNE8.filter((v) => v !== LIVE_ELSEWHERE);
+  const fx = buildFixture({ registry: "live-dir-mismatch" });
+  const beforeLive = hashTree(join(fx.parent, LIVE_ELSEWHERE));
+  const beforeReg = hashFile(fx.pluginsJson);
+  const plan = planOf(fx.pluginsJson);
+  check("(m) mismatch: liveVersion still the registry's 0.6.12",
+    plan && plan.liveVersion === LIVE, `got ${fmt(plan && plan.liveVersion)}`);
+  check("(m) mismatch: the live DIR (0.4.0) is in keep, whatever its name",
+    Array.isArray(plan && plan.keep) && plan.keep.includes(LIVE_ELSEWHERE), `got ${fmt(plan && plan.keep)}`);
+  check("(m) mismatch: the live DIR is absent from prune",
+    Array.isArray(plan && plan.prune) && !plan.prune.includes(LIVE_ELSEWHERE), `got ${fmt(plan && plan.prune)}`);
+  check("(m) mismatch: prune = the 7 remaining stale dirs (the live DIR carved out)",
+    sameSet(plan && plan.prune, PRUNE7, cmpSemverTest), `got ${fmt(plan && plan.prune)}`);
+  check("(m) mismatch: keep and prune are disjoint (a live dir in BOTH would delete it)",
+    Array.isArray(plan && plan.keep) && Array.isArray(plan && plan.prune) &&
+    !plan.keep.some((n) => plan.prune.includes(n)),
+    `keep ${fmt(plan && plan.keep)} prune ${fmt(plan && plan.prune)}`);
+
+  const r = runInstaller(fx.home, ["--prune-cache"]); // bare: this deletes (in the fixture)
+  check("(m) mismatch: bare --prune-cache exits 0", r.status === 0, exitDetail(r));
+  check("(m) mismatch: no rm line names the live DIR",
+    !pruneTargets(r, fx.home).some((p) => p === join(fx.parent, LIVE_ELSEWHERE)),
+    `got ${fmt(pruneTargets(r, fx.home))}`);
+  check("(m) mismatch: the live DIR tree byte-identical after bare --prune-cache",
+    existsSync(join(fx.parent, LIVE_ELSEWHERE)) &&
+    hashTree(join(fx.parent, LIVE_ELSEWHERE)) === beforeLive,
+    "the RUNNING plugin's dir was deleted by the exclusive mode");
+  check("(h) registry byte-identical after the mismatch bare run",
+    hashFile(fx.pluginsJson) === beforeReg, "the registry must be read-only");
+}
+
+{
+  // (m7) the same disagreement through the DEFAULT install run's final step — the
+  // silent path (no flag): the live DIR must survive it untouched too.
+  const LIVE_ELSEWHERE = "0.4.0";
+  const fx = buildFixture({ registry: "live-dir-mismatch" });
+  const beforeLive = hashTree(join(fx.parent, LIVE_ELSEWHERE));
+  const beforeReg = hashFile(fx.pluginsJson);
+  const r = runInstaller(fx.home, []); // plain default install run — the final step prunes
+  check("(m) mismatch: default install run exits 0", r.status === 0, exitDetail(r));
+  check("(m) mismatch: the live DIR survives the default run, byte-identical",
+    existsSync(join(fx.parent, LIVE_ELSEWHERE)) &&
+    hashTree(join(fx.parent, LIVE_ELSEWHERE)) === beforeLive,
+    "the RUNNING plugin's dir was deleted by the install's final step");
+  check("(m) mismatch: no rm line names the live DIR in the default run",
+    !pruneTargets(r, fx.home).some((p) => p === join(fx.parent, LIVE_ELSEWHERE)),
+    `got ${fmt(pruneTargets(r, fx.home))}`);
+  check("(h) registry byte-identical after the mismatch default run",
+    hashFile(fx.pluginsJson) === beforeReg, "the registry must be read-only");
 }
 
 // ---------- family-coverage guard + teardown ----------
