@@ -289,7 +289,10 @@ function judgedLines(home) {
 }
 
 const runsDir = (home) => join(home, ".zcode", "orchestration", "eval", "runs");
-const resultsPath = (home) => join(home, ".zcode", "orchestration", "eval", "results.jsonl");
+// Item 22: the baseline arm's self-append routes to the SYNTHETIC lane (the harness is a
+// synthetic generator and declares its lane) — every resultsPath reader below asserts that
+// contract.
+const resultsPath = (home) => join(home, ".zcode", "orchestration", "eval", "results.synthetic.jsonl");
 
 // Byte-level fingerprint of a directory tree (absolute path → sha256) for case (f).
 function snapshotTree(root) {
@@ -478,7 +481,7 @@ console.log("two-arm-eval tests (judge --arm/--compare, harness --dry-run/baseli
     check("(f) plan prints the judge command with --arm baseline", r.stdout.includes("--arm baseline"),
       "(the printed judge command carries no arm)");
     check("(f) plan prints a line per seed (h1, h2)", r.stdout.includes("h1") && r.stdout.includes("h2"));
-    check("(f) plan names the append destination (results.jsonl)", r.stdout.includes("results.jsonl"));
+    check("(f) plan names the append destination (results.synthetic.jsonl)", r.stdout.includes("results.synthetic.jsonl"));
     check("(f) plan names the spawn command and/or cwd", /spawn|cwd/i.test(r.stdout));
     const after = snapshotTree(h.home);
     const drift = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => before[k] !== after[k]);
@@ -502,7 +505,7 @@ console.log("two-arm-eval tests (judge --arm/--compare, harness --dry-run/baseli
       ? readFileSync(resultsPath(h.home), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l))
       : [];
     check("(g) zero success records appended", recs.every((x) => x.success !== true),
-      `(results.jsonl holds ${recs.length} record(s), ${recs.filter((x) => x.success === true).length} with success:true)`);
+      `(results.synthetic.jsonl holds ${recs.length} record(s), ${recs.filter((x) => x.success === true).length} with success:true)`);
     check("(g) failure is loud (output says failed)", /fail/i.test(r.stdout + r.stderr));
   } finally { rmSync(h.home, { recursive: true, force: true }); }
 }
@@ -548,7 +551,7 @@ console.log("two-arm-eval tests (judge --arm/--compare, harness --dry-run/baseli
       ? readFileSync(resultsPath(h.home), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l))
       : [];
     check("(i) a no-op baseline appends NO record", recs.length === 0,
-      `(results.jsonl holds ${recs.length} record(s))`);
+      `(results.synthetic.jsonl holds ${recs.length} record(s))`);
     check("(i) the batch reports nothing measured (exit 4)", r.code === 4, `(got ${r.code})`);
     check("(i) the failure names it as a capability failure, not a loss",
       /produced no changes.*capability failure, not an arm result/is.test(r.stdout + r.stderr),
@@ -614,7 +617,7 @@ console.log("two-arm-eval tests (judge --arm/--compare, harness --dry-run/baseli
       `(got ${r.code})`);
     check("(k) both seeds appended their efficiency records",
       recs.length === 2 && recs.every((x) => x.arm === "baseline"),
-      `(results.jsonl holds ${recs.length} record(s))`);
+      `(results.synthetic.jsonl holds ${recs.length} record(s))`);
     const summary = r.stdout.split("\n").filter((l) => /h[12]:/.test(l)).join(" | ");
     check("(k) the summary reports both seeds as measured",
       /h1: measured/.test(r.stdout) && /h2: measured/.test(r.stdout), `(summary: "${summary}")`);
