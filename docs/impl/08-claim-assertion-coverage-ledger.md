@@ -82,7 +82,7 @@ that defends it:
   asserted_by: "skills/odyssey/hooks/pre-tool.bash-gate.test.mjs", // where it is PROVEN (code)
   marker: "silently deleted TWICE", // literal string that must occur in asserted_by — the binding
   kind: "suite",                   // "suite" = run by run-tests.mjs · "release-gate" = release cadence
-  note: "v0.1.1/v0.2.0 deletions; CHANGELOG.md:665, :832", // optional context
+  note: "v0.1.1/v0.2.0 deletions; CHANGELOG.md:686, :853", // optional context
 }
 ```
 
@@ -127,7 +127,7 @@ not run-scoped state; a live orchestration run must never block on it.
 | `BASH-GATE-REGRESSION` | AGENTS.md:43 → the twice-deleted gate's regression suite | `skills/odyssey/hooks/pre-tool.bash-gate.test.mjs` (suite) |
 | `GATE-SURFACE-INVARIANTS` | the 11 audit-found invariants (DESIGN.md §6, `docs/DESIGN.md:245`; CHANGELOG v0.5.0 — re-anchor at build time) | `skills/odyssey/hooks/pre-tool.gate-surface.test.mjs` (suite) |
 | `VERSION-CONSISTENCY` | docs/DEVELOPMENT.md:43 → the three manifests cannot disagree | `scripts/version-consistency.test.mjs` (suite) |
-| `SMOKE-GATE-LIVE` | docs/DEVELOPMENT.md:76 → the release gate checks enforcement liveness | `scripts/smoke-gate.mjs` (release-gate) |
+| `SMOKE-GATE-LIVE` | docs/DEVELOPMENT.md:79 → the release gate checks enforcement liveness | `scripts/smoke-gate.mjs` (release-gate) |
 | `DEPLOY-SURFACE-COVERAGE` | the drift gate compares everything deployed (CHANGELOG entry for `26af48b` — re-anchor at build time) | `scripts/deploy-surface.test.mjs` (suite) |
 | `EDIT-PATH-CONTAINMENT` | prompt 01's claim: post-OKAY, no Edit-family path skips the scope gate | `skills/odyssey/hooks/pre-tool.scope.test.mjs` (suite) |
 | `CHECKS-WIRED-AT-TRANSITIONS` | prompt 02's claim: the three checks fire from phase transitions; findings block `done`; absent capability records `inert` | `skills/odyssey/scripts/set-phase.check-wiring.test.mjs` (suite) |
@@ -355,7 +355,7 @@ tested"), each re-anchored against the tree at build time:
   exit semantics (0 clean / 1 findings / inert when absent), that `npm test` runs it via
   discovery, and the maintenance rule (a new load-bearing claim gets a row; red is resolved by
   binding or by changing the doc, never by deleting the row).
-- `docs/DEVELOPMENT.md:43-47,76` — the dev-loop and scripts-table entries: the ledger check sits
+- `docs/DEVELOPMENT.md:43-47,79` — the dev-loop and scripts-table entries: the ledger check sits
   beside `version-consistency` and `smoke-gate` as the third repo-level invariant check; a
   release runs all three.
 - `CHANGELOG.md` — shape below.

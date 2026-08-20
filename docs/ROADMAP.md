@@ -185,7 +185,7 @@ Under "documentation is the spec," a wrong doc becomes a wrong test. Ordered by 
 3. **Stale counts and claims** in `DESIGN.md`, `ECOSYSTEM_GRAPH.md`, `SKILL.md` (hook and script
    counts, `dashboard.mjs` marked TODO though built, scope-boundary phase carve-out, review-round
    cap now hook-enforced).
-4. **`install.mjs:452`** — writes a `ZODYSSEY_UNGATE_BASH` claim into every user's `AGENTS.md`.
+4. **`install.mjs:530`** — writes a `ZODYSSEY_UNGATE_BASH` claim into every user's `AGENTS.md`.
    Now true again after Phase 0; keep the registry assertion so it cannot silently become false.
 
 Deferred to Phase C: `RESUME.md`'s "pipeline wins +0.25 on architecture tasks." It is n=1 per arm

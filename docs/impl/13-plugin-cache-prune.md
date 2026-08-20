@@ -21,7 +21,7 @@ Which dir is live is not a guess and not a property of the tree — it is record
 `~/.zcode/cli/plugins/installed_plugins.json` carries the `zodyssey@zodyssey-local` entry with
 `"version": "0.5.2"` and `"installPath": ".../cache/zodyssey-local/zodyssey/0.5.2"` (plus a
 marketplace-owned `cacheTransactionId`). `scripts/install.mjs` already reads exactly this truth:
-`PLUGINS_JSON_PATH` at `scripts/install.mjs:56`, `loadPluginsJson()` at `:140-151`,
+`PLUGINS_JSON_PATH` at `scripts/install.mjs:61`, `loadPluginsJson()` at `:146-157`,
 `findInstalledEntry()` at `:156-162`, `resolveInstallPath()` at `:164-169`. The repo manifest
 (`.zcode-plugin/plugin.json:4`) read `0.5.2` at measurement (0.6.x across the 2026-08-17/18
 releases), but that is coincidence of timing, not
@@ -33,15 +33,15 @@ scripts/install.mjs` → exactly 3 hits — the import (`:42`), the pre-v0.3.0 p
 (`:421`, removing `~/.zcode/skills`-era paths), and `--uninstall` (`:968`, the same purge paths)
 — none of which walks `cache/<marketplace>/<plugin>/<version>/`. The one command that writes into
 the cache at all, `--sync-cache`, only ever `cpSync`s INTO the registered dir
-(`scripts/install.mjs:284`) and its own header boasts "no registry writes, no config edits"
+(`scripts/install.mjs:290`) and its own header boasts "no registry writes, no config edits"
 (`:185-186`); the marketplace subsystem owns cache creation (`:6-7`) and leaves old versions
 behind on Update — empirically, six of them in four days. `--verify` checks the registered
-path's liveness (`scripts/install.mjs:670-688`) but never enumerates its siblings, so the
+path's liveness (`scripts/install.mjs:748-766`) but never enumerates its siblings, so the
 accumulation is invisible to every current check; `--uninstall` explicitly defers cache +
 registry to the GUI (`:971-974`).
 
 The paired-probe broken direction below shows the sharpest edge: today `install.mjs` accepts any
-argv without complaint (only the four booleans at `scripts/install.mjs:95-98` are ever consulted),
+argv without complaint (only the four booleans at `scripts/install.mjs:100-103` are ever consulted),
 so a hypothetical `--prune-cache` flag run against the current build is **silently ignored** and
 the default install flow runs — exit 0, nothing listed, nothing deleted, indistinguishable from
 success. That is this repo's documented false-green shape (`scripts/run-tests.mjs:16-18`), one
@@ -50,7 +50,7 @@ directory level up.
 ## What fixed means
 
 Stated as observable behaviour, not as a diff. **No registry writes, ever** — the v0.3.0 bug was
-hand-writing `installed_plugins.json` (`scripts/install.mjs:8-10`, `:221-224`); this change reads
+hand-writing `installed_plugins.json` (`scripts/install.mjs:8-10`, `:227-230`); this change reads
 it, and deletes only cache directories it proves are not live.
 
 **1. Retention policy, stated once.** Of the version-shaped directories in the live version's
@@ -66,9 +66,9 @@ lib, not a per-call argument.
 
 **2. `--prune-cache` — the explicit, exclusive mode.** `node scripts/install.mjs --prune-cache`
 computes the plan and executes it, then exits without running any other install phase (the
-`--sync-cache` shape: `if (SYNC_CACHE) syncCache()` at `scripts/install.mjs:301` early-exits).
+`--sync-cache` shape: `if (SYNC_CACHE) syncCache()` at `scripts/install.mjs:307` early-exits).
 With the existing `--dry-run` flag it prints the plan and deletes nothing — `[dry-run] rm <path>`
-lines in the `phasePurge` shape (`scripts/install.mjs:420`). Both modes print one machine-greppable
+lines in the `phasePurge` shape (`scripts/install.mjs:498`). Both modes print one machine-greppable
 summary line: `prune-plan: live=<V> keep=<V1,V2> prune=<N>` — the dry run and the execution
 consume **the same computed list** (one plan function, two consumers), so "listed" and "deleted"
 cannot diverge. Exit codes: **0** on success — including the healthy zero-stale case ("nothing to
@@ -96,7 +96,7 @@ match `/^\d+\.\d+\.\d+$/` are candidates; anything else in that dir (files, non-
 reported as `skipped` and never touched. Other plugins' and other marketplaces' cache trees are
 never walked — containment derives from the registry entry's own `installPath`, not from a glob
 over the cache base. No mid-run refusal is needed (contrast `--sync-cache`'s guard at
-`scripts/install.mjs:197-214`): stale dirs are never executed — hooks resolve via
+`scripts/install.mjs:203-220`): stale dirs are never executed — hooks resolve via
 `${CLAUDE_PLUGIN_ROOT}` = the registered path — so removing them changes no live behaviour
 between tool calls.
 
@@ -280,7 +280,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
 
 - **Before the fix (current HEAD): the mode does not exist, and cannot be distinguished from
   success.** `HOME=<fixture> node scripts/install.mjs --dry-run --prune-cache` exits **0** —
-  unknown argv is silently ignored (`scripts/install.mjs:95-98` consult four booleans; nothing
+  unknown argv is silently ignored (`scripts/install.mjs:100-103` consult four booleans; nothing
   validates the rest), the default flow's dry preview prints, no cache dir is ever named.
   `HOME=<fixture> node scripts/install.mjs --prune-cache` (no `--dry-run`) likewise exits 0 with
   all six dirs intact. Exit 0, nothing listed, nothing gone — the accumulation is invisible from
@@ -307,7 +307,7 @@ Unchanged controls, required on BOTH builds — a probe that moves any of them h
 
 The intended break: old cache dirs stop being immortal. Named costs, honestly: (a) **hand-rollback
 beyond one release loses its dir** — a user who hand-edits `installed_plugins.json` to point at
-`0.4.0` (the bug-shaped rollback `scripts/install.mjs:221-224` warns about, but people do it)
+`0.4.0` (the bug-shaped rollback `scripts/install.mjs:227-230` warns about, but people do it)
 finds it gone after the next install; the retention window keeps exactly one release of rollback,
 the dry-run prints the removal list before it happens, and a marketplace Get of the old tag
 recreates the dir — recoverable, not free. (b) **`install.mjs` stops being cache-side-effect-free**
@@ -352,19 +352,19 @@ How this change could reintroduce the class:
 Every doc that states the claim this change alters ("the cache accumulates / the installer never
 touches the cache"), each checked against the 2026-08-16 tree:
 
-- `docs/DEVELOPMENT.md:49-62` — the "Upgrading the active install" section: the install run now
+- `docs/DEVELOPMENT.md:49-65` — the "Upgrading the active install" section: the install run now
   prunes stale cache dirs as its final step; preview with `node scripts/install.mjs --dry-run
   --prune-cache`; retention = live + previous.
-- `docs/DEVELOPMENT.md:75` — the `scripts/install.mjs` repository-layout row gains "stale
+- `docs/DEVELOPMENT.md:78` — the `scripts/install.mjs` repository-layout row gains "stale
   plugin-cache prune".
-- `docs/DEVELOPMENT.md:101` — the flags line gains `--prune-cache`.
+- `docs/DEVELOPMENT.md:104` — the flags line gains `--prune-cache`.
 - `docs/INSTALL.md:25` — the responsibility split sentence gains the precise carve-out: the
   installer now *deletes non-registered sibling version dirs only*; it still never writes into
   the registered dir, the registry, or the manifest (ownership of writes unchanged — only
   read-derived deletion is added).
-- `docs/INSTALL.md:195-204` — the upgrade flow ("two things update") gains the prune as the third
+- `docs/INSTALL.md:206-216` — the upgrade flow ("two things update") gains the prune as the third
   thing install.mjs does for you.
-- `docs/INSTALL.md:226-234` — the `--sync-cache` situations table gains a row: "Stale version
+- `docs/INSTALL.md:238-249` — the `--sync-cache` situations table gains a row: "Stale version
   dirs accumulating under `cache/<mp>/zodyssey/` → `node scripts/install.mjs --prune-cache`";
   the existing sentence "The cache is laid out per version … and `installed_plugins.json` records
   which one is live" gains "and the installer prunes everything older than the rollback window,
