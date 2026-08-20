@@ -19,7 +19,7 @@ they are **one origin**; the external auditor is the only second origin a run ca
 (`state.consult.history`, written by `skills/odyssey/scripts/consult.mjs:1096`; phase `audited`,
 set per `skills/odyssey/SKILL.md:267`) but nothing reports it: `run-report.mjs`'s `--json` record —
 auto-appended to the trend corpus on every done|audited transition
-(`skills/odyssey/scripts/set-phase.mjs:430-457`) — carries `success: true|false` with no statement
+(`skills/odyssey/scripts/set-phase.mjs:454-481`) — carries `success: true|false` with no statement
 of **what verified it**. A corpus consumer reading `success: true` cannot tell an audited run from
 an in-session-only one.
 

@@ -2,6 +2,23 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.10] — 2026-08-20
+
+### Added — compaction now fires from the final-phase transition (item 11)
+
+Entering `final` now auto-invokes `skills/odyssey/scripts/compact.mjs` from `set-phase.mjs` — after the phase write, outside the state lock, best-effort: a missing notepad dir, failure, or timeout warns on stderr and the transition still exits 0. Compaction gates nothing. Above `AUTO_COMPACT_MIN_LINES = 400` aggregate non-empty notepad lines the transition writes `_compact-brief.md` and prints its path; at or below the threshold it is inert (no writes, no deletions, one printed line). `ZODYSSEY_NO_AUTO_COMPACT=1` skips the invocation entirely. Direct two-arg invocation is unchanged byte-for-byte; the only new CLI surface is `--min-lines <N>`, which fails closed (non-integer or negative N exits 2) and short-circuits inert below the threshold without touching a stale manual brief.
+
+The additive invariant — every source notepad stays byte-identical across every path — is now an asserted test rather than a comment: `compact.test.mjs` (suite 44 → 45) hashes every notepad before and after each invocation, transition paths included, and fails on any byte drift.
+
+Paired probe, RED first: against the unmodified v0.6.9 tree, hand-invoking `compact.mjs` produced a brief while entering `final` produced none (cases f/g/h failed); after the wiring, the same transition produces one with sources unchanged. This repo cites its probes, not just its diffs.
+
+**Known, not fixed:**
+
+- The threshold value (400) is a stated judgment — 10× the per-notepad cap — not a derived number; the two-arm eval (queue items 09/10) is the instrument that could measure real context cost and replace the constant with data.
+- Pointing F1–F4 dispatches at the brief remains conductor prose anchored to the printed path signal; the mechanism guarantees the brief exists and is signalled, not that anyone reads it.
+- A below-threshold re-entry of `final` never deletes a stale brief from an earlier entry (deletion is non-additive); freshness is the per-entry printed line, not cleanup.
+- `skills/odyssey/scripts/build-capsules.mjs` remains a zero-caller outside this change's scope (already named in prompt 02's Known-not-fixed; still true).
+
 ## [0.6.9] — 2026-08-19
 
 ### Fixed — every number of a citation is checked; CHANGELOG targets content-pinned (item 21)

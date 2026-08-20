@@ -154,13 +154,13 @@ Because sub-agents cannot load skills (trust anchor), **the orchestrator loads t
         │    manual QA checklist (you produce it), F4 scope    │
         │    fidelity, F5 capability-routing cross-check. All  │
         │    must pass before "done".                          │
-        │    OPTIONAL COMPACTION (before F1-F4 dispatch): you  │
-        │    MAY run `scripts/compact.mjs <repo> <slug>` to    │
-        │    derive `_compact-brief.md` from the run's notepads│
-        │    and point F1-F4 at the brief instead of the full  │
-        │    plan+notepad set. Deterministic, $0, additive     │
-        │    (never modifies source notepads). Opt-in; skip if │
-        │    the run is small. (Borrows prime-agent #8.)       │
+        │    AUTO COMPACTION (at final entry): set-phase.mjs   │
+        │    auto-runs compact.mjs above the notepad line      │
+        │    threshold (AUTO_COMPACT_MIN_LINES); inert         │
+        │    at/below; skip via ZODYSSEY_NO_AUTO_COMPACT=1.    │
+        │    The printed brief path is your signal to point    │
+        │    F1-F4 at `_compact-brief.md`. Deterministic, $0,  │
+        │    additive (never modifies source notepads).        │
         │    MEMORY RULE: delegate any step that must READ the  │
         │    todos' notepad/fragment outputs to a sub-agent —  │
         │    do NOT read those fragments back into your own     │
@@ -209,7 +209,7 @@ or may not write. Concretely:
 - Downstream todos **read prior notepads by path** (the orchestrator passes the pointers), so a
   notepad is the handoff contract between fan-out executors that never share a context window.
 - The final wave (F1-F4) reads notepads through a delegated sub-agent (memory rule above) or, when
-  the run is large, through the optional `_compact-brief.md` produced by `scripts/compact.mjs`.
+  the run is large, through the `_compact-brief.md` `compact.mjs` auto-derives at final entry above the size threshold (additive — sources never modified).
 
 This is the structural analog of prime-agent primitive #8's "the kernel survives across
 compactions" — except ZOdyssey has no in-process kernel, so the persistence that survives across
@@ -388,8 +388,8 @@ The chain (dispatch → nonce → artifact → verdict) is what makes the OKAY n
 - `ZODYSSEY_UNGATE_BASH` — set to `1` to bypass the Bash write-gate entirely (documented power-user hatch; Edit/Write tools stay gated). Every ungated call is witnessed — one JSON line in `.zcode/state/<slug>.ungated.jsonl`, counted as `ungated_bash_calls` by `run-report.mjs` — the hatch opens, but never silently.
 - `ZODYSSEY_RECURSION_CAP` — the SEC-1s recursion-guard cap (default 1). Reserved for a future real depth counter; today the guard is a payload-pattern match against embedded nested dispatches, not a depth ledger (the harness tool-grant boundary is the primary control).
 - `ZODYSSEY_REGRESSION_TIMEOUT_MS` — timeout (ms) for the regression-gate suite (default 600000).
-- `CLAUDE_CLI` — the binary `consult.mjs` spawns as the external auditor (default `claude`). Receives the full repo diff + plan, so point this only at a trusted CLI.
-- `CLAUDE_CLI_2` — optional second CLI binary for `consult --multi-auditor` (falls back to `CLAUDE_CLI`).
+- `ZODYSSEY_NO_AUTO_COMPACT` — set to `1` to skip auto-compaction at final-phase entry (default unset = enabled).
+- `CLAUDE_CLI` — the binary `consult.mjs` spawns as the external auditor (default `claude`; receives the full repo diff + plan — point it only at a trusted CLI); `CLAUDE_CLI_2` — optional second CLI binary for `consult --multi-auditor` (falls back to `CLAUDE_CLI`).
 
 ## Memory store — canonical
 

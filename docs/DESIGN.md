@@ -238,7 +238,7 @@ Durable execution (the LangChain production requirement). Everything needed to r
 
 **Resume contract:** on crash or `/orchestrate resume <slug>`, the orchestrator reads
 `state.json`, finds the last checkpoint, and resumes from there — not from scratch.
-Checkpoints are written after each todo completes and after each phase transition.
+Checkpoints are written after each todo completes and after each phase transition; entering `final` also derives `_compact-brief.md` from the run's notepads (`scripts/compact.mjs` — automatic above `AUTO_COMPACT_MIN_LINES`, additive, never gates the transition).
 
 ---
 

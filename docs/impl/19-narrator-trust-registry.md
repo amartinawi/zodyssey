@@ -77,7 +77,7 @@ consume lib, drop private copy) · `agents/metis.md` · `skills/odyssey/SKILL.md
   ROADMAP §3 non-goal this design exists to honor.
 - **No gate on trust** — never a precondition, hook, or refusal. The split is the repo's own:
   enforce invariants with code, guide choices with prompts.
-- Do not ingest `outcomes.jsonl` — it is an unauthenticated plain append (`set-phase.mjs:459-480`
+- Do not ingest `outcomes.jsonl` — it is an unauthenticated plain append (`set-phase.mjs:483-504`
   writes it with no marker). The consult lane is written by trusted `consult.mjs` under its
   O_EXCL lock; that is the integrity boundary we accept, and it is stated in the script header.
 - Do not modify `consult.mjs`, any hook, or `state.json` shape.

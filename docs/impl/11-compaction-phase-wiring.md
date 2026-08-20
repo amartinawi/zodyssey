@@ -16,7 +16,7 @@ Census re-measured 2026-08-16 (this run, not an ideation-doc number): grep for `
 run `scripts/compact.mjs <repo> <slug>`" — an instruction addressed to the conductor, inside the
 phase-6 OPTIONAL COMPACTION box at `:157-164`), `skills/odyssey/SKILL.md:212` ("the **optional**
 `_compact-brief.md`"), `skills/odyssey/references/scripts.md:17` ("OPTIONAL pre-final-wave
-notepad compactor"), `README.md:59`, `README.md:81`, `README.md:280`, `CHANGELOG.md:737`. The
+notepad compactor"), `README.md:59`, `README.md:81`, `README.md:280`, `CHANGELOG.md:754`. The
 script's own header admits it: `skills/odyssey/scripts/compact.mjs:20-21` — "OPT-IN: the
 orchestrator MAY call this before phase-6 dispatch. It is not mandatory and not wired into any
 phase transition or hook."
@@ -25,7 +25,7 @@ The consequence, in the repo's own framing (`skills/odyssey/SKILL.md:202-212`): 
 run's load-bearing working memory and grow with the run, and for a large run the final-wave
 sub-agents (F1-F4) are supposed to consume `_compact-brief.md` instead of the full doc set — a
 per-notepad-truncated derived view (`compact.mjs:37` `MAX_LINES_PER_NOTEPAD = 40`, applied at
-`:75`). Because the only wiring is a "MAY" sentence, that economy path fires only when a conductor
+`:111`). Because the only wiring is a "MAY" sentence, that economy path fires only when a conductor
 remembers prose. **A run entering the final phase today produces no brief, ever** — the paired-probe
 broken direction below proves it on the current build. This is the opt-in flavor of the class
 prompt 02 closed for the zero-caller checks: a mechanism that exists, works when hand-invoked, and
@@ -46,25 +46,25 @@ automatic transition without asserting it would be manufacturing the next audit 
 ## What fixed means
 
 Stated as observable behaviour, not as a diff. **No new state fields** — the brief's existence and
-its `Generated:` header (`compact.mjs:83-87`) are the record; old runs load and transition
+its `Generated:` header (`compact.mjs:119-123`) are the record; old runs load and transition
 unchanged.
 
 **1. Entering `final` auto-compacts above a stated threshold.** `skills/odyssey/scripts/set-phase.mjs`
-gains a `phase === "final"` block, a sibling of the B8 execute block at `:206-211` and the CRIT-4a
-terminal block at `:217-228` (if prompt 02 has landed, extend its final-entry block instead of
+gains a `phase === "final"` block, a sibling of the B8 execute block at `:334-342` and the CRIT-4a
+terminal block at `:454-481` (if prompt 02 has landed, extend its final-entry block instead of
 adding a second — the assertion is the same `phase === "final"`). It invokes
 `compact.mjs <repo> <slug> --min-lines <N>` and behaves as:
 
 | Condition at final entry | Behaviour |
 |---|---|
-| Aggregate non-empty lines across source notepads > N | `_compact-brief.md` is (re)written; the brief path is printed (existing `compact.mjs:108`, via `stdio: "inherit"`); transition exits 0 |
+| Aggregate non-empty lines across source notepads > N | `_compact-brief.md` is (re)written; the brief path is printed (existing `compact.mjs:144`, via `stdio: "inherit"`); transition exits 0 |
 | Aggregate ≤ N | **Inert**: exit 0, no brief written, nothing deleted, one line printed saying below-threshold |
 | `ZODYSSEY_NO_AUTO_COMPACT=1` in the environment | Wiring skipped entirely — no invocation, no brief |
-| No notepad dir / any compact failure or timeout | Best-effort: a warning line on stderr, transition still exits 0 (the B8/CRIT-4a posture at `set-phase.mjs:341`, `:441`) |
+| No notepad dir / any compact failure or timeout | Best-effort: a warning line on stderr, transition still exits 0 (the B8/CRIT-4a posture at `set-phase.mjs:341`, `:479`) |
 
 The threshold unit is **aggregate non-empty lines across source notepads** — line count, not token
 count, because that is compact.mjs's own deterministic unit (`compact.mjs:30-31`, the same
-`l.trim().length > 0` filter the truncation uses at `:75`). The default is a named constant in
+`l.trim().length > 0` filter the truncation uses at `:111`). The default is a named constant in
 `set-phase.mjs`, `AUTO_COMPACT_MIN_LINES = 400` — 10× the per-notepad 40-line cap, i.e. the point
 at which the full brief is ~10× smaller than the sources it stands in for. It is a stated judgment
 call, not a measurement; see *Known, not fixed*.
@@ -94,7 +94,7 @@ new failure of the class this change exists to remove.
 Mechanism notes, secondary to the behaviour: invoke via `execFileSync` with a hard timeout (~10s —
 a directory walk, not a suite run; contrast B8's 15min at `set-phase.mjs:339-340`) AFTER the phase
 write and OUTSIDE the state lock (the B8 shape; the lock is released in the `finally` at
-`:197-199`); policy (threshold constant, opt-out env var) lives in `set-phase.mjs`, keeping
+`:323-325`); policy (threshold constant, opt-out env var) lives in `set-phase.mjs`, keeping
 `compact.mjs` policy-free.
 
 ## Files
@@ -196,14 +196,14 @@ not a criterion.
    byte-identical** to its pre-invocation bytes (sha256 or Buffer equality — the additive
    invariant as an executable assertion, not a comment); (b) the same fixture with
    `--min-lines 400` — exit 0, brief exists, sources byte-identical, each section truncated at 40
-   lines carrying the truncation marker (`compact.mjs:78`); (c) a small fixture (2 notepads × 20
+   lines carrying the truncation marker (`compact.mjs:114`); (c) a small fixture (2 notepads × 20
    lines) with `--min-lines 400` — exit 0, **no brief written**, and a pre-seeded brief from a
    "manual earlier run" remains byte-identical (never deleted); (d) the small fixture with plain
    two-arg invocation — exit 0, brief **exists** (the legacy contract is unchanged); (e) a
-   missing notepad dir — exit **3** (`compact.mjs:47-50` unchanged); (f) a crafted run state at
+   missing notepad dir — exit **3** (`compact.mjs:61-64` unchanged); (f) a crafted run state at
    phase `verify` (entering `final` has no precondition — `checkPrecondition` at
    `skills/odyssey/scripts/set-phase.mjs:100-107` gates only `execute` and `done`; the separate
-   `--force` FORCEABLE restriction at `:167-175` concerns recovery targets, not `final`) plus the
+   `--force` FORCEABLE restriction at `:302-306` concerns recovery targets, not `final`) plus the
    large notepad set — `set-phase.mjs <repo> <slug> final` exits **0** AND the
    brief exists AND sources are byte-identical AND the brief path appears in the invocation's
    stdout; (g) the same crafted state with the small notepad set — exit 0, no brief; (h) the same
@@ -282,7 +282,7 @@ over-reached:
 The intended break: for large runs, F1-F4 dispatches now consume a ~40-line-per-notepad brief
 instead of the full set. That is the point, and its cost must be stated exactly: **the brief is
 pointers, not content.** Each truncated section carries `_(truncated to first 40 non-empty
-lines)_` (`compact.mjs:78`), the source notepads remain on disk byte-identical as the
+lines)_` (`compact.mjs:114`), the source notepads remain on disk byte-identical as the
 full-fidelity path, and SKILL.md's own framing (`:211`) already positions the brief as the
 large-run alternative to delegated full reads — an F-wave needing depth reads the source by path;
 the brief is the map. Blast radius beyond that, honestly: (a) every "(optional)" claim about
@@ -292,7 +292,7 @@ change unless the doc pass lands with it (see "Docs to update"); (b) the `final`
 one node child-process spawn and a directory walk — milliseconds, with a ~10s timeout and a
 best-effort catch, so it cannot wedge the transition; (c) anything that assumed the notepad dir
 contains only `<todo-id>.md` files now sees `_compact-brief.md` appear — harmless by
-construction (compact.mjs excludes it from its own input set at `:56`, and downstream todos read
+construction (compact.mjs excludes it from its own input set at `:70`, and downstream todos read
 notepads by explicit path, never by glob); (d) a run that re-enters `final` below threshold keeps
 a possibly stale brief from an earlier entry — accepted deliberately (deletion is non-additive);
 the per-entry printed line is the freshness signal.

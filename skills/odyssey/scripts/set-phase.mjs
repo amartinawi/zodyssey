@@ -421,6 +421,30 @@ if (phase === "final") {
       recordLane((st) => { st.capabilities_check = { status: "inert", reason: checkErrReason(e), at: now() }; });
     }
   }
+
+  // Item 11 (compaction-phase-wiring): entering final auto-compacts the run's notepads once they
+  // pass the threshold — compact.mjs shipped with zero callers, its only wiring a prose "you may
+  // run this". Compaction is a context-economy step and NEVER gates this transition: the invoke
+  // runs after the phase write and outside the state lock (the B8 shape), every failure mode
+  // (no notepad dir → exit 3, timeout, crash, nonzero exit) degrades to ONE stderr warning, and
+  // ZODYSSEY_NO_AUTO_COMPACT=1 skips the invocation entirely. stdio: "inherit" surfaces compact's
+  // brief-path print on the transition's stdout — the conductor's signal to point F1–F4 at the
+  // brief. The additive invariant (every source notepad byte-identical) is asserted by
+  // compact.test.mjs, not promised by compact's header. Re-entering final via the verify edge
+  // (legal per TRANSITIONS) re-derives the brief idempotently. The 10s timeout is headroom, not
+  // latency budget — compact is pure synchronous fs work (reads + one brief write, sub-second
+  // typically) — and exists so a wedged fs can never hang the transition.
+  const AUTO_COMPACT_MIN_LINES = 400; // aggregate non-empty notepad lines (compact.mjs's counting unit)
+  if (env.ZODYSSEY_NO_AUTO_COMPACT !== "1") {
+    try {
+      execFileSync(process.execPath, [
+        fileURLToPath(new URL("./compact.mjs", import.meta.url)), repo, slug,
+        "--min-lines", String(AUTO_COMPACT_MIN_LINES),
+      ], { timeout: 10_000, stdio: "inherit" });
+    } catch (e) {
+      process.stderr.write(`ZOdyssey: WARNING — auto-compaction for ${slug} did not complete (${checkErrReason(e)}); the final transition is unaffected.\n`);
+    }
+  }
 }
 
 // CRIT-4a (operational-consult): when a run reaches a terminal phase (done|audited), auto-append

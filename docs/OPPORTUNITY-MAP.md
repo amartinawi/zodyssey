@@ -76,7 +76,7 @@ and derives the arm from the slug suffix instead. **The arm bug is a data-hygien
 Phase C blocker.**
 
 The real blocker is `harness.mjs:13-16` plus the baseline arm printing instructions to a human —
-the pre-item-09 state, narrated at `CHANGELOG.md:64`; the zodyssey arm is not automated either.
+the pre-item-09 state, narrated at `CHANGELOG.md:81`; the zodyssey arm is not automated either.
 Every datapoint costs an operator. So: n=1 per arm, 14 days and 12 releases stale, and the lone
 `+0.25` on arch-01 is both the project's entire empirical basis and `ROADMAP.md §A6`'s retraction.
 
@@ -121,7 +121,7 @@ the one that matters.
 
 ### 1.1 Context/memory — weakest, and inert rather than thin
 
-`set-phase.mjs:469-477` writes a fixed two-line template on every terminal transition. The entire
+`set-phase.mjs:493-501` writes a fixed two-line template on every terminal transition. The entire
 production corpus, `.zcode/memory/outcomes.jsonl`, is 8 lines of
 `"run <slug> reached done at <iso>"` / `"transition: done"`. Exactly one entry carries content —
 the `v0-3-1-audit` review-gate deadlock — because a human passed `--note`.
@@ -134,7 +134,7 @@ A memory system with no writer of substance and no enforced reader.
 
 ### 1.2 Observability — not thin, actively misleading
 
-`set-phase.mjs:430-450` appends every terminal run's scorecard to
+`set-phase.mjs:454-474` appends every terminal run's scorecard to
 `$HOME/.zcode/orchestration/eval/results.jsonl` unconditionally — **including from the hermetic
 test suite**. The corpus:
 
@@ -237,7 +237,7 @@ framing.
 ### 2.3 S3 — make invoking a check a phase transition, not an instruction
 
 Every zero-caller mechanism becomes a precondition inside `set-phase.mjs`. B8 is the model for the
-shape (`:206-211` snapshots at `execute`; `:124-140` refuses `done` on `regressed` and correctly
+shape (`:334-342` snapshots at `execute`; `:131-142` refuses `done` on `regressed` and correctly
 treats `toolchain-drift` as failure rather than a pass) — **and, corrected 2026-08-16, also the
 cautionary case.** Only the producer half is wired: `--check`, the sole writer of the status the
 refusal reads, has no code caller, so the refusal reads a field nothing populates.

@@ -56,7 +56,7 @@ flowchart TD
     R -- "REJECT (round < 3)" --> PL
     R -- OKAY --> E["4 · EXECUTE <b>sisyphus-junior</b><br/>parallel waves, capped at 4"]
     E --> V["5 · VERIFY<br/>acceptance commands"]
-    V --> CMP["(optional)<br/>compact.mjs<br/>summarize notepads"]
+    V --> CMP["automatic for large runs<br/>compact.mjs<br/>summarize notepads"]
     CMP --> F{"6 · FINAL WAVE<br/>F1·F2·F3·F4"}
     F -- pass --> DONE(("done"))
     F -- fail --> E
@@ -78,7 +78,7 @@ flowchart TD
    3  REVIEW       momus returns OKAY | REJECT + blockers   ←  THE ENFORCED GATE
    4  EXECUTE      sisyphus-junior per todo, parallel-by-default, scope-locked to the plan's Files:
    5  VERIFY       run each todo's executable acceptance criteria
-      (optional)  compact.mjs — summarize notepads so F1–F4 consume a brief, not the full doc set
+      automatic   compact.mjs — fires at final entry for large runs; F1–F4 consume a brief, not the full doc set
    6  FINAL WAVE   F1 plan-compliance · F2 code-quality · F3 manual-QA · F4 scope-fidelity
 ```
 
@@ -277,7 +277,7 @@ ZOdyssey is a synthesis of published multi-agent systems research, not an invent
 
 | Primitive | Where it landed |
 |---|---|
-| Notepad compaction (#8) | `scripts/compact.mjs` — concatenates notepads into one brief the F1–F4 reviewers read instead of the full doc set. Deterministic, $0, never mutates the sources |
+| Notepad compaction (#8) | `scripts/compact.mjs` — auto-invoked at `final` entry above `AUTO_COMPACT_MIN_LINES` (inert below; `ZODYSSEY_NO_AUTO_COMPACT=1` skips); concatenates notepads into one brief the F1–F4 reviewers read instead of the full doc set. Deterministic, $0, never mutates the sources (asserted by test) |
 | Bounded recursion (#4) | the SEC-1s dispatch guard in `hooks/pre-tool.mjs` — blocks a `Task()` whose payload embeds a serialized nested tool call |
 | Structured resume (#1) | `state.acceptance` + `state.notepad_pointers`, so a resumed run skips verified todos and re-enters with the right context |
 

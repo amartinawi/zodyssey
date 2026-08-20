@@ -19,7 +19,7 @@ across `skills/`, `scripts/`, `agents/`, `commands/` (`*.mjs`, `*.bash`) returns
 emitted, no exporter exists, no OTLP protocol is spoken anywhere.
 
 **Meanwhile the data that would populate spans is already recorded — into a private silo.** When a
-run reaches `done|audited`, `skills/odyssey/scripts/set-phase.mjs:430-450` spawns the cached
+run reaches `done|audited`, `skills/odyssey/scripts/set-phase.mjs:454-474` spawns the cached
 run-report and appends its JSON record to `~/.zcode/orchestration/eval/results.jsonl`
 (203 records at re-derivation time; the file is live and drifted 184 → 185 → 203 across this
 queue's own lifetime — stamp your own count). That record already carries everything a run-span
@@ -64,7 +64,7 @@ Stated as observable behaviour, not as a diff:
    same derivation run-report uses (`skills/odyssey/scripts/run-report.mjs:37-42`), and attributes
    mapped from the already-computed run-report record (slug, intent, verdict, success,
    `todos_total/done/failed`, `wall_clock_min`, token totals when populated). The emitter consumes
-   that record — set-phase already has it in hand at `:232-238` — rather than re-deriving scorecard
+   that record — set-phase already has it in hand at `:456-461` — rather than re-deriving scorecard
    arithmetic that could drift from run-report. One source of truth.
 2. **No endpoint → recorded inert, zero cost.** With the env var unset, run close makes **no
    network attempt and spawns no emitter process**; run state gains an additive
@@ -76,7 +76,7 @@ Stated as observable behaviour, not as a diff:
    `{ status: "inert", reason: "export-failed", detail }` and the phase transition proceeds
    exactly as before. Telemetry is downstream of the run, never in its critical path — the same
    best-effort contract the results.jsonl append already carries
-   (`skills/odyssey/scripts/set-phase.mjs:430`, "never fail the phase transition on a report
+   (`skills/odyssey/scripts/set-phase.mjs:454`, "never fail the phase transition on a report
    error"). On success, state records `{ status: "exported", trace_id, span_id, at }`.
 4. **Emitter exit contract:** `0` for exported *or* inert (both are successful outcomes — inert is
    honest absence, not failure), `2` for bad args — the same shape as run-report's
@@ -103,7 +103,7 @@ The declared editable set — this becomes the fix-run plan's `Files:` list, ver
 - `skills/odyssey/scripts/otel-emit.mjs` (new — the emitter: env check, span build, OTLP/JSON
   export, inert stamping, the `SEMCONV_SNAPSHOT` map)
 - `skills/odyssey/scripts/set-phase.mjs` (the hook-in, following the B8 wiring precedent at
-  `:219-225`: a bounded `execFileSync` child inside the `done|audited` block at `:231-242`, plus
+  `:338-341`: a bounded `execFileSync` child inside the `done|audited` block at `:454-481`, plus
   the additive `telemetry.otel` state stamp — reusing the file's existing locked-write helpers,
   best-effort)
 - `skills/odyssey/scripts/otel-emit.test.mjs` (new — local receiver test; see Paired probe)
@@ -140,7 +140,7 @@ update" belong to the release pass, not the gated run.
   run. The `ZODYSSEY_` prefix (the `ZODYSSEY_UNGATE_BASH` / `ZODYSSEY_PARALLEL_CAP` precedent)
   makes opt-in deliberate. Documenting the choice is part of the change.
 - Do not alter the results.jsonl record shape, the append at
-  `skills/odyssey/scripts/set-phase.mjs:447-450`, or run-report's exit contract.
+  `skills/odyssey/scripts/set-phase.mjs:471-474`, or run-report's exit contract.
 - Do not add a reviewer, judge, or verifier agent for anything here. **No LLM opinion layer** —
   every verification in this change is an exit code, a received HTTP body, or a grep.
 
@@ -254,7 +254,7 @@ Three probes, each with both directions stated:
 
 Controls required on BOTH builds — a probe that moves any of them has overreached: the
 `done|audited` transition still completes with the endpoint set to garbage (telemetry never blocks
-the run); the results.jsonl append at `skills/odyssey/scripts/set-phase.mjs:447-450` still fires,
+the run); the results.jsonl append at `skills/odyssey/scripts/set-phase.mjs:471-474` still fires,
 byte-shape unchanged; run-report's exit contract (`0/2/3`) is untouched; pre- and post-tool hooks
 are untouched; `node scripts/run-tests.mjs` still exits 0.
 
@@ -271,7 +271,7 @@ When configured, the honest blast radius is:
 - **Run close gains one outbound HTTP request and one bounded child spawn.** Opt-in by env var;
   the operator who set the endpoint asked for exactly this. The ~2 s timeout and
   inert-on-error contract bound the worst case (the B8/CRIT-4a wiring shape at
-  `skills/odyssey/scripts/set-phase.mjs:332-342` and `:455-466` is the precedent: best-effort
+  `skills/odyssey/scripts/set-phase.mjs:332-342` and `:479-490` is the precedent: best-effort
   child inside the transition, `try/catch`, never fail the phase).
 - **Consumers pinned to today's `gen_ai.*` attribute names can break when semconv renames them**
   — the external caveat, now inherited. Mitigated, not solved: the `SEMCONV_SNAPSHOT` constant
@@ -340,7 +340,7 @@ does not opt in, no security surface touched.
     span to a recorded `export-failed` inert; it is not re-emitted.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   **re-Get/Update the plugin so the marketplace cache picks up the scripts** — the emitter is
-  spawned from the cache path exactly like run-report is (`set-phase.mjs:433-437`), so a fix that
+  spawned from the cache path exactly like run-report is (`set-phase.mjs:457-461`), so a fix that
   stays only in the dev tree emits nothing (the `truncate-roundto` cache-refresh natural experiment
   documented in queue item 06 is the standing proof of that failure shape).
 
