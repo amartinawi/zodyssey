@@ -20,7 +20,7 @@ slash, or bare colon was invisible, and invisible meant unpinned, unrange-checke
   `harness.mjs:88,62` — where `:62` was the USAGE constant, never the gate the claim named — and
   `ideation-report.md:416` citing `harness.mjs:69-70,19,128-131`. In each, only the first number
   was ever checked; the rest were free to rot.
-- **Slash and bare-colon continuations.** In `CHANGELOG.md:709/:853` — the gate-deletion history
+- **Slash and bare-colon continuations.** In `CHANGELOG.md:709/:874` — the gate-deletion history
   row 04 cites — only the `:653` half was ever seen, and prose continuations ("the verdict gate
   at :1105" after a path-form range) were equally invisible.
 - **The half-shift, real.** When a release entry landed, the path-form CHANGELOG pins were

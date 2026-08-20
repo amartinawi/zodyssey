@@ -98,7 +98,7 @@ or `set-phase.mjs` (29).
 - The anchor problem generalised into row 15. Fixing the two above produced two more instances of the same defect inside the same day: a one-line insertion into skills/odyssey/references/scripts.md shifted check-imports from :45 to :46 and silently invalidated nine citations (seven of them in docs/ideation-report.md, a committed audit artifact); and a first draft of the ROADMAP addendum, inserted at the top, broke fourteen more across docs/ideation-report.md, docs/impl/07, docs/impl/08 and this file. Both edits were reshaped to be line-count-neutral, and the class was queued as row 15. Repo-wide surface, measured 2026-08-16: 761 citations, 28 documents, 68 cited-into files, 0 currently out of range.
 - build-capsules.mjs is a fourth zero-caller script (zero references of any kind, measured 2026-08-16). Outside the Step-2 candidate set — recorded here, not added as a 15th prompt.
 - results.jsonl drift across this task's lifetime: 172 (map, 08-15) → 177 (report, 08-15) → 181 (metis consult, 08-16 early) → 184 (notepad 2, 2026-08-16T03:05:00Z) → 185 (during todo 3, 08-16). Every prompt quoting the file stamps its own count and date.
-- CORRECTED during the run (wave 6): an earlier bullet here claimed `docs/ADAPT.md` does not exist — that was wrong. The file exists (committed in 6039199, v0.1.0) and `docs/ADAPT.md:48` is the live, canonical anchor for the ZODYSSEY_UNGATE_BASH affordance ("set ZODYSSEY_UNGATE_BASH=1 if you want the lower-friction ungated behavior"). docs/INSTALL.md:163 and CHANGELOG.md:709/:853 are additional live anchors also used in row 04. Prompt 04 may cite any of these. The false-absence claim was caught by the prompt-04 executor and re-verified by the conductor against the working tree — the exact drift class this INDEX exists to prevent, caught inside the same run that wrote it.
+- CORRECTED during the run (wave 6): an earlier bullet here claimed `docs/ADAPT.md` does not exist — that was wrong. The file exists (committed in 6039199, v0.1.0) and `docs/ADAPT.md:48` is the live, canonical anchor for the ZODYSSEY_UNGATE_BASH affordance ("set ZODYSSEY_UNGATE_BASH=1 if you want the lower-friction ungated behavior"). docs/INSTALL.md:163 and CHANGELOG.md:709/:874 are additional live anchors also used in row 04. Prompt 04 may cite any of these. The false-absence claim was caught by the prompt-04 executor and re-verified by the conductor against the working tree — the exact drift class this INDEX exists to prevent, caught inside the same run that wrote it.
 
 ## Amendment — 2026-08-17, item 05 shipped + bookkeeping catch-up
 
@@ -176,7 +176,7 @@ audited label in two commands — the master-bypass shape that scoping `--force`
 
 **C2 — item 15 is blind to continuation citations — SHIPPED as row 21, v0.6.9 (2026-08-19).** The
 old `CITE` demanded a path prefix per number (scripts/check-anchors.mjs:88), so the second half of
-a continued form was never discovered: in `CHANGELOG.md:709/:853` only the `:687` half was ever
+a continued form was never discovered: in `CHANGELOG.md:709/:874` only the `:709` half was ever
 seen — this paragraph itself carried the twice-stale halves `:531` and `:696` (blank), the class
 alive inside its own description — and in prose like "the verdict gate at :1105" after a range,
 only the range was seen. Undiscovered meant unpinned and unswept: 3afd81c's +17 half-shift in the
