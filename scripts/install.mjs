@@ -32,6 +32,7 @@
 //   node scripts/install.mjs --dry-run            # show what would happen, change nothing
 //   node scripts/install.mjs --verify             # health-check the install
 //   node scripts/install.mjs --sync-cache         # copy this tree into the plugin cache (what actually executes)
+//   node scripts/install.mjs --prune-cache        # plan the stale plugin cache prune (exclusive mode; --dry-run previews)
 //
 // All paths derive from os.homedir() and the repo's own .zcode-plugin/plugin.json
 // version field — ZERO hard-coded /home/... or literal "~" paths.
@@ -47,6 +48,7 @@ import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { SYNC_TREES, enumerateDeployed } from "./lib/deploy-surface.mjs";
+import { planCachePrune, compareSemver } from "./lib/cache-prune.mjs";
 
 // ---------- paths (all derived from homedir + repo location) ----------
 
@@ -96,6 +98,7 @@ const DRY = argv.includes("--dry-run");
 const UNINSTALL = argv.includes("--uninstall");
 const VERIFY = argv.includes("--verify");
 const SYNC_CACHE = argv.includes("--sync-cache");
+const PRUNE_CACHE = argv.includes("--prune-cache");
 
 const log = (m) => console.log(DRY ? `[dry-run] ${m}` : m);
 const logDim = (m) => console.log(DRY ? `[dry-run]   ${m}` : `   ${m}`);
@@ -299,6 +302,68 @@ function syncCache() {
   exit(0);
 }
 if (SYNC_CACHE) syncCache();
+
+// ---------- --prune-cache ----------
+//
+// WHY THIS EXISTS: the marketplace subsystem only ever ADDS version dirs under
+// cache/<marketplace>/<plugin>/<version>/ — Get/Update never removes the old ones, so
+// old releases pile up forever. Which copy is live is registry truth (the loader reads
+// installed_plugins.json, nothing else), so the stale set comes from the pure lib
+// (lib/cache-prune.mjs — ONE plan function; the lib contains no deletion code) and is
+// consumed here: the exclusive mode prints it, and the default run's dry preview prints
+// the same lines (one plan, two consumers — what is listed and what gets deleted can
+// never diverge).
+//
+// Retention: live + its immediate on-disk predecessor (CACHE_PRUNE_KEEP). Everything
+// strictly older than that window is stale; everything newer than live is kept (a
+// downloaded-but-unregistered update is indistinguishable from an orphaned newer dir —
+// the registry cannot arbitrate). Non-semver entries and stray files in the live parent
+// are reported as skipped and never touched.
+//
+// Fail closed: when the registry cannot prove which copy is live, print the reason,
+// delete nothing, exit 1. No fallback heuristic (mtime, dir count, repo version) is
+// ever consulted — during a version bump the registry's old dir is live while the repo
+// says the new one, and every ordering heuristic breaks exactly there.
+function pruneCache() {
+  const plan = planCachePrune({ pluginsJsonPath: PLUGINS_JSON_PATH, pluginName: PLUGIN_NAME });
+  if (plan.error) {
+    console.error(`--prune-cache: cannot establish which cache copy is live — deleting nothing (fail closed).\n  ${plan.error}`);
+    exit(1);
+  }
+  const keepNewestFirst = [...plan.keep].sort((a, b) => compareSemver(b, a)).join(",");
+  console.log(`prune-plan: live=${plan.liveVersion} keep=${keepNewestFirst} prune=${plan.prune.length}`);
+  if (plan.prune.length === 0) {
+    console.log("nothing to prune — the cache is already within the retention window (live + predecessor; newer-than-live is kept).");
+    exit(0);
+  }
+  for (const name of plan.prune) log(`rm ${join(plan.parentDir, name)}`); // the phasePurge print shape
+  if (!DRY) {
+    // Execution wiring (deleting exactly the list printed above) is the immediately
+    // following change; until it lands a non-dry run lists without deleting — never
+    // the reverse. --dry-run is the stable preview.
+    console.log("NOTE: listed without deleting — execution is not wired in this build.");
+  }
+  exit(0);
+}
+if (PRUNE_CACHE) pruneCache();
+
+// The default run's FINAL step is the cache prune (wired with the execution pass). In
+// dry mode the SAME plan function previews it here, so `--dry-run` alone shows the cache
+// lines the exclusive mode shows (one plan, two consumers). Unverifiable live-ness is
+// best-effort in the default flow: warn and continue — fail closed means delete nothing,
+// not block the installer.
+function previewCachePrune() {
+  const plan = planCachePrune({ pluginsJsonPath: PLUGINS_JSON_PATH, pluginName: PLUGIN_NAME });
+  if (plan.error) {
+    logDim(`cache prune preview unavailable (fail closed — nothing will be deleted): ${plan.error}`);
+    return;
+  }
+  if (plan.prune.length === 0) return;
+  log(`\n=== cache prune preview (the install's final step) ===\n`);
+  for (const name of plan.prune) log(`rm ${join(plan.parentDir, name)}`);
+  const keepNewestFirst = [...plan.keep].sort((a, b) => compareSemver(b, a)).join(",");
+  console.log(`prune-plan: live=${plan.liveVersion} keep=${keepNewestFirst} prune=${plan.prune.length}`);
+}
 
 // ---------- hook helpers ----------
 
@@ -1021,6 +1086,7 @@ function main() {
   initEvalDir();
   initRegistryDir();
   detectSuperpowers();
+  if (DRY) previewCachePrune();
 
   printSummary();
 
