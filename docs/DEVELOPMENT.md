@@ -54,10 +54,13 @@ When a release is published, upgrade the live install:
 cd ~/Desktop/ZOdyssey
 git pull origin main
 node scripts/install.mjs            # idempotent — re-purges pollution, re-migrates config.json
-                                   # hook orphans, refreshes the pipeline MCPs
+                                   # hook orphans, refreshes the pipeline MCPs, and prunes
+                                   # stale plugin-cache dirs as its final step
 ```
 
 Then refresh the **cached** plugin copy so manifest/hook/skill changes take effect: **Settings → Plugin Management → Discover → Update** on zodyssey (for the local `directory` marketplace this re-copies from the repo you just pulled). Start a new ZCode session.
+
+The final prune step (v0.6.13) deletes only non-registered sibling version dirs under the live copy's parent — `installed_plugins.json` says which copy is live, and that file is read, never written. Retention keeps the live version plus its on-disk predecessor: the predecessor is retained so a botched Update can be inspected against the last known-good dir, and so a clean Update still leaves a coherent one-release rollback (today's version mixtures came from `--sync-cache` layering, not Updates). Strictly older dirs go; newer-than-live never does; when the registry cannot prove live-ness the step deletes nothing and warns. Preview the exact removal list first with `node scripts/install.mjs --dry-run --prune-cache` — the step itself is silent when the cache is already within the kept pair.
 
 The installer does **not** hand-write `installed_plugins.json` or `config.json` hooks (that was the v0.3.0 bug). The marketplace owns the cache + registry + manifest; the installer owns the surrounding user-scope config (MCPs, AGENTS.md, eval, legacy cleanup). Hooks are declared in `.zcode-plugin/plugin.json` under `hooks` (with `${CLAUDE_PLUGIN_ROOT}` paths), so they track the cache location automatically.
 
@@ -72,7 +75,7 @@ The installer does **not** hand-write `installed_plugins.json` or `config.json` 
 | `agents/` | the 8 sub-agent definitions |
 | `commands/` | the `/orchestrate` slash commands |
 | `.zcode-plugin/plugin.json` | the plugin manifest — declares `hooks` (the 4 enforcement hooks, via `${CLAUDE_PLUGIN_ROOT}`) + plugin identity |
-| `scripts/install.mjs` | the installer (marketplace bootstrap + purge + v0.3.0 hook-orphan migration + MCP registration + cached-vs-repo sha drift check) |
+| `scripts/install.mjs` | the installer (marketplace bootstrap + purge + v0.3.0 hook-orphan migration + MCP registration + cached-vs-repo sha drift check + stale plugin-cache prune) |
 | `scripts/smoke-gate.mjs` | the release gate — automates every checkable part of "is enforcement live" and scaffolds the one manual live-session check |
 | `docs/` | design + adaptation + measurement docs, plus `ROADMAP.md` (the evidence-ranked plan) |
 
@@ -98,7 +101,7 @@ F2/F4 checked that a reviewer was summoned, not what it said).
 - `node --check <file>` → did you introduce a syntax error?
 - `git log --oneline -5` → what changed recently?
 - For hook weirdness: the hook disarms entirely if no active run exists in `<cwd>/.zcode/state/`. Check phase first.
-- For install issues: run `node scripts/install.mjs --dry-run` (preview) or `--verify` (health-check); flags are `--dry-run`, `--verify`, `--uninstall`, `--sync-cache`.
+- For install issues: run `node scripts/install.mjs --dry-run` (preview) or `--verify` (health-check); flags are `--dry-run`, `--verify`, `--uninstall`, `--sync-cache`, `--prune-cache`.
 - For claim coverage: `node scripts/check-claims.mjs` (exit 0 = every ledger row in `scripts/claims-ledger.mjs` resolves; 1 = findings naming the row id) — the third repo-level invariant check beside version-consistency and the smoke gate; a release runs all three.
 
 ## Conventions

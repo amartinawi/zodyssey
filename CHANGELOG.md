@@ -2,6 +2,27 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.13] — 2026-08-20
+
+### Added — the installer prunes stale plugin-cache versions (item 13)
+
+The plugin cache accumulated forever: every marketplace Get added a version dir under `.../cache/<marketplace>/zodyssey/` and nothing ever removed one. The installer now derives the removal list from `installed_plugins.json` — the only source of truth for which copy is live — through two surfaces: an exclusive `--prune-cache` mode (`--dry-run` previews the exact removal list) and the **final step of every ordinary install run** (best-effort: silent when the cache is already within the kept pair; a warning and no deletion when the registry cannot prove live-ness — fail closed means delete nothing, not block the installer). `--verify` gains one informational line — `stale cache dirs: N` — that never fails a check.
+
+Retention is the registry-live version plus its on-disk predecessor (the highest semver dir strictly below live — read from disk, never live-minus-one arithmetic), nothing else: the predecessor is kept (a) so a botched marketplace Update can be inspected against the last known-good dir, and (b) so a clean Update still leaves a coherent one-release rollback (today's version mixtures came from `--sync-cache` layering, not Updates). Everything provably older than that pair is pruned; everything newer than live is kept (a downloaded-but-unregistered update is indistinguishable from an orphan); non-semver-shaped entries in the parent dir are reported as skipped and never touched. Only the parent of the registry-resolved install path is walked — other marketplaces', other plugins', and sibling trees are invisible. Fail-closed rule: a registry that cannot prove live-ness (missing, unparseable, entry-less, pathless, or pointing outside the cache) makes the explicit flag print the reason and exit 1 having deleted nothing. `installed_plugins.json` is read, never written.
+
+One plan function computes the list, the dry run prints it, and the execution deletes exactly it: the live dir's byte-integrity and the registry's read-only treatment are asserted by the new suite (`scripts/cache-prune.test.mjs`), not promised.
+
+Paired probe, both directions: before, `node scripts/install.mjs --dry-run --prune-cache` was silently ignored — unknown argv ran the default flow, exit 0, nothing listed or deleted, indistinguishable from success; after, the same command prints the exact plan (`prune-plan: live=<V> keep=<V1,V2> prune=<N>` plus one `[dry-run] rm` line per dir) and the non-dry execution's on-disk delta equals the printed list and the summary count. Measured anchor, census on this machine 2026-08-20: 10 cache dirs, 214M total, 138.3M prunable — live 0.6.12, on-disk predecessor 0.6.9 (no 0.6.10/0.6.11 dir exists), 8 dirs prunable (0.3.2, 0.4.0, 0.4.1, 0.5.0, 0.5.1, 0.5.2, 0.6.0, 0.6.2).
+
+**Known, not fixed:**
+
+- Versions newer than live are never pruned — pending-update ambiguity is unresolvable from the registry; an orphaned newer dir is kept until a later release makes it the predecessor.
+- Shared-cache multi-home setups: each home prunes by its own registry only; consulting foreign registries was deliberately not built.
+- `--verify` reports the stale count but never prunes; the prune fires on install runs or the explicit flag.
+- The retention constant (`CACHE_PRUNE_KEEP = 2`) is stated policy, not a derived number — no measurement exists that says the kept pair should be any other size.
+
+Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs` (which now prunes as part of the run), then re-Get/Update the plugin — a fix that stays only in the repo fires in no run.
+
 ## [0.6.12] — 2026-08-20
 
 ### Added — acceptance criteria can be user-confirmed at PRIME (item 12)

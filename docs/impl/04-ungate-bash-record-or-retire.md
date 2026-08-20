@@ -1,7 +1,7 @@
 # 04 — Record every ungated Bash call (`ZODYSSEY_UNGATE_BASH`)
 
 Build order **04** · depends-on **—** (no build edge; sequenced after 01's and 03's releases only by
-the one-security-change-per-release cadence, `CHANGELOG.md:305` — grouped adjacently with 01/03
+the one-security-change-per-release cadence, `CHANGELOG.md:326` — grouped adjacently with 01/03
 because all three touch `skills/odyssey/hooks/pre-tool.mjs`, explicitly NOT merged with either) ·
 queue row: [`docs/impl/00-INDEX.md`](00-INDEX.md) `04 ungate-bash-record-or-retire` ·
 security-class · patch · shipped alone.
@@ -23,9 +23,9 @@ post-review, in-scope or not — exits 0 past the verdict gate, the SEC-4 plan-s
 the per-target scope check, and nothing anywhere records that it happened. The affordance is
 deliberate and documented: the hook's own comment (`skills/odyssey/hooks/pre-tool.mjs:1041-1044`,
 "POWER-USER ESCAPE HATCH"), the installer's AGENTS.md template written into every user's repo at
-`scripts/install.mjs:883` ("set \`ZODYSSEY_UNGATE_BASH=1\` to disable if you trust your agents"),
-the env table at `docs/INSTALL.md:152`, and the README comparison row at `README.md:125`. It
-originated as the author's personal low-friction setup (`CHANGELOG.md:832`).
+`scripts/install.mjs:975` ("set \`ZODYSSEY_UNGATE_BASH=1\` to disable if you trust your agents"),
+the env table at `docs/INSTALL.md:163`, and the README comparison row at `README.md:125`. It
+originated as the author's personal low-friction setup (`CHANGELOG.md:853`).
 
 The defect is not that the hatch exists — it is that the hatch is **silent and ambient-leakable**.
 Two pieces of in-repo history prove the silence is the dangerous part, not the openness:
@@ -36,8 +36,8 @@ Two pieces of in-repo history prove the silence is the dangerous part, not the o
   `skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11` ("the Bash gate has been silently deleted
   TWICE … v0.1.1 shipped it deleted — the author's local ZODYSSEY_UNGATE_BASH=1 copy was mirrored
   to the public repo verbatim"). During the ungated v0.2.0 window, "`ZODYSSEY_UNGATE_BASH` survived
-  in four documentation locations and **zero lines of executable code**" (`CHANGELOG.md:667`), and
-  the v0.1.2 restore entry (`CHANGELOG.md:834`) carries the post-mortem note that the first fix
+  in four documentation locations and **zero lines of executable code**" (`CHANGELOG.md:688`), and
+  the v0.1.2 restore entry (`CHANGELOG.md:855`) carries the post-mortem note that the first fix
   "did not hold".
 - Observed live during this queue's own probing (2026-08-16, prompt 01's Bash-twin probe, recorded
   in run `impl-prompts-v0-6`): an executor shell whose ambient environment carried
@@ -62,7 +62,7 @@ ungated call**.
   ambient presence shipping as a deleted gate. An operator who never sets it gains nothing from
   its existence; an operator who sets it accidentally loses everything.
 - *For recording (and against retiring):* retirement breaks a legitimate, documented, four-anchor
-  affordance (`scripts/install.mjs:883`, `docs/INSTALL.md:152`, `README.md:125`,
+  affordance (`scripts/install.mjs:975`, `docs/INSTALL.md:163`, `README.md:125`,
   `skills/odyssey/hooks/pre-tool.mjs:1041-1044`) whose explicit contract is low-friction operation
   for operators who "trust your agents" — a real use case this repo's own author is. And the
   deletion history is causal evidence **against** removal, not for it: the gate was deleted twice
@@ -159,7 +159,7 @@ run, or the plan is deliberately widened to list each doc literally. Do not wide
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; the
   recorder is an additive sibling at the hatch site, not an edit inside a `SEC-x` block.
 - Do not batch this into 01's or 03's release in the CHANGELOG — one security change per release
-  (`CHANGELOG.md:305`: a structural gate change "wants its own release and its own paired run").
+  (`CHANGELOG.md:326`: a structural gate change "wants its own release and its own paired run").
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — the ledger is
   `appendFileSync`, the count is `wc -l`, and every verification in this change is an exit code.
 
@@ -287,7 +287,7 @@ the ambient-leakage incident recorded in "What is broken".
 ## What it breaks
 
 Operators who relied on **totally silent** ungating — the documented personal low-friction setup
-(`docs/INSTALL.md:152`, `CHANGELOG.md:832`). After this change, every ungated run leaves: a ledger
+(`docs/INSTALL.md:163`, `CHANGELOG.md:853`). After this change, every ungated run leaves: a ledger
 file under `.zcode/state/` (one JSON line per Bash call — bounded by the run's Bash call count,
 gitignored with all of `.zcode/`, and small next to the transcript itself), an
 `ungated_bash_calls` integer on every scorecard, and that same integer in every trend-log record
@@ -296,7 +296,7 @@ for anyone — not the operator with the variable set (still 0), not anyone with
 unchanged), and the existing hatch assertion at `:157-158` still passes untouched.
 
 Visible-by-default beats silent here for a reason this repo has paid for twice: the gate's two
-deletions (`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11`, `CHANGELOG.md:665`) were both
+deletions (`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:3-11`, `CHANGELOG.md:686`) were both
 silent ambient leakage of exactly this variable becoming shipped code, and neither was noticed
 until after release — three external audits missed the second one. The 2026-08-16 ambient-leak
 incident is the same shape at miniature scale: a probe quietly passed and nothing on the operator's
@@ -310,7 +310,7 @@ quoted in the regression suite's header.
 **A silent authority-bypass affordance** — an opt-out that removes enforcement without leaving a
 witness. This is the affordance-class sibling of the divergence family 01 and 03 close (enforcement
 present in one build and absent in another): v0.1.1's public/private divergence
-(`CHANGELOG.md:832`) was not a logic bug at all — it was this variable's silent ambient presence in
+(`CHANGELOG.md:853`) was not a logic bug at all — it was this variable's silent ambient presence in
 a private copy being mirrored verbatim. The silence, not the openness, was the failure mode both
 times, which is also why the committed decision records rather than retires.
 
@@ -318,7 +318,7 @@ How this change could reintroduce the class: the hatch pattern is one copy-paste
 contributor adding availability or debugging affordances ("`ZODYSSEY_SKIP_SCOPE=1`",
 "`ZODYSSEY_DEBUG_BYPASS=1`", or the UNGATE check moved during a refactor so the recorder no longer
 sits between the env read and the exit) recreates a silent bypass with zero ill intent — the exact
-path by which the second deletion shipped unnoticed (`CHANGELOG.md:672`: audits review the diff in
+path by which the second deletion shipped unnoticed (`CHANGELOG.md:693`: audits review the diff in
 front of them). What prevents it: (a) the **shared structural assertion** in the regression suite —
 it scans the hook source for every `process.env.ZODYSSEY_*` read whose branch guards an early
 `exit(0)` and requires the recorder to be routed between read and exit, so a second bypass variable
@@ -333,19 +333,19 @@ Every doc that states the claim this change alters ("the hatch disables the gate
 say "silently", which was exactly the problem), each checked against the 2026-08-16 tree:
 
 - `CHANGELOG.md` — new version entry (shape below).
-- `docs/INSTALL.md:152` — env-table row: extend the tradeoff sentence to state that every ungated
+- `docs/INSTALL.md:163` — env-table row: extend the tradeoff sentence to state that every ungated
   call is recorded in `.zcode/state/<slug>.ungated.jsonl` and surfaced as `ungated_bash_calls` on
   the run report. This is the table an operator reads before setting the variable.
 - `skills/odyssey/SKILL.md:399-406` — the "Environment overrides (documented)" list omits
   `ZODYSSEY_UNGATE_BASH` entirely today; add the row with the recording semantics so the conductor
-  prompt matches the installer's AGENTS.md template (`scripts/install.mjs:883`).
+  prompt matches the installer's AGENTS.md template (`scripts/install.mjs:975`).
 - `docs/DESIGN.md:261` — §6 hook table, Bash write-gate row: the row currently does not mention the
   hatch at all; add that the documented escape hatch exists and is recorded per-call.
 - `README.md:125` — comparison-table row: "…Secure by default; `ZODYSSEY_UNGATE_BASH=1` disables"
   gains "(every ungated call is recorded in run state)".
 - `skills/odyssey/references/scripts.md:36` — `run-report.mjs` entry: name the
   `ungated_bash_calls` field alongside `success`.
-- `scripts/install.mjs:883` — the AGENTS.md template string still advertises the var without the
+- `scripts/install.mjs:975` — the AGENTS.md template string still advertises the var without the
   recording fact. **Outside this change's declared `Files:`** — the fix-run cannot edit it under
   the scope gate. Correct it in the release pass (and re-run the installer so the user-scope
   AGENTS.md copies refresh), or name it in *Known, not fixed*.
@@ -357,7 +357,7 @@ A fix that leaves any of these asserting the old behaviour has created the next 
 New patch version — the next free patch at ship time (`0.5.3` if nothing has shipped since
 `0.5.2`; 01, 02 and 03 each claim their own release ahead of this one in build order). **One
 security change per release, shipped alone** — the repo rule, with its precedent at
-`CHANGELOG.md:305`. Do NOT batch queue items 01 or 03 into this release even though all three touch
+`CHANGELOG.md:326`. Do NOT batch queue items 01 or 03 into this release even though all three touch
 `skills/odyssey/hooks/pre-tool.mjs`.
 
 - **Fixed** — one entry: every `ZODYSSEY_UNGATE_BASH=1` Bash call is now recorded — one JSON line
@@ -380,7 +380,7 @@ security change per release, shipped alone** — the repo rule, with its precede
     hatch.
   - Bash calls with the variable set but **no active run** remain unrecorded (the hook is a no-op
     without a run; there is no run state to audit into).
-  - `scripts/install.mjs:883`'s AGENTS.md template text mentions the hatch without the recording
+  - `scripts/install.mjs:975`'s AGENTS.md template text mentions the hatch without the recording
     fact — release-pass edit; user-scope copies refresh on installer re-run.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   re-Get/Update the plugin so the marketplace cache picks up the hook — a fix that stays only in

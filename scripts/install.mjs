@@ -25,6 +25,9 @@
 //   7. REGISTRY   — init ~/.zcode/orchestration/registry/ (.gitkeep) for the narrator
 //      trust registry ledger (registry-report.mjs creates it on demand too).
 //   8. SUPERPOWERS — detect the optional superpowers plugin; print a hint if missing.
+//   9. PRUNE      — delete stale plugin cache version dirs (registry-derived; keeps the
+//      live copy + its on-disk predecessor; best-effort — never blocks the install).
+//      The exclusive --prune-cache mode is the on-demand twin of this step.
 //
 // Usage:
 //   node scripts/install.mjs                      # run all steps (default)
@@ -32,6 +35,7 @@
 //   node scripts/install.mjs --dry-run            # show what would happen, change nothing
 //   node scripts/install.mjs --verify             # health-check the install
 //   node scripts/install.mjs --sync-cache         # copy this tree into the plugin cache (what actually executes)
+//   node scripts/install.mjs --prune-cache        # prune stale plugin cache dirs (exclusive mode; --dry-run previews)
 //
 // All paths derive from os.homedir() and the repo's own .zcode-plugin/plugin.json
 // version field — ZERO hard-coded /home/... or literal "~" paths.
@@ -47,6 +51,7 @@ import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { SYNC_TREES, enumerateDeployed } from "./lib/deploy-surface.mjs";
+import { planCachePrune, compareSemver } from "./lib/cache-prune.mjs";
 
 // ---------- paths (all derived from homedir + repo location) ----------
 
@@ -96,6 +101,7 @@ const DRY = argv.includes("--dry-run");
 const UNINSTALL = argv.includes("--uninstall");
 const VERIFY = argv.includes("--verify");
 const SYNC_CACHE = argv.includes("--sync-cache");
+const PRUNE_CACHE = argv.includes("--prune-cache");
 
 const log = (m) => console.log(DRY ? `[dry-run] ${m}` : m);
 const logDim = (m) => console.log(DRY ? `[dry-run]   ${m}` : `   ${m}`);
@@ -299,6 +305,78 @@ function syncCache() {
   exit(0);
 }
 if (SYNC_CACHE) syncCache();
+
+// ---------- --prune-cache ----------
+//
+// WHY THIS EXISTS: the marketplace subsystem only ever ADDS version dirs under
+// cache/<marketplace>/<plugin>/<version>/ — Get/Update never removes the old ones, so
+// old releases pile up forever. Which copy is live is registry truth (the loader reads
+// installed_plugins.json, nothing else), so the stale set comes from the pure lib
+// (lib/cache-prune.mjs — ONE plan function; the lib contains no deletion code) and is
+// consumed here: the exclusive mode prints it, and the default run's dry preview prints
+// the same lines (one plan, two consumers — what is listed and what gets deleted can
+// never diverge).
+//
+// Retention: live + its immediate on-disk predecessor (CACHE_PRUNE_KEEP). Everything
+// strictly older than that window is stale; everything newer than live is kept (a
+// downloaded-but-unregistered update is indistinguishable from an orphaned newer dir —
+// the registry cannot arbitrate). Non-semver entries and stray files in the live parent
+// are reported as skipped and never touched.
+//
+// Fail closed: when the registry cannot prove which copy is live, print the reason,
+// delete nothing, exit 1. No fallback heuristic (mtime, dir count, repo version) is
+// ever consulted — during a version bump the registry's old dir is live while the repo
+// says the new one, and every ordering heuristic breaks exactly there.
+function pruneCache() {
+  const plan = planCachePrune({ pluginsJsonPath: PLUGINS_JSON_PATH, pluginName: PLUGIN_NAME });
+  if (plan.error) {
+    console.error(`--prune-cache: cannot establish which cache copy is live — deleting nothing (fail closed).\n  ${plan.error}`);
+    exit(1);
+  }
+  const keepNewestFirst = [...plan.keep].sort((a, b) => compareSemver(b, a)).join(",");
+  console.log(`prune-plan: live=${plan.liveVersion} keep=${keepNewestFirst} prune=${plan.prune.length}`);
+  if (plan.prune.length === 0) {
+    console.log("nothing to prune — the cache is already within the retention window (live + predecessor; newer-than-live is kept).");
+    exit(0);
+  }
+  // The execution loop — the FOURTH deletion site in this file (after the import,
+  // the pre-v0.3.0 purge, and --uninstall), the phasePurge shape: print and
+  // delete per entry, so what is listed and what gets deleted can never diverge
+  // (interrupted midway, everything printed so far is everything deleted so far —
+  // the on-disk delta always equals the printed plan). Dry runs print the identical
+  // lines and delete nothing: --dry-run is the stable preview of exactly this loop.
+  // ONE deletion site shared by both consumers (exclusive mode + the install's final
+  // step) — one plan function, one deletion function, listed == deleted by construction.
+  executePrunePlan(plan);
+  exit(0);
+}
+
+function executePrunePlan(plan) {
+  for (const name of plan.prune) {
+    const target = join(plan.parentDir, name);
+    log(`rm ${target}`);
+    if (!DRY) rmSync(target, { recursive: true, force: true });
+  }
+}
+if (PRUNE_CACHE) pruneCache();
+
+// The default run's FINAL step is the cache prune: the SAME plan function as the
+// exclusive mode (one plan, two consumers — what is listed and what gets deleted can
+// never diverge), previewed in dry mode and executed otherwise. Unverifiable
+// live-ness is best-effort here: warn and continue — fail closed means delete
+// nothing, not block the installer.
+function finalCachePrune() {
+  const plan = planCachePrune({ pluginsJsonPath: PLUGINS_JSON_PATH, pluginName: PLUGIN_NAME });
+  if (plan.error) {
+    logDim(`cache prune skipped (cannot establish live-ness — nothing deleted): ${plan.error}`);
+    return;
+  }
+  if (plan.prune.length === 0) return;
+  log(`\n=== cache prune${DRY ? " preview" : ""} (the install's final step) ===\n`);
+  executePrunePlan(plan); // the same single deletion site as the exclusive mode
+  const keepNewestFirst = [...plan.keep].sort((a, b) => compareSemver(b, a)).join(",");
+  console.log(`prune-plan: live=${plan.liveVersion} keep=${keepNewestFirst} prune=${plan.prune.length}`);
+}
 
 // ---------- hook helpers ----------
 
@@ -853,6 +931,20 @@ function verify() {
     check("superpowers plugin (optional, for routed skills)", sp, "see https://github.com/obra/superpowers");
   } catch {}
 
+  // 9. Stale cache dirs — INFORMATIONAL, never a failing check: pruning is the
+  // operator's call (--prune-cache, or the install run's final step), and stale dirs
+  // alone are not an unhealthy install. Same plan function as both consumers.
+  {
+    const plan = planCachePrune({ pluginsJsonPath: PLUGINS_JSON_PATH, pluginName: PLUGIN_NAME });
+    if (plan.error) {
+      console.log(`  · stale cache dirs: unknown (live-ness unverifiable — --prune-cache prints the reason)`);
+    } else if (plan.prune.length > 0) {
+      console.log(`  · stale cache dirs: ${plan.prune.length} (prunable via --prune-cache)`);
+    } else {
+      console.log(`  · stale cache dirs: 0 (cache within the retention window)`);
+    }
+  }
+
   console.log(`\n${problems === 0 ? "✓ all checks passed" : `✗ ${problems} problem(s) found`}\n`);
   exit(problems === 0 ? 0 : 1);
 }
@@ -1021,6 +1113,7 @@ function main() {
   initEvalDir();
   initRegistryDir();
   detectSuperpowers();
+  finalCachePrune(); // the install's FINAL step: dry previews, non-dry executes (best-effort)
 
   printSummary();
 

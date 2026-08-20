@@ -22,7 +22,7 @@ That's it. The installer is idempotent — re-run it after a `git pull` to refre
 
 ## What the installer does
 
-As of v0.3.1 the split of responsibility is: **the ZCode marketplace owns the plugin** (cache copy, `installed_plugins.json` entry, and the manifest — including the enforcement hooks), and **this installer owns the surrounding user-scope configuration** (pipeline MCPs, the AGENTS.md block, eval dir, and cleanup of legacy state). The installer no longer hand-writes `installed_plugins.json` or `config.json` hooks — that was the v0.3.0 bug (the hand-written `marketplace:"local"` wasn't in `known_marketplaces.json`, and the hooks were written against a cache path the marketplace install later moved).
+As of v0.3.1 the split of responsibility is: **the ZCode marketplace owns the plugin** (cache copy, `installed_plugins.json` entry, and the manifest — including the enforcement hooks), and **this installer owns the surrounding user-scope configuration** (pipeline MCPs, the AGENTS.md block, eval dir, and cleanup of legacy state). The installer no longer hand-writes `installed_plugins.json` or `config.json` hooks — that was the v0.3.0 bug (the hand-written `marketplace:"local"` wasn't in `known_marketplaces.json`, and the hooks were written against a cache path the marketplace install later moved). One carve-out added in v0.6.13: the installer's prune step **deletes non-registered sibling version dirs only** — stale copies under the live version's parent (see *Prune stale plugin cache* below); it still never writes into the registered dir, the registry, or the manifest. Write ownership is unchanged; only read-derived deletion was added.
 
 Every path is derived from `os.homedir()` — no hardcoded `/home/...` or literal `~` anywhere, so the same script is portable across machines.
 
@@ -141,6 +141,17 @@ node scripts/install.mjs --dry-run
 
 Prints every action it would take without changing anything. Useful to preview before a first install.
 
+## Prune stale plugin cache
+
+```bash
+node scripts/install.mjs --dry-run --prune-cache   # preview the exact removal list
+node scripts/install.mjs --prune-cache             # delete exactly that list
+```
+
+Removes stale version dirs under the live copy's parent (`.../cache/<marketplace>/zodyssey/`), with `installed_plugins.json` — the only source of truth for which copy is live — deriving the list. Retention: the registry-live version and its on-disk predecessor are kept (the predecessor so a botched marketplace Update can be inspected against the last known-good dir, and so a clean Update still leaves a coherent one-release rollback); strictly older dirs are pruned. **Never** pruned: the live dir or any ancestor, anything newer than live (a downloaded-but-unregistered update is indistinguishable from an orphan), and non-version-shaped entries (reported as `skipped`, left in place). Only the live copy's parent dir is walked — other marketplaces' and other plugins' trees are invisible.
+
+Exclusive mode — no other install step runs. Exit code `0` on success (including when there is nothing to prune), `1` when the registry cannot prove which copy is live (missing, unparseable, or pointing outside the cache): the reason is printed and **nothing is deleted** — the fail-closed rule. `installed_plugins.json` is read, never written. The same prune also runs as the final step of every ordinary install (best-effort: silent when the cache is already within the kept pair; a warning and no deletion when live-ness is unverifiable — fail closed means delete nothing, not block the installer), and `--verify` reports the stale count as an informational line that never fails the health check.
+
 ## Configuration (environment variables)
 
 All optional. Set in your shell profile (`~/.bashrc` / `~/.zshrc`) or per-session.
@@ -198,10 +209,11 @@ Two things update on a new release — the repo source, and the cached plugin co
 cd zodyssey          # wherever you cloned it
 git pull
 node scripts/install.mjs   # idempotent — re-purges stale pollution, re-migrates any
-                           # config.json hook orphans, refreshes the pipeline MCPs
+                           # config.json hook orphans, refreshes the pipeline MCPs,
+                           # and prunes stale plugin-cache dirs as its final step
 ```
 
-Then refresh the **cached** plugin copy so the new manifest (hooks included) takes effect: **Settings → Plugin Management → Discover → Update** on zodyssey (for a `directory` marketplace this re-copies from the repo you just pulled). Start a new ZCode session to pick up the new hooks.
+The prune needs no separate command — the install run does it for you as its final step (retention rule and standalone flag: *Prune stale plugin cache* above). Then refresh the **cached** plugin copy so the new manifest (hooks included) takes effect: **Settings → Plugin Management → Discover → Update** on zodyssey (for a `directory` marketplace this re-copies from the repo you just pulled). Start a new ZCode session to pick up the new hooks.
 
 ## Where state lives (per repo)
 
@@ -229,9 +241,12 @@ Two different situations, and only one of them `--sync-cache` can fix:
 |---|---|
 | **Content drift** — same version, cached hooks differ from your source | `node scripts/install.mjs --sync-cache` |
 | **Version bump** — repo is at a new version, install registered at the old one | **Settings → Plugin Management → Discover → Update on zodyssey** |
+| **Stale version dirs accumulating** — old copies piling up under `cache/<marketplace>/zodyssey/` | `node scripts/install.mjs --prune-cache` (preview first with `--dry-run`) |
 
 The cache is laid out per version (`.../zodyssey/<version>/`) and `installed_plugins.json` records
-which one is live. `--sync-cache` refreshes content *inside the registered version's directory* —
+which one is live; the installer's prune keeps the live version plus its on-disk predecessor and
+removes strictly older dirs — never the live one, never anything newer than live. `--sync-cache`
+refreshes content *inside the registered version's directory* —
 it cannot move the install to a new version, and it deliberately will not try. Hand-writing
 `installed_plugins.json` is exactly the v0.3.0 bug: a hand-written `marketplace: "local"` entry the
 loader skipped while the hooks orphaned against a dead path. The marketplace owns the versioned
