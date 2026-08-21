@@ -69,7 +69,7 @@ export const CLAIMS = [
   {
     id: "DEPLOY-SURFACE-COVERAGE",
     claim: "the drift gate compares everything the deployer deploys (one recursive definition)",
-    documented_at: "CHANGELOG.md:395",
+    documented_at: "CHANGELOG.md:439",
     asserted_by: "scripts/deploy-surface.test.mjs",
     marker: "must compare everything the deployer deploys",
     kind: "suite",
