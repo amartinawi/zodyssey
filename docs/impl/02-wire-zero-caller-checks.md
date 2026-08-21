@@ -15,10 +15,10 @@ number): grep for each script's name across `skills/`, `scripts/`, `agents/`, `c
 (`*.mjs`, `*.bash`), excluding the script itself and its `.test.mjs` → **zero hits for all three**.
 Every remaining reference is doc prose: `check-imports` at
 `skills/odyssey/references/scripts.md:47`, `docs/MEASUREMENT.md:85`, `README.md:133`;
-`resolve-capabilities` at `skills/odyssey/SKILL.md:393`,
+`resolve-capabilities` at `skills/odyssey/SKILL.md:394`,
 `skills/odyssey/references/capabilities.md:106`,
 `skills/odyssey/references/scripts.md:50`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
-`docs/DESIGN.md:458`; `coverage-delta` at `CHANGELOG.md:992` only (it has no
+`docs/DESIGN.md:458`; `coverage-delta` at `CHANGELOG.md:1003` only (it has no
 `references/scripts.md` entry at all). The three detectors:
 
 - `skills/odyssey/scripts/check-imports.mjs` — exits **9** on an import that resolves against
@@ -38,7 +38,7 @@ files." — an imperative addressed to the conductor. The repo's B8 comment expl
 enforcement: `skills/odyssey/scripts/set-phase.mjs:353-355` — "Wired here rather than as a SKILL.md
 instruction on purpose: an instruction to a conductor is the prompt-convention 'enforcement' this
 project exists to replace." v0.3.2 shipped these as "the three gates `MEASUREMENT.md` promised and
-never had" (`CHANGELOG.md:824`) — and shipped them unwired:
+never had" (`CHANGELOG.md:835`) — and shipped them unwired:
 `docs/MEASUREMENT.md:74-78` still lists `check-imports.mjs` among "the mechanisms behind" the
 factual-accuracy target, a claim with no mechanism behind it. Both ideation passes found this
 independently (`docs/ideation-report.md:38`, `:263`, `:308` — "convention measurably failed to
@@ -57,7 +57,7 @@ the design bar for this change: **the wiring precedent itself is half-wired.**
 `regression-gate.mjs --check` — the only writer of `status: "regressed"`
 (`skills/odyssey/scripts/regression-gate.mjs:179`) — has **no code caller either**, and
 `skills/odyssey/SKILL.md` never mentions it (its only regression mention is the env var at
-`:405`). The `done` refusal at `skills/odyssey/scripts/set-phase.mjs:131` therefore fires only if
+`:406`). The `done` refusal at `skills/odyssey/scripts/set-phase.mjs:131` therefore fires only if
 a conductor happens to follow the prose in `references/scripts.md:46`. This change wires **both
 sides — invoke and consume — as mechanism**, and leaves the regression-gate gap itself out of
 scope (named under *Known, not fixed*).
@@ -296,7 +296,7 @@ after the fix, not a bypass flag.
 
 **A check that exists, passes its own tests, and cannot fire from the pipeline** — ceremony
 without mechanism, failure mode 3. Three instances shipped together on 2026-08-11 under the
-heading "the three gates `MEASUREMENT.md` promised and never had" (`CHANGELOG.md:824`), each
+heading "the three gates `MEASUREMENT.md` promised and never had" (`CHANGELOG.md:835`), each
 documented with an imperative sentence addressed to a conductor
 (`skills/odyssey/references/scripts.md:47`) that no mechanism ever executed. The class has a
 finer-grained member this run found: a check wired on ONE side only — invoke without consumer, or
@@ -328,9 +328,9 @@ checked against the 2026-08-16 tree:
 - `skills/odyssey/references/scripts.md` — **add** the missing `coverage-delta.mjs` entry (it has
   none today; the check is about to be wired before it is documented, which would be a fresh
   doc-code drift in the making).
-- `skills/odyssey/SKILL.md:387-393` — the transition one-liners: entering `verify` / entering
+- `skills/odyssey/SKILL.md:388-394` — the transition one-liners: entering `verify` / entering
   `final` note that the checks fire automatically (a conductor sentence that no longer needs to
-  exist is the win; keep them to one clause each). `:393`'s diagnostics mention of
+  exist is the win; keep them to one clause each). `:394`'s diagnostics mention of
   `resolve-capabilities` stays true — manual invocation remains possible.
 - `docs/MEASUREMENT.md:74-78` — the "Honest status" block: the `check-imports.mjs` clause now
   carries its enforcement clause ("invoked at verify entry, enforced at `done`, inert without a

@@ -23,7 +23,7 @@ party independent of the model — never confirms them.** The chain, anchored:
   model-derived. The user's only touchpoints in the whole pipeline are: the ambiguity ritual at
   PRIME ("· ambiguities → ask the user (max 3, then commit)" at `skills/odyssey/SKILL.md:74`;
   "ask the user FIRST and WAIT" at `:85-86`), metis's user-questions at consult
-  (`skills/odyssey/SKILL.md:107`, `:372`), and the momus-loop safety rail (`:289`). **None of these
+  (`skills/odyssey/SKILL.md:108`, `:373`), and the momus-loop safety rail (`:290`). **None of these
   confirms the criteria themselves** — ambiguities are about what was asked, not about what will
   count as done.
 - The criteria that actually gate execution are authored later, by prometheus, into the plan the
@@ -86,7 +86,7 @@ qualitative, vague, or absent → **no round** — the trigger fails and the flo
 **2. Recording — a stamped state, not a memory.** The conductor passes the round's outcome to the
 scaffold when it creates the run: `scripts/scaffold.mjs <repo> <slug> <title> <intent> [task-brief]
 --criteria-state confirmed|adjusted|skipped` (the invocation the conductor already makes, at
-`skills/odyssey/SKILL.md:389`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
+`skills/odyssey/SKILL.md:390`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
 writes for the primed brief (`skills/odyssey/scripts/scaffold.mjs:239`, `:242`) — with a first
 line:
 
@@ -103,7 +103,7 @@ a value outside the three-state vocabulary exits **2** (bad args — the existin
 at `skills/odyssey/scripts/scaffold.mjs:36-37`), before any file is written.
 
 **3. Transcription — downstream honors the adjustment.** The PLAN phase
-(`skills/odyssey/SKILL.md:114-128`) gains one rule keyed to the stamp: `adjusted` → the user's
+(`skills/odyssey/SKILL.md:115-129`) gains one rule keyed to the stamp: `adjusted` → the user's
 criteria are transcribed verbatim (as executable commands) into the todos' Acceptance criteria —
 they are the source of truth, not the model's paraphrase of them; `confirmed` → the presented
 criteria; `skipped` or no stamp → today's authorship, unchanged. The user's role stays
@@ -124,8 +124,8 @@ the class this change exists to close.
 The declared editable set — this becomes the fix-run plan's `Files:` list, verbatim and complete:
 
 - `skills/odyssey/SKILL.md` — **the actual deliverable**: the PRIME box (`:69-87`) gains the
-  criteria-confirmation round with its trigger, bound, and skip path; the PLAN box (`:113-127`)
-  gains the transcription rule; the scaffold invocation line (`:389`) gains the flag.
+  criteria-confirmation round with its trigger, bound, and skip path; the PLAN box (`:114-128`)
+  gains the transcription rule; the scaffold invocation line (`:390`) gains the flag.
 - `skills/odyssey/scripts/scaffold.mjs` — the optional `--criteria-state` flag, its fail-closed
   validation, and the first-line stamp. Nothing else in the file changes.
 - `skills/odyssey/scripts/scaffold.criteria-confirm.test.mjs` — **new**. No scaffold-specific
@@ -234,7 +234,7 @@ not a criterion.
    `test $(grep -c 'criteria-confirmation' skills/odyssey/SKILL.md) -ge 2` — expected exit **0**
    (the PRIME round and the PLAN transcription rule both name the stamp they produce/consume);
    `test $(grep -c 'AskUserQuestion' skills/odyssey/SKILL.md) -ge 2` — expected exit **0**
-   (today it is 1, the momus rail at `:288`; the PRIME round adds the second — this is the
+   (today it is 1, the momus rail at `:289`; the PRIME round adds the second — this is the
    paired-direction grep, probe-able on both builds); `test $(grep -c 'max 3, then commit' skills/odyssey/SKILL.md) -eq 1`
    — expected exit **0** (the budget clause survives the edit exactly once: the new round lives
    inside it, not beside it).
@@ -287,7 +287,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
   `sha256sum` on body-only vs. the input brief).
 
 **Probe B (the conductor contract):** `grep -c 'AskUserQuestion' skills/odyssey/SKILL.md` →
-**1 before** (the momus rail at `:288` only) → **≥2 after** (the PRIME round), and
+**1 before** (the momus rail at `:289` only) → **≥2 after** (the PRIME round), and
 `grep -c 'criteria-confirmation' skills/odyssey/SKILL.md` → **0 before → ≥2 after**. Today the
 PRIME box (`:69-87`) asks about ambiguities and never about criteria; after, the criteria round is
 in the same box, inside the same max-3 budget.
@@ -300,7 +300,7 @@ Unchanged controls, required on BOTH builds — a probe that moves any of them h
 | Scaffold with no brief | exit 0 + W5 warning (`scaffold.mjs:247`) | **exit 0 + same warning** (a flag cannot make no-brief an error) |
 | plan.md / state.json contents, with vs. without the flag | identical | **identical** (the flag touches the task file only) |
 | A run created before this change (unstamped brief) | loads, consults, transitions | **loads, consults, transitions** (no new required state; `skipped`-by-absence is the transcription rule's default arm) |
-| Ambiguity ritual and metis user-question flows (`SKILL.md:74`, `:106`) | unchanged wording and budget | **unchanged wording and budget** (the round joins the budget; it does not expand it) |
+| Ambiguity ritual and metis user-question flows (`SKILL.md:74`, `:107`) | unchanged wording and budget | **unchanged wording and budget** (the round joins the budget; it does not expand it) |
 
 ## What it breaks
 
@@ -368,8 +368,8 @@ Every doc that states the claim this change alters ("PRIME refines the prompt an
 ambiguities; criteria are planner-authored"), each re-anchored at build time:
 
 - `skills/odyssey/SKILL.md` — done in this change (it IS the deliverable): PRIME box `:69-87`
-  (round + trigger + bound + skip), PLAN box `:113-127` (transcription rule), scaffold invocation
-  `:389` (the flag).
+  (round + trigger + bound + skip), PLAN box `:114-128` (transcription rule), scaffold invocation
+  `:390` (the flag).
 - `skills/odyssey/references/capabilities.md:59` — the prompt-master entry's primed-brief
   description gains the criteria-confirmation round (trigger, one round, skip path).
 - `skills/odyssey/references/scripts.md:7` — the scaffold signature documents the optional

@@ -2,6 +2,17 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] — 2026-08-22
+
+### Added — the eval-loop meta-layer: the corpus learns, staging-only (item 25)
+
+mine-corrections.mjs mines the run corpora for RECURRING failure patterns (criterion-shape
+families, reject-blocker classes, verify-fail cycles, consult-gap categories; recurrence ≥ 3
+runs) and writes STAGED PROPOSALS under .zcode/staging/proposals/ — deterministic pattern
+counting, zero LLM calls, never a live edit. Metis's consult dispatch now lists unapplied
+proposals as risk-input. Applying a proposal stays a separate human-approved action, exactly
+the staging-only model recall-corrections.mjs:32 prescribed for its edit half. Suite 54 → 55.
+
 ## [0.6.17] — 2026-08-21
 
 ### Fixed — the regression gate is wired: `done` runs the comparison (item 24)

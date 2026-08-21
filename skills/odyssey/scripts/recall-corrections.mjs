@@ -28,13 +28,13 @@
 // FUTURE WORK (exclusions — documented so the next maintainer does not mistake the
 // gap for an oversight):
 //
-//   (a) Periodic-improvement-pass / live-skill-edit loop — EXCLUDED. A future pass
+//   (a) Periodic-improvement-pass / live-skill-edit loop — SHIPPED. A pass that
 //       could mine judged.jsonl / results.jsonl for RECURRING failure patterns and
-//       PROPOSE staged, human-approved updates to agent prompts, capabilities.md,
-//       and SKILL.md. That loop is STAGING-ONLY by design: recall-corrections is
-//       read-only capture only — it never writes live skill/agent files, and install
-//       is a separate human action (the task-observer staging-only model). This
-//       script is the capture half, not the edit half.
+//       PROPOSE staged, human-approved updates now exists: mine-corrections.mjs
+//       (item 25), STAGING-ONLY. It writes sanitized, evidence-cited proposals to
+//       .zcode/staging/proposals/ — never a live skill/agent file — and applying a
+//       proposal stays a separate human action. recall-corrections remains the
+//       capture half; mine-corrections.mjs is the edit half.
 //
 //   (b) SIGNAL 3 (user mid-run corrections) — NOT RECORDED on disk today.
 //       user-prompt-submit.mjs is warning-only and no `corrections` /

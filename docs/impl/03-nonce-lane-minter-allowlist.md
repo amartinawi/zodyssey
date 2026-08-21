@@ -1,7 +1,7 @@
 # 03 — Allowlist the nonce-lane minters
 
 Build order **03** · depends-on **—** (no build edge; sequenced after 01's release only by the
-one-security-change-per-release cadence, `CHANGELOG.md:440` — grouped adjacently with 01/04 because
+one-security-change-per-release cadence, `CHANGELOG.md:451` — grouped adjacently with 01/04 because
 all three touch `skills/odyssey/hooks/pre-tool.mjs`, explicitly NOT merged with either) · queue
 row: [`docs/impl/00-INDEX.md`](00-INDEX.md) `03 nonce-lane-minter-allowlist` · security-class ·
 patch · shipped alone.
@@ -13,7 +13,7 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 ## What is broken (pre-fix — closed by this item, 2026-08-17)
 
 The review nonce — the one-time credential that makes an OKAY verdict non-forgeable
-(`skills/odyssey/SKILL.md:395`: "the nonce only exists after a real `Task(zodyssey:momus)` call the
+(`skills/odyssey/SKILL.md:396`: "the nonce only exists after a real `Task(zodyssey:momus)` call the
 hook witnessed") — is minted for **any dispatch whose agent name merely ends in `momus`**, not just
 for `zodyssey:momus`. The lane decides identity with a routing-grade matcher:
 
@@ -43,7 +43,7 @@ asserted the hole as *intended* behavior — pre-fix, the Class C block (now the
 was green (33/33, 2026-08-16) with the tolerance enforced as a feature — the self-grading this
 item flips. There is also an in-repo prior
 that already named this exact shape as a bug: v0.5.1, audit-3 finding 7
-(`CHANGELOG.md:477` and the comment at `skills/odyssey/hooks/pre-tool.mjs:1510-1517`) —
+(`CHANGELOG.md:488` and the comment at `skills/odyssey/hooks/pre-tool.mjs:1510-1517`) —
 "`evil:momus` skipped the cap and the pre-dispatch lint, then minted a review nonce" — fixed the
 round-cap twin (now `if (isDeclaredMinter("review"))` at `:1499`) by making **both** sites
 tolerant, so the lookalike was capped but still minted.
@@ -134,7 +134,7 @@ exactly that). Do not widen the set by default.
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; new
   checks are additive siblings.
 - Do not batch this into 01's or 04's release in the CHANGELOG shape — one security change per
-  release (`CHANGELOG.md:440`: a structural gate change "wants its own release and its own paired
+  release (`CHANGELOG.md:451`: a structural gate change "wants its own release and its own paired
   run").
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — the warning is a
   deterministic stderr line, and every verification in this change is an exit code or a state-file
@@ -219,7 +219,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
 
 1. **Enumeration instead of structure.** Not a deny-list of lookalike names: it is an identity
    allowlist of the three declared minter types — the same direction as the v0.5.2 terminus at
-   `CHANGELOG.md:440` (classify by known-safe identity, not by denied shapes). There is no shape to
+   `CHANGELOG.md:451` (classify by known-safe identity, not by denied shapes). There is no shape to
    bypass because nothing is matched loosely.
 2. **A check that cannot detect the class of failure it exists for.** Criterion 7 is the tripwire:
    the flipped assertions are demonstrated failing against the broken code. Note the twist this
@@ -260,7 +260,7 @@ over-blocked or over-tightened.
 
 Legitimate non-zodyssey momus-named agents: **none exist to break.** `momus` is ZOdyssey's own
 reviewer, defined in this repo (`agents/momus.md`), dispatched as `zodyssey:momus`
-(`skills/odyssey/SKILL.md:391`, `skills/odyssey/references/scripts.md:58`). The only
+(`skills/odyssey/SKILL.md:392`, `skills/odyssey/references/scripts.md:59`). The only
 "legitimate third-party momus" instances in the tree are the Class C fixtures that assert the
 tolerance itself — this change flips them deliberately. No agent loses the ability to be
 *dispatched*; a lookalike loses only a credential it should never have had, and it is told so on
@@ -278,10 +278,10 @@ point: reviewer identity becomes an explicit declaration, not a substring accide
 
 **Authority granted by name-segment tolerance** — a loose matcher built for routing (F5, phase
 gates) consumed by an authority-bearing check (nonce minting). This is the same class family as
-the v0.5.2 head-allowlist inversion named at `CHANGELOG.md:440`: identity questions ("who may
+the v0.5.2 head-allowlist inversion named at `CHANGELOG.md:451`: identity questions ("who may
 execute", "who may grant") answered by tolerant matching instead of exact identity, where the
 structural fix is to invert to an allowlist of declared identities. The direct in-lane prior is
-v0.5.1 audit-3 finding 7 (`CHANGELOG.md:477`): the round-cap twin and the minter disagreed, and
+v0.5.1 audit-3 finding 7 (`CHANGELOG.md:488`): the round-cap twin and the minter disagreed, and
 the fix agreed them **downward** (both tolerant) instead of upward (both exact) — closing the cap
 bypass while leaving the mint open. This change completes that agreement in the right direction.
 
@@ -309,10 +309,10 @@ nonce"), each checked against the 2026-08-16 tree:
 - `README.md:127` — comparison-table row "Review verdicts are read, not assumed": extend the
   ZOdyssey cell to state the nonce is minted only for the exact declared minter type, never for a
   lookalike namespace.
-- `skills/odyssey/SKILL.md:391-397` — the review-gate chain description: the sentence "the nonce
+- `skills/odyssey/SKILL.md:392-398` — the review-gate chain description: the sentence "the nonce
   only exists after a real `Task(zodyssey:momus)` call the hook witnessed" becomes enforced by
   exact type; add the minter-allowlist fact and the lookalike warning.
-- `skills/odyssey/references/scripts.md:58-69` — review-lane walkthrough, step 1: state that only
+- `skills/odyssey/references/scripts.md:59-70` — review-lane walkthrough, step 1: state that only
   the exact `subagent_type` mints and that a lookalike dispatch warns and mints nothing.
 
 A fix that leaves any of these asserting the old behaviour has created the next doc-code drift.
@@ -321,7 +321,7 @@ A fix that leaves any of these asserting the old behaviour has created the next 
 
 New patch version — the next free patch at ship time (`0.5.3` if nothing has shipped since
 `0.5.2`; 01 and 02 each claim their own release ahead of this one in build order). **One security
-change per release, shipped alone** — the repo rule with its precedent at `CHANGELOG.md:440`. Do
+change per release, shipped alone** — the repo rule with its precedent at `CHANGELOG.md:451`. Do
 NOT batch queue items 01 or 04 into this release even though all three touch
 `skills/odyssey/hooks/pre-tool.mjs`; that is a reason for adjacent sequencing, not for merging.
 
@@ -335,7 +335,7 @@ NOT batch queue items 01 or 04 into this release even though all three touch
 - **Known, not fixed** — name them; the next audit should not have to find them:
   - A lookalike `*:momus` dispatch is still ALLOWED by design — read-only routing tolerance grants
     no authority; every write the dispatched agent attempts remains scope- and verdict-gated.
-  - The orchestrator-adversary residual stands unchanged (`skills/odyssey/SKILL.md:397`: the nonce
+  - The orchestrator-adversary residual stands unchanged (`skills/odyssey/SKILL.md:398`: the nonce
     binds a real dispatch, not what the reviewer returned).
   - A new legitimate reviewer packaging now requires a one-line allowlist edit, surfaced loudly by
     the near-miss warning rather than silently at the final wave.

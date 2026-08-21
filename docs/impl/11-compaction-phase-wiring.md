@@ -12,16 +12,16 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 `skills/odyssey/scripts/compact.mjs` is a deterministic, $0 context-saver that nothing ever runs.
 Census re-measured 2026-08-16 (this run, not an ideation-doc number): grep for `compact` across
 `skills/`, `scripts/`, `agents/`, `commands/` (`*.mjs`, `*.bash`), excluding `compact.mjs` itself →
-**zero code callers**. Every remaining reference is doc prose: `skills/odyssey/SKILL.md:173` ("MAY
+**zero code callers**. Every remaining reference is doc prose: `skills/odyssey/SKILL.md:174` ("MAY
 run `scripts/compact.mjs <repo> <slug>`" — an instruction addressed to the conductor, inside the
-phase-6 OPTIONAL COMPACTION box at `:172-179`), `skills/odyssey/SKILL.md:227` ("the **optional**
+phase-6 OPTIONAL COMPACTION box at `:173-180`), `skills/odyssey/SKILL.md:228` ("the **optional**
 `_compact-brief.md`"), `skills/odyssey/references/scripts.md:17` ("OPTIONAL pre-final-wave
-notepad compactor"), `README.md:59`, `README.md:82`, `README.md:280`, `CHANGELOG.md:921`. The
+notepad compactor"), `README.md:59`, `README.md:82`, `README.md:280`, `CHANGELOG.md:932`. The
 script's own header admits it: `skills/odyssey/scripts/compact.mjs:20-21` — "OPT-IN: the
 orchestrator MAY call this before phase-6 dispatch. It is not mandatory and not wired into any
 phase transition or hook."
 
-The consequence, in the repo's own framing (`skills/odyssey/SKILL.md:217-227`): notepads are the
+The consequence, in the repo's own framing (`skills/odyssey/SKILL.md:218-228`): notepads are the
 run's load-bearing working memory and grow with the run, and for a large run the final-wave
 sub-agents (F1-F4) are supposed to consume `_compact-brief.md` instead of the full doc set — a
 per-notepad-truncated derived view (`compact.mjs:37` `MAX_LINES_PER_NOTEPAD = 40`, applied at
@@ -241,7 +241,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
    silent unhooking after land; criterion 3(a) makes the additive invariant self-verifying on
    every run of the suite.
 3. **Ceremony without mechanism.** This is the change's own subject: a "MAY run" sentence
-   addressed to a conductor (`SKILL.md:173`) becomes a transition invoke with a printed signal —
+   addressed to a conductor (`SKILL.md:174`) becomes a transition invoke with a printed signal —
    the exact transformation the repo's B8 comment prescribes (`set-phase.mjs:353-355`).
 4. **Self-grading.** Every criterion is machine-executed with a recorded exit code; the paired
    probe runs against both builds. Nobody grades prose.
@@ -257,7 +257,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
   <repo> <slug>` works by hand (exit 0, brief written, sources untouched — the mechanism works),
   but drive the run forward: `node skills/odyssey/scripts/set-phase.mjs <repo> <slug> final`
   exits 0 with **no** `_compact-brief.md` — zero code callers; the only wiring is the "MAY"
-  prose at `SKILL.md:173`. F1-F4 dispatch consumes the full doc set the brief was designed to
+  prose at `SKILL.md:174`. F1-F4 dispatch consumes the full doc set the brief was designed to
   replace.
 - **After the fix: it fires, additively.** The same transition exits 0, prints the brief path,
   and `_compact-brief.md` exists with every source notepad byte-identical (probe with
@@ -287,7 +287,7 @@ full-fidelity path, and SKILL.md's own framing (`:226`) already positions the br
 large-run alternative to delegated full reads — an F-wave needing depth reads the source by path;
 the brief is the map. Blast radius beyond that, honestly: (a) every "(optional)" claim about
 compaction goes stale the moment it auto-fires — `README.md:59`, `README.md:82`, `README.md:280`,
-`references/scripts.md:17`, `SKILL.md:172-179`, `:226` — a doc-code drift manufactured by this
+`references/scripts.md:17`, `SKILL.md:173-180`, `:227` — a doc-code drift manufactured by this
 change unless the doc pass lands with it (see "Docs to update"); (b) the `final` transition gains
 one node child-process spawn and a directory walk — milliseconds, with a ~10s timeout and a
 best-effort catch, so it cannot wedge the transition; (c) anything that assumed the notepad dir
@@ -333,16 +333,16 @@ How this change could reintroduce the class:
 Every doc that states the claim this change alters ("compaction is optional and never fires on
 its own"), each checked against the 2026-08-16 tree:
 
-- `skills/odyssey/SKILL.md:173-179` — the phase-6 OPTIONAL COMPACTION box: from "you MAY run" to
+- `skills/odyssey/SKILL.md:174-180` — the phase-6 OPTIONAL COMPACTION box: from "you MAY run" to
   the mechanism sentence — compaction fires automatically at `final` entry above the threshold,
   is inert below it, opt-out via `ZODYSSEY_NO_AUTO_COMPACT=1`, and the printed path line is the
   conductor's signal to point F1-F4 at the brief. Keep the determinism/additivity clauses.
-- `skills/odyssey/SKILL.md:227` — the "load-bearing working memory" paragraph: "optional
+- `skills/odyssey/SKILL.md:228` — the "load-bearing working memory" paragraph: "optional
   `_compact-brief.md`" becomes "auto-derived at final entry above the size threshold (additive —
   sources never modified)".
-- `skills/odyssey/SKILL.md:401-405` region — the env-var list gains
+- `skills/odyssey/SKILL.md:402-406` region — the env-var list gains
   `ZODYSSEY_NO_AUTO_COMPACT` (set to 1 to skip auto-compaction at final entry; default unset =
-  enabled), phrased like the `ZODYSSEY_REGRESSION_TIMEOUT_MS` entry at `:405`.
+  enabled), phrased like the `ZODYSSEY_REGRESSION_TIMEOUT_MS` entry at `:406`.
 - `skills/odyssey/references/scripts.md:17` — the `compact.mjs` entry: invoked automatically by
   `set-phase.mjs` on entering `final` above `AUTO_COMPACT_MIN_LINES`; direct two-arg invocation
   unchanged; `--min-lines` documented; the additive invariant stated as tested, not promised.
