@@ -181,6 +181,13 @@ const CHECK_IMPORTS = fileURLToPath(new URL("./check-imports.mjs", import.meta.u
 const COVERAGE_DELTA = fileURLToPath(new URL("./coverage-delta.mjs", import.meta.url));
 const RESOLVE_CAPS = fileURLToPath(new URL("./resolve-capabilities.mjs", import.meta.url));
 const CHECK_TIMEOUT_MS = 60 * 1000;
+// Outer cap for the done-entry regression check. The gate enforces its own suite timeout
+// (ZODYSSEY_REGRESSION_TIMEOUT_MS, default 600s); this is the margin above it so the outer
+// spawn never kills a check the gate would have finished.
+const REGWIRE_TIMEOUT_MS = (() => {
+  const n = parseInt(process.env.ZODYSSEY_REGRESSION_TIMEOUT_MS || "600000", 10);
+  return (Number.isInteger(n) && n > 0 ? n : 600000) + 60 * 1000;
+})();
 
 // Record a lane into state with the same atomic tmp+rename write the phase write uses. Runs
 // after the lock is released; best-effort by design — a check that cannot record degrades to
@@ -282,6 +289,22 @@ function captureBaseline() {
     console.error(`set-phase.mjs: illegal transition ${from} → ${phase}. Allowed from ${from}: ${allowed.join(", ")}`);
     console.error(`  (Use a trusted-writer path if this is a legitimate override; the DAG prevents the 'set-phase done' master-bypass.)`);
     exit(6);
+  }
+  // WIRING (item 24, 2026-08-21): regression-gate --check shipped with zero code callers —
+  // --snapshot ran from two sites and the done refusals below consumed the status, but nothing
+  // ever ran the comparison, so both clauses guarded a field nothing sets (the README's ⚠️ row).
+  // The invoke rides the done entry itself: it runs the pass-to-pass comparison over the exact
+  // tree the final wave judged, records st.regression via the check's own writer, and the state
+  // is re-read so the refusals see the FRESH lane. The subprocess's exit code never gates here
+  // — the recorded status does (exit 8 regressed / 6 toolchain-drift surface via the refusal
+  // messages, which is where a human reads them). A refused done that is retried re-runs the
+  // check, so fixing the regression produces a fresh verdict, not a stale refusal.
+  if (phase === "done") {
+    try {
+      execFileSync(process.execPath, [new URL("./regression-gate.mjs", import.meta.url).pathname, repo, slug, "--check"],
+        { stdio: ["ignore", "inherit", "inherit"], timeout: REGWIRE_TIMEOUT_MS });
+    } catch { /* the recorded lane is the verdict; see the comment above */ }
+    try { cur = JSON.parse(readFileSync(statePath, "utf8")); } catch { /* keep the pre-check read */ }
   }
   // check preconditions for the destination
   const pc = checkPrecondition(cur, phase, acceptWaivers);
