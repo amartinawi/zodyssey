@@ -16,7 +16,7 @@ Census re-measured 2026-08-16 (this run, not an ideation-doc number): grep for `
 run `scripts/compact.mjs <repo> <slug>`" — an instruction addressed to the conductor, inside the
 phase-6 OPTIONAL COMPACTION box at `:172-179`), `skills/odyssey/SKILL.md:227` ("the **optional**
 `_compact-brief.md`"), `skills/odyssey/references/scripts.md:17` ("OPTIONAL pre-final-wave
-notepad compactor"), `README.md:59`, `README.md:82`, `README.md:283`, `CHANGELOG.md:905`. The
+notepad compactor"), `README.md:59`, `README.md:82`, `README.md:280`, `CHANGELOG.md:921`. The
 script's own header admits it: `skills/odyssey/scripts/compact.mjs:20-21` — "OPT-IN: the
 orchestrator MAY call this before phase-6 dispatch. It is not mandatory and not wired into any
 phase transition or hook."
@@ -60,7 +60,7 @@ adding a second — the assertion is the same `phase === "final"`). It invokes
 | Aggregate non-empty lines across source notepads > N | `_compact-brief.md` is (re)written; the brief path is printed (existing `compact.mjs:144`, via `stdio: "inherit"`); transition exits 0 |
 | Aggregate ≤ N | **Inert**: exit 0, no brief written, nothing deleted, one line printed saying below-threshold |
 | `ZODYSSEY_NO_AUTO_COMPACT=1` in the environment | Wiring skipped entirely — no invocation, no brief |
-| No notepad dir / any compact failure or timeout | Best-effort: a warning line on stderr, transition still exits 0 (the B8/CRIT-4a posture at `set-phase.mjs:341`, `:479`) |
+| No notepad dir / any compact failure or timeout | Best-effort: a warning line on stderr, transition still exits 0 (the B8/CRIT-4a posture at `set-phase.mjs:364`, `:502`) |
 
 The threshold unit is **aggregate non-empty lines across source notepads** — line count, not token
 count, because that is compact.mjs's own deterministic unit (`compact.mjs:30-31`, the same
@@ -92,7 +92,7 @@ refusal, no state lane. Context economy that could block a transition would be o
 new failure of the class this change exists to remove.
 
 Mechanism notes, secondary to the behaviour: invoke via `execFileSync` with a hard timeout (~10s —
-a directory walk, not a suite run; contrast B8's 15min at `set-phase.mjs:339-340`) AFTER the phase
+a directory walk, not a suite run; contrast B8's 15min at `set-phase.mjs:362-363`) AFTER the phase
 write and OUTSIDE the state lock (the B8 shape; the lock is released in the `finally` at
 `:323-325`); policy (threshold constant, opt-out env var) lives in `set-phase.mjs`, keeping
 `compact.mjs` policy-free.
@@ -242,7 +242,7 @@ Failure-mode check (Step 6): audited against the five ways this project has actu
    every run of the suite.
 3. **Ceremony without mechanism.** This is the change's own subject: a "MAY run" sentence
    addressed to a conductor (`SKILL.md:173`) becomes a transition invoke with a printed signal —
-   the exact transformation the repo's B8 comment prescribes (`set-phase.mjs:330-332`).
+   the exact transformation the repo's B8 comment prescribes (`set-phase.mjs:353-355`).
 4. **Self-grading.** Every criterion is machine-executed with a recorded exit code; the paired
    probe runs against both builds. Nobody grades prose.
 5. **A fix that reopens its own class.** Covered in "The class it closes" — the dangerous
@@ -286,7 +286,7 @@ lines)_` (`compact.mjs:114`), the source notepads remain on disk byte-identical 
 full-fidelity path, and SKILL.md's own framing (`:226`) already positions the brief as the
 large-run alternative to delegated full reads — an F-wave needing depth reads the source by path;
 the brief is the map. Blast radius beyond that, honestly: (a) every "(optional)" claim about
-compaction goes stale the moment it auto-fires — `README.md:59`, `README.md:82`, `README.md:283`,
+compaction goes stale the moment it auto-fires — `README.md:59`, `README.md:82`, `README.md:280`,
 `references/scripts.md:17`, `SKILL.md:172-179`, `:226` — a doc-code drift manufactured by this
 change unless the doc pass lands with it (see "Docs to update"); (b) the `final` transition gains
 one node child-process spawn and a directory walk — milliseconds, with a ~10s timeout and a
@@ -348,7 +348,7 @@ its own"), each checked against the 2026-08-16 tree:
   unchanged; `--min-lines` documented; the additive invariant stated as tested, not promised.
 - `README.md:59`, `README.md:82` — the diagram and phase-list "(optional)" qualifiers update to
   "automatic for large runs".
-- `README.md:283` — the comparison-table row ("Notepad compaction (#8)") states the transition
+- `README.md:280` — the comparison-table row ("Notepad compaction (#8)") states the transition
   and the never-mutates-sources claim now carries "asserted by test".
 - `docs/DESIGN.md` — the phase-transition/state-flow description gains the final-entry compaction
   as a derived artifact (verify the exact section — §6 and the components table — at build time;

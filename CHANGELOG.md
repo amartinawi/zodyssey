@@ -2,6 +2,22 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.17] — 2026-08-21
+
+### Fixed — the regression gate is wired: `done` runs the comparison (item 24)
+
+regression-gate.mjs --check shipped in v0.6.0's B8 wave with zero code callers — the snapshot
+ran, the done refusals waited, and nothing ever compared. The done transition now invokes
+--check over the exact tree the final wave judged, re-reads the recorded lane, and refuses on
+what it says; the subprocess exit never gates, the recorded status does. Gate-vs-inert
+unchanged: inert/no-baseline never block, an already-red baseline is recorded, not enforced.
+The 54th suite pins invoke+record+consume together (12/12; 4/12 on the pre-wiring tree), and
+the eval-lane suite's refused-done fixture now derives its regression from a real red suite.
+README's enforcement table loses its last ⚠️ row — zero half-wirings remain. Also: docs
+swept current (README diagrams F1–F5, delta rows for v0.6.15/v0.6.16), the stale illustrative
+citation pair in check-anchors.mjs re-pointed (consult-r3 advisory), and item 23's INDEX row
+backfilled.
+
 ## [0.6.16] — 2026-08-21
 
 ### Fixed — per-call project-scoped run selection: one workspace, several projects (items I1–I6)

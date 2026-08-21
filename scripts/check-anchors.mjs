@@ -21,7 +21,7 @@
 //
 // EVERY NUMBER OF A CITATION, not just its first (impl-21). Docs cite one path with several
 // numbers: comma chains (`harness.mjs:88,62`, `:69-70,19,128-131`), slash continuations
-// (`CHANGELOG.md:622/:740`), and bare-colon continuations (`…pre-tool.mjs:875 … and :905-930`)
+// (`CHANGELOG.md:671/:771`), and bare-colon continuations (`…pre-tool.mjs:875 … and :905-930`)
 // that bind to the nearest preceding path-form cite on the SAME line. Every number gets its own
 // range check, contentless check, pin, and drift check, and every `a-b` range is validated a ≤ b
 // at parse time — a reversed pair is its own problem kind `backwards-range`, because
@@ -90,7 +90,7 @@ const CITE = /(?<![\w/.\-])(\.?[A-Za-z0-9_][A-Za-z0-9_./\-]*\.(?:mjs|md|json|jso
 // today's separator shapes: after a path-form cite, a contiguous run of further number elements —
 // each `N` or `N-M` (en dash included), each joined to the previous element by `,` or `/` with
 // optional whitespace and an optional leading `:` — belongs to the same path. Live dialects this
-// covers: `harness.mjs:88,62`, `:69-70,19,128-131`, `CHANGELOG.md:622/:740`. Sticky-flagged so it
+// covers: `harness.mjs:88,62`, `:69-70,19,128-131`, `CHANGELOG.md:671/:771`. Sticky-flagged so it
 // can only ever match exactly where the preceding element ended.
 const CHAIN_ELEMENT = /\s*[,/]\s*:?\s*(\d+)(?:\s*[-–]\s*(\d+))?/y;
 // A bare `:N`/`:N-M` whose colon is not preceded by a word char, dot, or dash — so `12:30`,

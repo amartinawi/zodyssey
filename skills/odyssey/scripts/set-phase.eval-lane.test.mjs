@@ -142,14 +142,29 @@ console.log("set-phase.mjs eval lane — synthetic runs never touch the operator
 }
 
 // --- (f) a refused done measures nothing: no append in either lane -----------------------------
+// Item 24 wired regression-gate --check into the done entry, so a hand-planted
+// `regressed` lane is re-derived from the real suite before the refusal evaluates. The
+// regressed state is therefore planted the honest way: a toolchain whose suite is red NOW
+// over a green recorded baseline — the same shape set-phase.regression-wiring.test.mjs
+// pins from the other side. The lane semantics under test (a REFUSED done appends to
+// neither lane) are unchanged.
 {
   const repo = makeRepo(), home = mkdtempSync(join(tmpdir(), "zod-lane-home-f-"));
   cleanup.push(home);
+  const tcPath = join(repo, ".zcode", "toolchain.json");
+  writeFileSync(tcPath, JSON.stringify({ test_cmd: "node -e process.exit(1)" }));
+  const tcSha = spawnSync(process.execPath, ["-e",
+    `console.log(require("crypto").createHash("sha256").update(require("fs").readFileSync(${JSON.stringify(tcPath)})).digest("hex"))`,
+  ], { encoding: "utf8" }).stdout.trim();
   writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
     slug: "t", phase: "final", updated_at: new Date().toISOString(),
     review: { verdict: "OKAY", round: 1, max_rounds: 3 },
     final: { verdict: "pass" },
-    regression: { status: "regressed" },
+    regression: {
+      status: "baselined", toolchain_sha256: tcSha,
+      baseline: { exit_code: 0, timed_out: false, failures: [], at: new Date().toISOString(), green: true, cmd: "node -e process.exit(1)" },
+      at: new Date().toISOString(),
+    },
   }, null, 2));
   const r = phase(repo, "done", home, "synthetic");
   check("(f) refused done exits non-zero", r.status !== 0, `(exit ${r.status})`);

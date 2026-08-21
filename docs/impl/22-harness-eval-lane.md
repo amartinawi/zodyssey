@@ -38,8 +38,8 @@ operator lane. The lane contract was never ambiguous: skills/odyssey/references/
 compliant precedent (`env: { ...process.env, ZODYSSEY_EVAL_LANE: "synthetic" }`). Consequence:
 every harness-driven baseline record landed in `results.jsonl`, the operator's trend log — the
 exact corpus-decontamination class item 05 closed for set-phase (the consumer at
-skills/odyssey/scripts/set-phase.mjs:471-474), reopened by the harness that postdates it.
-Candidate C4, docs/impl/00-INDEX.md:205-211. Proved before any edit: the hermetic RED probe of
+skills/odyssey/scripts/set-phase.mjs:494-497), reopened by the harness that postdates it.
+Candidate C4, docs/impl/00-INDEX.md:207-213. Proved before any edit: the hermetic RED probe of
 2026-08-20 (under *Paired probe*) watched one `arm:"baseline"` record land in a temp HOME's
 operator lane while the synthetic file was never created — and the probe's own success condition
 encoded that broken routing, which is what "exit 0 with the defect present" means.
@@ -113,7 +113,7 @@ superset of the enumerated spawn-env inheritance, per the deviation flagged abov
 - **No touching the real `~/.zcode/orchestration/eval/`.** Every probe and test is hermetic
   (mkdtemp HOME); the 2 polluted `arm:"baseline"` records REMAIN in the operator corpus —
   data remediation is an operator-side decision, documented here, never executed by this run.
-- **No set-phase.mjs edits.** The lane consumer (skills/odyssey/scripts/set-phase.mjs:471-474)
+- **No set-phase.mjs edits.** The lane consumer (skills/odyssey/scripts/set-phase.mjs:494-497)
   was already correct; this fix is producer-side only.
 - **No `--update` before verify-at-source.** `--update` re-pins whatever is there; the fixed
   order is: change code → run the checker → verify or fix every citation at its source → then
@@ -230,7 +230,7 @@ re-execute them byte-exact.
 
 **Corpus decontamination — "a synthetic generator that never declares its lane."** Item 05
 split the telemetry lanes so the operator's trend log holds real runs only, and taught the
-consumer (set-phase, at skills/odyssey/scripts/set-phase.mjs:471-474) to honor a declaration.
+consumer (set-phase, at skills/odyssey/scripts/set-phase.mjs:494-497) to honor a declaration.
 Candidate C4 is the live instance of failure mode 5 — a fix that reopens its own class, in the
 operator's enumeration: the harness was built AFTER item 05, in ignorance of the contract, and
 became a second producer whose records no declaration ever labeled. Measured, 2 fake
@@ -256,7 +256,7 @@ Two residuals are explicitly NOT closed, stated honestly:
 ## Docs to update
 
 - **`docs/impl/00-INDEX.md`** — queue row 22 lands line-count-neutral (218 held); candidate
-  C4's paragraph (docs/impl/00-INDEX.md:205-211) takes its promotion stamp in-row, with the
+  C4's paragraph (docs/impl/00-INDEX.md:207-213) takes its promotion stamp in-row, with the
   superset consequence stated (spawns tagged AND the self-append routed; 2 polluted records
   documented, not deleted).
 - **`CHANGELOG.md`** — the `[0.6.15]` entry directly under the header, transcribing the shape

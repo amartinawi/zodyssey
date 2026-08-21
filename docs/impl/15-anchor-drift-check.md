@@ -82,7 +82,7 @@ dialects in live use:
 | `SKILL.md:370` | `skills/odyssey/SKILL.md` |
 | `trusted-invoke.test.mjs:101` | `skills/odyssey/hooks/pre-tool.trusted-invoke.test.mjs` (basename suffix match) |
 | `.zcode-plugin/plugin.json:44` | itself — **leading dot; a naive `[A-Za-z]`-anchored regex drops it** |
-| `pre-tool.mjs:817`, `set-phase.mjs:339` | `skills/odyssey/hooks/`, `skills/odyssey/scripts/` |
+| `pre-tool.mjs:817`, `set-phase.mjs:362` | `skills/odyssey/hooks/`, `skills/odyssey/scripts/` |
 
 Resolution order must be deterministic and **ambiguity must fail, not guess** — if a bare basename
 matches two files, that is a citation defect to report, not a coin flip. A false positive here is
@@ -293,7 +293,7 @@ the filename before the line number, and CHANGELOG.md keys are exempt from the l
   that carries no
   filename, so a shifted file leaves it stale while the suite stays green (found by external
   audit round 2; reconciled via git-hunk-derived shift bands, commit `7b33454`).
-- **comma/slash continuations** — `CHANGELOG.md:753, :845`, `:655/:755`, `md:144,142` — same
+- **comma/slash continuations** — `CHANGELOG.md:769, :861`, `:671/:771`, `md:144,142` — same
   blindness inside the then-exempt CHANGELOG target (found by round 3; impl-21 ended the exemption — every number is checked and pinned now).
 - **path-then-parenthetical-range** — the file named with no `:NNN` while the claim's range rides
   inside parentheses later in the entry, like `docs/impl/05`'s append-site cite `` (`:430-457`) ``

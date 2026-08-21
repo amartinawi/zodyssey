@@ -39,9 +39,9 @@ Measured against the shipped build, one armed post-OKAY run, three tools, the sa
 | `mcp__fs__write_file` | the run's own `.zcode/state/t.json` | 2 (H3 holds) |
 
 So the gate-takeover chain — the repo's canonical worst incident, the Bash write-gate deleted twice
-(`CHANGELOG.md:782`, `CHANGELOG.md:951`) — is still reachable from inside a normally-approved run,
+(`CHANGELOG.md:798`, `CHANGELOG.md:967`) — is still reachable from inside a normally-approved run,
 by changing tool a second time. This is the "one path but not its twin" class
-(`CHANGELOG.md:520-530`) at triplet scale: fixed on Edit, fixed on Bash, open on everything else.
+(`CHANGELOG.md:536-546`) at triplet scale: fixed on Edit, fixed on Bash, open on everything else.
 
 ## What fixed means
 
@@ -221,12 +221,12 @@ broken the gate's twin-parity in the other direction.
   files outside the plan's declared scope, because the hook cannot tell a write from a read there.
   That is a real residual — it is the isolation gap, not the takeover gap. Closing it needs the
   harness to declare tool write-capability, the same shape of dependency as the nonce-to-transcript
-  binding (`CHANGELOG.md:356`). Name it in the CHANGELOG under *Known, not fixed*.
+  binding (`CHANGELOG.md:372`). Name it in the CHANGELOG under *Known, not fixed*.
 
 ## The class it closes
 
 **"A guard added to one path and not its twin."** The repo's most persistent shape:
-`CHANGELOG.md:520-530` documents an entire release of them, and v0.5.0's own re-verification found
+`CHANGELOG.md:536-546` documents an entire release of them, and v0.5.0's own re-verification found
 two more inside the release that was written to hunt them. Item 01 closed the Edit twin; this
 closes the third sibling.
 
@@ -298,4 +298,4 @@ segment-tolerant, but prose after the token breaks the parse.
 ~15 lines in the hook (one derived constant, two entries appended to `protectedDirs`), ~60 lines of
 new assertions in the existing scope suite, plus the citation reconciliation over 50 pinned
 anchors. **Patch release, shipped alone** — it is security-class, and the repo's rule is one
-security change per release (`CHANGELOG.md:424`).
+security change per release (`CHANGELOG.md:440`).

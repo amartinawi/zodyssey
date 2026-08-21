@@ -129,8 +129,8 @@ flowchart TD
 | **The declared work actually happened** | not enforced | F1 checks the converse: a plan declaring files against an empty diff fails instead of passing vacuously |
 | **Evidence can't be destroyed** | not enforced | notepads are append-only — `Write` over an existing one is blocked, `Edit` is not |
 | **`done` requires executed evidence** | not enforced | `record-todo` refuses `done` without passing `verify.history` records; `--force-done` is allowed but stamps `forced: true` |
-| **No pass-to-pass regressions** | not enforced | ⚠️ **still half-wired — see note below.** The suite is snapshotted at review-record (`record-review.mjs:295`) and entering `execute` (`set-phase.mjs:339`), and `set-phase … done` refuses on both `regressed` and `toolchain-drift` (`set-phase.mjs:131`, `set-phase.mjs:137`) — a refusal is not a pass. But **nothing invokes `--check`**, the only path that writes either value, so the comparison never runs and both clauses guard a field nothing sets. An already-red suite is never blamed on the run |
-| **Imports resolve** | not enforced | `check-imports.mjs` flags packages in neither the manifest nor `node_modules`, offline, exiting 9. **Wired both sides in v0.6.0** (queue item 02): invoked at verify entry (`set-phase.mjs:380`), recorded to `state.imports`, consumed by a `done` refusal on `status === "unresolved"` (`set-phase.mjs:152`). `inert` and a missing lane still pass, so it cannot wedge a repo it can't evaluate |
+| **No pass-to-pass regressions** | not enforced | the pass-to-pass property, wired both sides as of **v0.6.17** (queue item 24). The suite is baselined at execute entry (`set-phase.mjs:362`, idempotent; `record-review.mjs` captures the same on its OKAY advance), and **the `done` transition itself runs `regression-gate.mjs --check`** (`set-phase.mjs:304`) over the exact tree the final wave judged, re-reads the state, then refuses on `regressed` and `toolchain-drift` (`set-phase.mjs:131`, `:137`) — the invoke half this row shipped without until item 24. An already-red suite is never blamed on the run; no toolchain degrades to `inert`, never a block |
+| **Imports resolve** | not enforced | `check-imports.mjs` flags packages in neither the manifest nor `node_modules`, offline, exiting 9. **Wired both sides in v0.6.0** (queue item 02): invoked at verify entry (`set-phase.mjs:403`), recorded to `state.imports`, consumed by a `done` refusal on `status === "unresolved"` (`set-phase.mjs:152`). `inert` and a missing lane still pass, so it cannot wedge a repo it can't evaluate |
 | **No retrying an unchanged workspace** | not enforced | `record-verify` refuses to re-run a criterion whose worktree is byte-identical to its last failure (exit `10`). Ported from prime-agent |
 | **Citations still point where they claim** | not enforced | every number of every citation shape — single lines, ranges, comma chains, slash and bare-colon continuations — is range-checked and content-pinned in `scripts/anchors.lock.json` (532 citations across 61 docs, measured 2026-08-19 post-re-baseline; one `--update` re-baseline per release re-pins them after at-source verification). Accepted under-coverage: a bare `:N` continuation with no same-line path-form antecedent is not discovered, so it is neither range-checked nor pinned — discovered shapes only. Citations into `CHANGELOG.md` are content-pinned like any other target: its top section is scanned while released history below the second version heading stays frozen, and `check-anchors.test.mjs` fails `npm test` when a cited line changes. Pins content, not line numbers, so an in-place edit is caught too. The lock proves *unchanged since seeding*, never *correct*: re-seeding a citation whose meaning moved silences it |
 | **Non-native tools can't write the enforcement surface** (v0.5.4) | n/a | Edit and Bash were already gated, leaving MCP/non-native tools as the last class that could rewrite the gate from inside an approved run. The H3 guard in `pre-tool.mjs` blocks them from `skills/odyssey`, `agents`, `commands`, the manifest and the hook registry. Read-only MCPs and ordinary repo work are unaffected |
@@ -141,21 +141,18 @@ flowchart TD
 | **A synthetic generator declares its lane at every producer site** (v0.6.15) | not enforced | the eval harness (`skills/odyssey/scripts/harness.mjs`) tags **every** spawn that can reach `set-phase.mjs` with `ZODYSSEY_EVAL_LANE: "synthetic"` (spreading `...process.env` first) **and** routes its baseline arm's direct self-append to `results.synthetic.jsonl` via an unconditional constant — closing the leak the harness itself had reopened through the one append path no spawn env can reach. The regression suite proves the inversion hermetically, immune to an inherited lane variable |
 | **Each tool call is judged by the project it touches** (v0.6.16) | not enforced | per-call project-scoped run selection: one workspace holding several projects no longer lets a single "active run" govern every check. Protected dirs are the union across runs (a cleared gate in project-a cannot admit writes into project-b's state), ledger/probe routing follows the *targeted* project, the full-runs cache is TTL-bounded so a project created mid-window becomes visible, one shared plan-path resolver fail-closes foreign/absolute plan paths, and `scaffold` stamps a project binding the discovery walks enforce — pre-0.6.16 markers verify byte-identically. Design: [`docs/DESIGN.md`](docs/DESIGN.md) §6.2 |
 
-> **⚠️ One row above is still not enforced — was two, corrected 2026-08-19.** Queue item 02 shipped
-> in **v0.6.0** and wired `check-imports`, `coverage-delta` and `resolve-capabilities` the two-sided
-> way a gate needs: an invoke *and* a consumer that refuses on what it recorded. The "Imports
-> resolve" row is now a guarantee.
->
-> `regression-gate.mjs --check` was **not** in item 02's scope and still has **zero code callers**.
-> `--snapshot` runs from two sites, but nothing ever compares, so the two `done` refusals at
-> `set-phase.mjs:131` and `set-phase.mjs:137` guard a field only `--check` can write. The source
-> says so itself at `set-phase.mjs:146`: *"an invoke whose recorded state nothing consumes is the
-> half-wiring the regression gate shipped with."* Every other row in this table is hook- or
+> **✓ Zero rows left half-wired — was two, corrected 2026-08-19 and 2026-08-21.** Queue item 02
+> (v0.6.0) wired `check-imports`, `coverage-delta` and `resolve-capabilities` the two-sided way a
+> gate needs: an invoke *and* a consumer that refuses on what it recorded. Queue item 24
+> (**v0.6.17**) closed the last one: `regression-gate.mjs --check` had zero code callers —
+> `--snapshot` ran from two sites, but nothing ever compared, so the two `done` refusals guarded
+> a field only `--check` can write. The `done` transition now runs the check itself, re-reads
+> the recorded lane, and refuses on what it says. Every row in this table is hook- or
 > script-enforced on the path to `done`.
 >
-> This is the difference between *shipping a mechanism* and *wiring it*, and it is the exact class
-> the table exists to claim ZOdyssey has solved. Treat that one row as a capability you must
-> invoke, not a guarantee you receive.
+> The lesson both corrections encode: shipping a mechanism is not wiring it, and an invoke whose
+> recorded state nothing consumes is indistinguishable from ceremony. Both half-wirings were
+> caught only because this table demanded the row be true, not merely present.
 
 All hooks are **NO-OP unless an orchestration run is active**. Normal ZCode editing is never affected. A run is "active" only between `/orchestrate` and reaching a terminal phase (`done`/`audited`/`abandoned`/`blocked`), and only inside the repo where you invoked it.
 
