@@ -87,7 +87,7 @@ qualitative, vague, or absent → **no round** — the trigger fails and the flo
 scaffold when it creates the run: `scripts/scaffold.mjs <repo> <slug> <title> <intent> [task-brief]
 --criteria-state confirmed|adjusted|skipped` (the invocation the conductor already makes, at
 `skills/odyssey/SKILL.md:389`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
-writes for the primed brief (`skills/odyssey/scripts/scaffold.mjs:233`, `:242`) — with a first
+writes for the primed brief (`skills/odyssey/scripts/scaffold.mjs:239`, `:242`) — with a first
 line:
 
 ```
@@ -135,7 +135,7 @@ The declared editable set — this becomes the fix-run plan's `Files:` list, ver
 
 Nothing else. `agents/prometheus.md` stays untouched (the user's role is upstream by design —
 see Must NOT do). `skills/odyssey/scripts/consult.mjs` is untouched: it reads `<slug>.task.md` as
-THE ORIGINAL TASK (`consult.mjs:754`, `:765`) and the stamp is a first-line HTML comment in what is
+THE ORIGINAL TASK (`consult.mjs:767`, `:765`) and the stamp is a first-line HTML comment in what is
 otherwise prose context. Hooks are untouched — this is not a gate and must never become one.
 `docs/` belongs to the release pass, not the gated run.
 
@@ -318,7 +318,7 @@ The costs, stated exactly:
   `docs/OPPORTUNITY-MAP.md:267`) converted into the degradation clause; state it in the SKILL.md
   text itself so the opt-out is documented where the conductor reads it.
 - **Byte-exact consumers of `<slug>.task.md`.** `consult.mjs` reads the file as THE ORIGINAL TASK
-  for scope-fidelity judgment (`consult.mjs:754`, `:765`); a first-line HTML comment is additive to
+  for scope-fidelity judgment (`consult.mjs:767`, `:765`); a first-line HTML comment is additive to
   what is otherwise prose context — but re-verify consult's tolerance at build time before
   landing, and if any consumer ever byte-compares the file, the stamp is the thing to reconcile,
   never the brief body.

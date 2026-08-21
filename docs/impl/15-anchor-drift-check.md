@@ -80,7 +80,7 @@ dialects in live use:
 | `references/scripts.md:47` | `skills/odyssey/references/scripts.md` |
 | `scripts.md:47`, `capabilities.md:10` | `skills/odyssey/references/` |
 | `SKILL.md:370` | `skills/odyssey/SKILL.md` |
-| `trusted-invoke.test.mjs:105` | `skills/odyssey/hooks/pre-tool.trusted-invoke.test.mjs` (basename suffix match) |
+| `trusted-invoke.test.mjs:101` | `skills/odyssey/hooks/pre-tool.trusted-invoke.test.mjs` (basename suffix match) |
 | `.zcode-plugin/plugin.json:44` | itself — **leading dot; a naive `[A-Za-z]`-anchored regex drops it** |
 | `pre-tool.mjs:817`, `set-phase.mjs:339` | `skills/odyssey/hooks/`, `skills/odyssey/scripts/` |
 

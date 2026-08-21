@@ -64,7 +64,7 @@ Stated as observable behaviour, not as a diff:
    append-only guard; `.zcode/state/` targets exit 2 (`:739`); pre-OKAY outside targets already
    exit 2 (`:798`); with no active run the hook is a no-op exit 0.
 3. A plan that literally declares an outside absolute path in `Files:` keeps working: containment
-   at `skills/odyssey/hooks/pre-tool.mjs:850-851` is an exact-or-prefix string match on `rel`, so
+   at `skills/odyssey/hooks/pre-tool.mjs:940-941` is an exact-or-prefix string match on `rel`, so
    once `rel` carries the absolute path, a declared exact match passes. The fix blocks only
    UNdeclared outside targets.
 
@@ -228,7 +228,7 @@ radius is near zero, because the Bash twin already refuses the identical targets
 above): any workflow that "needed" this path was already broken for every write-capable Bash
 command — this converges the two tools rather than adding a restriction. A plan that deliberately
 declares an outside absolute path keeps working (exact-match semantics at
-`skills/odyssey/hooks/pre-tool.mjs:850-851`). Nested-repo runs are unaffected — their targets
+`skills/odyssey/hooks/pre-tool.mjs:940-941`). Nested-repo runs are unaffected — their targets
 classify through the run-repo branch (`:681-692`). No existing Edit-path assertion flips: the
 scope suite builds all 18 of its target paths inside the run repo (`join(repo, …)` throughout
 `skills/odyssey/hooks/pre-tool.scope.test.mjs`), and the `/tmp` mentions in the other `pre-tool`

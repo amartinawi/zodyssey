@@ -108,7 +108,7 @@ Stated as observable behaviour, not as a diff:
    hatch is the operator's explicit choice — a write error must not silently revoke it, and stderr
    is the only channel a PreToolUse hook has that reaches the transcript.
 6. With no active run, behaviour is unchanged: the no-run exit at
-   `skills/odyssey/hooks/pre-tool.mjs:548` fires long before `:1064`, so there is no slug, no
+   `skills/odyssey/hooks/pre-tool.mjs:574` fires long before `:1064`, so there is no slug, no
    ledger, and the hook stays a no-op exit 0 (Step-5 constraint: every hook is a no-op unless a
    run is active).
 7. A shared test asserts the class, not just this instance: the regression suite scans the hook's
@@ -121,7 +121,7 @@ Stated as observable behaviour, not as a diff:
 `appendFileSync(join(RUN_STATE_DIR, `${state.slug}.ungated.jsonl`), JSON.stringify({ at: new
 Date().toISOString(), command: cmd }) + "\n")` inside try/catch with the stderr fallback — called
 immediately before the `exit(0)` at `:978`. Both `RUN_STATE_DIR` and `state.slug` are already in
-scope there (`:553`, `:548`), and per-run sidecar files in `.zcode/state/` have two in-file
+scope there (`:553`, `:574`), and per-run sidecar files in `.zcode/state/` have two in-file
 precedents (the parallel-cap ledger at `:343-346`, the payload probe at `:562-571`). The `.jsonl`
 suffix cannot be mistaken for a state file by run discovery (which matches `*.json`). The criteria
 below are the contract, not the mechanism.
@@ -275,7 +275,7 @@ prove nothing else moved. Fixture forms live in the suite; the live forms are cr
 | `echo x >> undeclared.txt` with the variable unset/empty | exit **2** (scope/review gate), no record | exit **2**, no record — unchanged |
 | `ls` (read-only) with the variable unset | exit **0**, no record | exit **0**, no record — read-only passthrough is not a bypass |
 | `node …/skills/odyssey/scripts/set-phase.mjs …` (trusted invoke), variable unset | exit **0**, no record | exit **0**, no record — branch 2, not the hatch |
-| Any Bash call with the variable set, **no active run** | exit **0** (`:548`), no ledger | exit **0**, no ledger — a no-op hook audits nothing |
+| Any Bash call with the variable set, **no active run** | exit **0** (`:574`), no ledger | exit **0**, no ledger — a no-op hook audits nothing |
 | `run-report.mjs <repo> <slug> --json` | no `ungated_bash_calls` field | `"ungated_bash_calls": N` (0 with no ledger) |
 
 A probe that changes any exit code in the "After" column has over-reached (the hatch must still

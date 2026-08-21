@@ -57,7 +57,7 @@ blind to which arm produced the work. The stamp is record bookkeeping only.
 
 **2. `harness.mjs --arm baseline` runs the seed end-to-end without orchestration.** The shared
 prefix — fresh fixture copy (`:95-97`), the SEC-M12 git baseline (`:103-113`), the scaffold
-(`:117-124`, which records `run_start_sha` at `skills/odyssey/scripts/scaffold.mjs:254,312` —
+(`:117-124`, which records `run_start_sha` at `skills/odyssey/scripts/scaffold.mjs:318` —
 this is what makes the run judgeable, `judge.mjs:182-185`) — is UNCHANGED and runs for BOTH arms.
 Then, instead of printing instructions, the harness spawns **one** external CLI agent (the same
 binary `judge.mjs:262` already resolves: `env.CLAUDE_CLI || "claude"`), with cwd = the fresh copy,
