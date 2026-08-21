@@ -78,7 +78,7 @@ criteria are the contract, not the mechanism.)
 
 Two edges to handle knowingly, not accidentally:
 
-- **No-target events.** `if (!p)` at `skills/odyssey/hooks/pre-tool.mjs:665` returns `rel: ""` for
+- **No-target events.** `if (!p)` at `skills/odyssey/hooks/pre-tool.mjs:745` returns `rel: ""` for
   an Edit payload with no resolvable path, which still falls to the allow at `:996`. The standing
   rule says an unverifiable target should Fail closed — but widening this change past the
   demonstrated class is out of scope. If you leave it, name it in *Known, not fixed*.
@@ -293,7 +293,7 @@ the same file.
   probes, not just its diffs.
 - **Known, not fixed** — name them; the next audit should not have to find them:
   - Edit events with no resolvable target path still pass (`if (!p)` at
-    `skills/odyssey/hooks/pre-tool.mjs:665`) — left open if the minimal fix leaves it.
+    `skills/odyssey/hooks/pre-tool.mjs:745`) — left open if the minimal fix leaves it.
   - Root-equality edge: a target exactly equal to the run repo or `PROJECT_DIR` returns `rel: ""`
     on both twins; the tools reject directory targets themselves.
    - Pre-existing residuals this change does not touch: the new-file lexical fallback / symlink

@@ -10,7 +10,7 @@
 //   record-momus-artifact.mjs <repo> <slug> [<round>] [--momus-session S] [--from <file>]
 //     <round> is OPTIONAL and 1-indexed; omit it and it is computed from state.review.round.
 //   (verdict JSON on stdin if no --from)
-//   exit: 0 ok · 2 bad args · 3 no state file · 6 invalid verdict JSON
+//   exit: 0 ok · 2 bad args · 3 no state file · 6 invalid verdict JSON · 9 plan_path isolation violation
 //
 // Atomic write under O_EXCL lockfile with stale-lock reaping.
 
@@ -20,6 +20,7 @@ import { argv, exit, stdin } from "node:process";
 import { createHash } from "node:crypto";
 import { resolveRepo, resolvePath, containedIn } from "./lib/repo-path.mjs";
 import { verdictFromProse, blockersFromProse } from "./lib/verdict-schema.mjs";
+import { resolvePlanPath } from "./lib/plan-path.mjs";
 
 const [repo, slug, ...tail] = argv.slice(2);
 // <round> is optional, so the third positional may actually be the first FLAG. Only treat it as a
@@ -156,7 +157,11 @@ const artifactPath = join(reviewsDir, `${slug}-r${round}.json`);
 let planSha256 = "";
 try {
   const stForPlan = JSON.parse(readFileSync(statePath, "utf8"));
-  const planPathForSha = stForPlan.plan_path || join(repo, ".zcode", "plans", `${slug}.md`);
+  // I3 (audit 2026-08-20): hash only a plan inside THIS run's repo. A foreign plan_path is a
+  // hard refusal with the named reason — an empty hash would merely fail record-review's
+  // binding later, without ever naming the cause.
+  const { planPath: planPathForSha, violation } = resolvePlanPath(stForPlan, repo);
+  if (violation) { console.error(`record-momus-artifact.mjs: ${violation} (state: ${statePath})`); exit(9); }
   planSha256 = createHash("sha256").update(readFileSync(planPathForSha, "utf8")).digest("hex");
 } catch {}
 

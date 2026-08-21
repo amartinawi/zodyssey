@@ -20,7 +20,7 @@ sub-agent, the MCP tools will simply be absent and the step fails opaquely.
 ## The real flag (do not invent a bare `--f3`)
 
 `record-final-wave.mjs` accepts **`--f3-checklist <path>`** — NOT `--f3`. Verified at
-`scripts/record-final-wave.mjs:10, :15, :28, :36`. The F3 check (`record-final-wave.mjs:372-387`) resolves the path,
+`scripts/record-final-wave.mjs:10, :15, :29, :36`. The F3 check (`record-final-wave.mjs:372-387`) resolves the path,
 requires the file to **exist** and be **non-empty** (`content.trim().length > 0`), and records
 `results.F3 = { passed, checklist }`. There is **no JSON parse, no "pass" keyword scan** — the gate
 is non-emptiness, and the pass/fail semantics live in whatever *you* write into the checklist. (For

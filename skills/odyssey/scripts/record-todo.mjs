@@ -8,7 +8,7 @@
 // Usage:
 //   record-todo.mjs <repo> <slug> <id> <status> [--attempts N] [--session S] [--force-done]
 //     status: pending | in_flight | done | failed | blocked
-//   exit: 0 ok · 2 bad args · 3 no state file · 7 done refused (no verify evidence)
+//   exit: 0 ok · 2 bad args · 3 no state file · 7 done refused (no verify evidence) · 9 plan_path isolation violation
 //
 // Atomic write under O_EXCL lockfile with stale-lock reaping (same pattern as the hooks).
 
@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSyn
 import { join } from "node:path";
 import { argv, exit } from "node:process";
 import { execFileSync } from "node:child_process";
+import { resolvePlanPath } from "./lib/plan-path.mjs";
 
 const [repo, slug, id, status, ...rest] = argv.slice(2);
 if (!repo || !slug || !id || !status) {
@@ -77,8 +78,18 @@ function verifyEvidenceFor(st, todoId) {
   // truth record-verify uses for acceptance[].pass, so the two can no longer disagree.
   // Fail OPEN on an unreadable plan (keep the old behaviour) rather than blocking every run in a
   // repo whose plan cannot be parsed — the ≥1-passing floor still applies there.
+  // I3 exception: a plan_path pointing into ANOTHER repo is an isolation violation, not an
+  // unreadable plan — exit non-zero with the named reason instead of keeping the floor on
+  // foreign bytes.
+  const { planPath, violation } = resolvePlanPath(st, repo);
+  if (violation) {
+    // verifyEvidenceFor runs inside the state-lock section — release before refusing, same
+    // as the exit(7) evidence-refusal path below, or the next writer contends on a leaked lock.
+    try { if (lockFd) closeSync(lockFd); unlinkSync(lockPath); } catch {}
+    console.error(`record-todo.mjs: ${violation} (state: ${statePath})`);
+    exit(9);
+  }
   try {
-    const planPath = st.plan_path || join(repo, ".zcode", "plans", `${slug}.md`);
     const parsed = JSON.parse(execFileSync(process.execPath,
       [new URL("./parse-plan.mjs", import.meta.url).pathname, planPath],
       { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 }));

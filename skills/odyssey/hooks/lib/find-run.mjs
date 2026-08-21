@@ -18,7 +18,7 @@
 
 import { readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
 import { join, resolve as pathResolve, sep } from "node:path";
-import { verifyMarker } from "../../scripts/lib/state-auth.mjs";
+import { verifyMarker, projectBindingHolds } from "../../scripts/lib/state-auth.mjs";
 
 export const TERMINAL = new Set(["done", "audited", "abandoned"]);
 export const STALE_MS_DEFAULT = 24 * 3600 * 1000;
@@ -28,7 +28,12 @@ const SKIP_NAMES = new Set([".git", ".codegraph", "node_modules", "vendor", "tar
   "bower_components", "jspm_packages"]);
 const MAX_DEPTH = 5;
 
-function discoverStateDirs(projectDir) {
+// I6 (project-isolation audit 2026-08-20): EXPORTED so pre-tool.mjs imports the ONE DFS instead
+// of keeping a private twin — the two copies had already drifted (the Class-B realpath fix at the
+// isZcodeChild push landed here only; pre-tool's twin still pushed the as-passed `dir`). Their
+// equality is pinned by lib/find-run.pin.test.mjs, which drives the real hook and this module
+// against one shared tree and asserts the same governing slug / RUN_STATE_DIR.
+export function discoverStateDirs(projectDir) {
   const stateDirs = [];
   const stack = [[projectDir, 0, false]]; // [dir, depth, isZcodeChild]
   const seen = new Set();
@@ -87,6 +92,11 @@ export function findActiveRuns({ projectDir, staleMs = STALE_MS_DEFAULT }) {
       // unauthenticated would let a dropped state file win by target-ancestry even after the
       // primary discovery path started rejecting it.
       if (!verifyMarker(st, st.slug || f.replace(/\.json$/, "")).ok) continue;
+      // I4 (project-isolation audit 2026-08-20): a BOUND run belongs to the repo it was
+      // scaffolded in — reject a bound state discovered under a different repo root. The
+      // predicate lives in state-auth.mjs (ONE implementation, shared with pre-tool's own
+      // state-file walk). Absent field (every pre-v0.6.16 run) → no rejection (backward compat).
+      if (!projectBindingHolds(st, dir)) continue;
       if (!st.phase || TERMINAL.has(st.phase)) continue;
       const updated = st.updated_at ? new Date(st.updated_at).getTime() : 0;
       if (updated && now - updated > staleMs) continue; // stale → treat as abandoned
@@ -120,6 +130,17 @@ export function selectByTarget(runs, targetPath) {
     if (target === root || target.startsWith(prefix)) enclosing.push({ r, root });
   }
   if (enclosing.length === 0) return mostRecent(runs); // no run encloses the target → recency
-  enclosing.sort((a, b) => b.root.length - a.root.length); // deepest first
+  // I1 (project-isolation audit 2026-08-20): depth alone left equal-depth runs (two active runs
+  // in ONE repo — the live this-run-plus-impl-22 shape) to scan order, and JS sorts are stable,
+  // so the dirent-order pick won and a recency swap changed nothing. Depth desc stays FIRST (the
+  // nearest ancestor always wins); recency breaks the tie among equal-depth enclosers. ISO
+  // updated_at strings compare correctly lexicographically — the same `>` mostRecent uses.
+  enclosing.sort((a, b) => {
+    const depth = b.root.length - a.root.length; // deepest root first
+    if (depth !== 0) return depth;
+    const atA = String(a.r.state.updated_at || "");
+    const atB = String(b.r.state.updated_at || "");
+    return atA === atB ? 0 : atA > atB ? -1 : 1; // then most recently updated
+  });
   return enclosing[0].r;
 }

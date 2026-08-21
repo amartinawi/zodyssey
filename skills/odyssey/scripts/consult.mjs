@@ -29,7 +29,7 @@
 //   consult.mjs <repo-root> <slug> --task <file>            # override the original-task file
 //   consult.mjs <repo-root> <slug> --plan-audit             # plan-audit mode (pre-execute)
 //   consult.mjs <repo-root> <slug> --multi-auditor          # two-pass double-audit (opt-in)
-//   exit: 0 (parsed verdict, even REJECT) · 2 bad args · 3 state missing · 4 auditor failed
+//   exit: 0 (parsed verdict, even REJECT) · 2 bad args · 3 state missing · 4 auditor failed · 9 plan_path isolation violation
 //         · 5 multi-auditor disagreement (surface to human) · 6 state lock unavailable
 //
 // Modelled on the proven codex-delegate pattern (cross-tool delegation via a CLI).
@@ -68,6 +68,7 @@ import { normalizeConsultVerdict } from "./lib/verdict-schema.mjs";
 // validateOutcome to gate what gets recorded. Single source of truth for the two-store bridge.
 import { outcomeToGraphEntity, validateOutcome } from "./lib/memory-schema.mjs";
 import { SECRET_PATH_RE, redactSecrets, isSecretPath } from "./lib/redact.mjs";
+import { resolvePlanPath } from "./lib/plan-path.mjs";
 
 // v0.3.0 portability: resolve auditor-prompt.md relative to this script's own location (ESM
 // URL-relative) so it is found from the plugin cache install, not only the legacy
@@ -223,7 +224,10 @@ export async function runPlanAudit({ repoRoot, slug, spawn }) {
     exit(3);
   }
   const state = JSON.parse(readFileSync(statePath, "utf8"));
-  const planPath = state.plan_path || join(repoRoot, ".zcode", "plans", `${slug}.md`);
+  // I3 (audit 2026-08-20): the auditor may read THIS run's plan only — a plan_path pointing
+  // into another repo is a hard refusal with the named reason, never foreign bytes on a prompt.
+  const { planPath, violation } = resolvePlanPath(state, repoRoot);
+  if (violation) { console.error(`consult.mjs: ${violation} — refusing to read a foreign plan (state: ${statePath})`); exit(9); }
   if (!existsSync(planPath)) {
     console.error("plan file missing: " + planPath);
     exit(3);
@@ -460,7 +464,10 @@ export async function runSingleAudit({ repoRoot, slug, spawn, claudeBin, promptS
     exit(3);
   }
   const state = JSON.parse(readFileSync(statePath, "utf8"));
-  const planPath = state.plan_path || join(repoRoot, ".zcode", "plans", `${slug}.md`);
+  // I3 (audit 2026-08-20): the auditor may read THIS run's plan only — a plan_path pointing
+  // into another repo is a hard refusal with the named reason, never foreign bytes on a prompt.
+  const { planPath, violation } = resolvePlanPath(state, repoRoot);
+  if (violation) { console.error(`consult.mjs: ${violation} — refusing to read a foreign plan (state: ${statePath})`); exit(9); }
   if (!existsSync(planPath)) {
     console.error("plan file missing: " + planPath);
     exit(3);
@@ -708,7 +715,10 @@ if (!existsSync(statePath)) {
   exit(3);
 }
 const state = JSON.parse(readFileSync(statePath, "utf8"));
-const planPath = state.plan_path || join(repoRoot, ".zcode", "plans", `${slug}.md`);
+// I3 (audit 2026-08-20): the auditor may read THIS run's plan only — a plan_path pointing
+// into another repo is a hard refusal with the named reason, never foreign bytes on a prompt.
+const { planPath, violation } = resolvePlanPath(state, repoRoot);
+if (violation) { console.error(`consult.mjs: ${violation} — refusing to read a foreign plan (state: ${statePath})`); exit(9); }
 
 if (!existsSync(planPath)) {
   console.error("plan file missing: " + planPath);

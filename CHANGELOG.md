@@ -976,3 +976,47 @@ First public release. Extracted from a personal ZCode orchestration setup that h
 
 ### Provenance
 Pipeline shape and agent cast modeled on [omo](https://github.com/code-yeongyu/oh-my-openagent). Enforcement layer (the 4-5 hooks) is the differentiator. Research grounding in `docs/DESIGN.md §0 + §15`.
+
+## [0.6.16] — 2026-08-21
+
+### Fixed — per-call project-scoped run selection: one workspace, several projects (items I1–I6)
+
+An audit proved that when one session watches a folder containing several projects, the gate
+could act on the wrong run: a single "active run" was picked once per hook invocation and every
+check — review gate, scope, probe destination, ledger append, protected dirs — followed it,
+regardless of which project the tool call actually touched. An MCP write aimed at project-b was
+judged (and logged) by project-a's run (I1); edits into BOTH projects' state were allowed when
+either run had cleared the gate (I2); a `plan_path` stored as an absolute path in one repo could
+be opened by readers in another (I3); state files were not bound to the repo they govern (I4);
+ungated Bash run from project-b's cwd appended to the recency winner's ledger (I5); and the
+discovery DFS existed as two divergent twins, one private to the hook (I6).
+
+The fix is a **per-call selection model**: discovery is unified (one `discoverStateDirs` in
+`find-run.mjs`, the hook's private twin deleted) and returns ALL live runs behind a TTL-bounded
+cache; each tool call then selects the governing run by its own anchor — Edit target, Bash and
+dispatch cwd, or the deepest run root enclosing any path-shaped MCP payload string (recency
+fallback when nothing matches, recency tie-break at equal depth). `runRepo` and the unguarded
+ledger are derived per call; `protectedDirs` is the union across every discovered run, so writes
+into ANY project's state dir are blocked without needing to know which run "wins". The plan-path
+fallback `plan_path || join(...)` now lives in exactly one helper (`scripts/lib/plan-path.mjs`,
+`resolvePlanPath`) used by all reader sites, and a foreign plan_path resolves to the caller's
+own repo and names the violation. The run marker's identity gains an ADDITIVE optional
+`project_dir` field (appended last, so every pre-0.6.16 marker verifies byte-identically);
+`scaffold` stamps it at creation and `--adopt` re-stamps it, and discovery rejects a bound state
+found under the wrong repo root.
+
+Paired probes, RED first: `pre-tool.project-isolation.test.mjs` was 0/9 on the unmodified hook
+and is 9/9 after (real `spawnSync`, hermetic fixtures); `plan-path.test.mjs` reproduced the
+foreign-plan leak live before the helper closed it; `state-auth.project-binding.test.mjs` was
+1/5 (only the backward-compat case green, as the plan demands) and is 5/5 after;
+`find-run.pin.test.mjs` pins that the real hook and the shared module assert the same governing
+slug on one tree. The suite count goes 49 → 53.
+
+Documented, deliberately not fixed: `post-tool.mjs`/`stop.mjs` still select via `mostRecent` on
+every path (deferred by conductor decision — they only record, never enforce); Bash invoked with
+cwd = the parent workspace itself still attributes to the recency winner (the accepted I5
+residual — there is no per-call signal deeper than cwd); a pre-0.6.16 hook silently treats a
+bound state as unmarked (version-skew downgrade, same mechanics as the strip case); relocating a
+repo disarms its bound runs until `scaffold --adopt` re-stamps them. Noted safe, not changed:
+Bash/Edit cross-repo write targets already fail closed via the scope check (`quickClassify`) —
+payload steering there yields denial, not bypass.

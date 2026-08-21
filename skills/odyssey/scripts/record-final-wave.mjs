@@ -13,7 +13,7 @@
 //
 // Usage:
 //   record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5 --skip-reason "why"]
-//   exit: 0 ok (all pass) · 2 bad args · 3 no state · 6 an F-item failed
+//   exit: 0 ok (all pass) · 2 bad args · 3 no state · 6 an F-item failed · 9 plan_path isolation violation
 //
 // Atomic write under O_EXCL lockfile with stale-lock reaping.
 
@@ -24,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { matchesCapability } from "./lib/capability-name.mjs";
 import { verdictFromProse } from "./lib/verdict-schema.mjs";
+import { resolvePlanPath } from "./lib/plan-path.mjs";
 
 const [repo, slug, ...rest] = argv.slice(2);
 if (!repo || !slug) {
@@ -134,8 +135,11 @@ const SKIP_MARKER = /\b(?:it|test|describe|context)\s*\.\s*(?:skip|todo|only)\b|
 // declared = plan's Files: union; actual = git diff --name-only run_start_sha..HEAD (or HEAD).
 // F1 passes iff actual ⊆ declared (no out-of-scope files touched). Generated artifacts and
 // .zcode/ paths are excluded from actual.
+// I3 (audit 2026-08-20): F1 must never harvest scope from another repo's plan — refuse with
+// the named reason before a single plan byte is read.
+const { planPath, violation } = resolvePlanPath(st, repoAbs);
+if (violation) { console.error(`record-final-wave.mjs: ${violation} (state: ${statePath})`); exit(9); }
 try {
-  const planPath = st.plan_path || join(repoAbs, ".zcode", "plans", `${slug}.md`);
   const planText = readFileSync(planPath, "utf8");
   // SEC-4 (external audit 2026-08-04): the plan is agent-writable, so F1 must refuse to pass if the
   // on-disk plan has drifted from the sha bound at review time. Without this an executor widens its
@@ -503,8 +507,12 @@ if (skip.has("F5")) {
   const hasObserved = (pred, pool = observedPostPlan) => pool.some((c) => pred(norm(c.capability)));
   // Re-read the plan and parse the routing token (same grammar as parse-plan.mjs).
   let routing = null;
+  // I3: the routing token must come from THIS run's plan — a foreign plan_path is a hard
+  // refusal, not a "no valid routing declaration" F5 failure (which would misreport the cause).
+  const { planPath: f5PlanPath, violation: f5Violation } = resolvePlanPath(st, repoAbs);
+  if (f5Violation) { console.error(`record-final-wave.mjs: ${f5Violation} (state: ${statePath})`); exit(9); }
   try {
-    const planTextF5 = readFileSync(st.plan_path || join(repoAbs, ".zcode", "plans", `${slug}.md`), "utf8")
+    const planTextF5 = readFileSync(f5PlanPath, "utf8")
       .replace(/<!--[\s\S]*?-->/g, "");
     const sec = (() => {
       const start = planTextF5.search(/^## Capability routing\s*$/m);

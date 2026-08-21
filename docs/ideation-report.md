@@ -200,7 +200,7 @@ Verdicts from the code inventory (notepad 2); citations are `file:line`.
 
 | Layer | Verdict | Load-bearing evidence |
 |---|---|---|
-| Tool orchestration | **STRONG** | parallel cap hook-enforced (`skills/odyssey/hooks/pre-tool.mjs:43,1439`), per-file locks with owner identity (`pre-tool.mjs:875,905-930`), capability routing cross-checked at F5 (`skills/odyssey/scripts/record-final-wave.mjs:468`), dispatch observation feed (`skills/odyssey/hooks/post-tool.mjs:231-251`) |
+| Tool orchestration | **STRONG** | parallel cap hook-enforced (`skills/odyssey/hooks/pre-tool.mjs:43,1439`), per-file locks with owner identity (`pre-tool.mjs:965,905-930`), capability routing cross-checked at F5 (`skills/odyssey/scripts/record-final-wave.mjs:468`), dispatch observation feed (`skills/odyssey/hooks/post-tool.mjs:231-251`) |
 | Verification | **STRONG** | criteria executed not trusted, `--trust-argv` required (`skills/odyssey/scripts/record-verify.mjs:69-107`), regression gate three-way semantics (`skills/odyssey/scripts/regression-gate.mjs:2-29`), F1 fails closed (`record-final-wave.mjs:6-7,178-198`); one soft spot — `check-imports.mjs` unwired (`skills/odyssey/references/scripts.md:47` prose-only) |
 | Context/memory | **THIN — WEAKEST** | see the three pieces of evidence below |
 | Guardrails | **STRONG** | review gate (`pre-tool.mjs:797`), fail-closed scope isolation (`:850`), hook-minted nonces (`:1456-1485`), plan-tamper guard (`:826,1036`), HMAC run discovery (`:30,506`) — the project's center of mass |
@@ -283,7 +283,7 @@ self-grading at the level of the whole project (failure mode #4). (§1 entry 5.)
 
 **Runner-up considered and not selected: head-allowlist inversion.** It kills the Bash-path
 enumeration class, but (a) **no published outcome evidence** exists for the mechanism (notepad 3);
-(b) the gate's *posture* was already inverted (`pre-tool.mjs:139`, "Invert instead") while the
+(b) the gate's *posture* was already inverted (`pre-tool.mjs:140`, "Invert instead") while the
 enumerated interpreter names remained the residual (`pre-tool.mjs:126`) — a sign-flip alone has not
 historically killed this class; (c) it is itself an enumeration, now of safe heads — failure mode
 #1 wearing the opposite sign — and it cannot touch the Edit path, where targets are files, not
@@ -402,7 +402,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (a5) Append-only notepads (hook-enforced) | CONFIRMED — enforced by PRE-TOOL | skills/odyssey/hooks/pre-tool.mjs:759-767 | Write on existing `.zcode/notepads/*` blocked: "notepads are APPEND-ONLY" |
 | (a6) Test-integrity guard | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:131,253-256 | SKIP_MARKER regex + `git diff --numstat` flags deleted/net-weakened test files |
 | (a7) Pass-to-pass regression gate | CONFIRMED | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:339 | auto-snapshot entering execute; exit 8 on pass→fail; done blocked while regressed |
-| (a8) F1–F5 incl. behavioural capability cross-check | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:86,468-481,500-503; skills/odyssey/hooks/post-tool.mjs:231-251 | F5 cross-checks declared `routed:` tokens against hook-witnessed state.capabilities[] |
+| (a8) F1–F5 incl. behavioural capability cross-check | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:87,468-481,500-503; skills/odyssey/hooks/post-tool.mjs:231-251 | F5 cross-checks declared `routed:` tokens against hook-witnessed state.capabilities[] |
 | (a9) Segment-tolerant capability matching | CONFIRMED | skills/odyssey/scripts/lib/capability-name.mjs:13; skills/odyssey/scripts/record-final-wave.mjs:61 | exact match wins, else final name segment — bare matches namespaced and vice versa |
 | (a10) Real token accounting from the session DB | CONFIRMED — at skills/odyssey/scripts/lib/tokens.mjs, reading ~/.zcode/cli/db/db.sqlite | skills/odyssey/scripts/lib/tokens.mjs:36,83,105-114; skills/odyssey/scripts/run-report.mjs:18,114 | node:sqlite read-only; SQL over model_usage JOIN session by repo+time-window; attribution honestly "estimate" |
 | (a11) "32 test suites" | CONFIRMED (re-measured) | package.json test script; npm test 2026-08-15 | `npm test` → "32/32 suite(s) passed in 59318ms" |
@@ -531,7 +531,7 @@ support the same conclusion; the file is append-only and live). The blind chain 
 **D4 — Standing of head-allowlist inversion.** The CHANGELOG names it the terminus
 (`CHANGELOG.md:380`); the map demotes it ("flips the sign but stays in the same game," §2.1).
 **Winner: the map's skepticism, by code.** The gate's posture was already inverted
-(`skills/odyssey/hooks/pre-tool.mjs:139`, "Invert instead") while the enumerated interpreter names
+(`skills/odyssey/hooks/pre-tool.mjs:140`, "Invert instead") while the enumerated interpreter names
 remained the unbounded residual (`:152`, `CHANGELOG.md:377`) — a sign-flip alone demonstrably did
 not kill this class; head classification is structurally a Bash-command concept and cannot touch
 the Edit path; and notepad 3 finds no published outcome evidence for the mechanism. This report

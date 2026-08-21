@@ -10,7 +10,7 @@
 // Usage:
 //   record-review.mjs <repo> <slug> <OKAY|REJECT> --momus-artifact <path> [--blockers <file>]
 //                      [--plan-sha <sha>] [--momus-session S]
-//   exit: 0 ok · 2 bad args · 3 no state file · 6 verification failed (W5-H2)
+//   exit: 0 ok · 2 bad args · 3 no state file · 6 verification failed (W5-H2) · 9 plan_path isolation violation
 //
 // W5-H2 verification: the verdict is BOUND to evidence so an agent can't self-authorize:
 //   · --momus-artifact <path> REQUIRED, must exist under .zcode/ (momus must have actually run)
@@ -28,6 +28,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { makeReviewDefault } from "./lib/verdict-schema.mjs";
+import { resolvePlanPath } from "./lib/plan-path.mjs";
 
 const [repo, slug, verdict, ...rest] = argv.slice(2);
 if (!repo || !slug || !verdict) {
@@ -131,7 +132,10 @@ if (!planShaArg) {
   console.error("record-review.mjs: --plan-sha <sha> is required (binds the verdict to the exact plan momus reviewed)");
   exit(6);
 }
-const planPath = prevState.plan_path || join(repoAbs, ".zcode", "plans", `${slug}.md`);
+// I3 (audit 2026-08-20): the verdict must never bind to (or hash) a plan outside the run's
+// own repo — refuse with the named reason before any plan byte is read.
+const { planPath, violation } = resolvePlanPath(prevState, repoAbs);
+if (violation) { console.error(`record-review.mjs: ${violation} — refusing to bind a verdict to a foreign plan (state: ${statePath})`); exit(9); }
 let actualSha = "";
 try {
   const planBody = readFileSync(planPath, "utf8");

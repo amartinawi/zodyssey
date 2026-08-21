@@ -26,9 +26,10 @@ import { realpathSync } from "node:fs";
 import { exit, env } from "node:process";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { findActiveRuns, selectByTarget } from "./lib/find-run.mjs";
-import { verifyMarker, adoptHint } from "../scripts/lib/state-auth.mjs";
+import { selectByTarget, discoverStateDirs, mostRecent } from "./lib/find-run.mjs";
+import { verifyMarker, adoptHint, projectBindingHolds } from "../scripts/lib/state-auth.mjs";
 import { resolvePath, containedIn } from "../scripts/lib/repo-path.mjs";
+import { resolvePlanPath } from "../scripts/lib/plan-path.mjs";
 import { sameName } from "../scripts/lib/capability-name.mjs";
 
 // W5-minor: realpath the project dir so a symlinked/env-logical path resolves consistently
@@ -301,8 +302,14 @@ function quickClassify(abs, runRepo) {
 
 // SEC-H5: extract the plan's declared editable-file set (shared by the Edit scope gate and the
 // post-OKAY Bash scope gate so they can't disagree). Mirrors the in-block logic at the edit path.
-function declaredScopeForRun(st) {
-  const planPath = st.plan_path || join(PROJECT_DIR, ".zcode", "plans", `${st.slug}.md`);
+// I3 (audit 2026-08-20): repoRoot is the PER-CALL run's own repo (pathResolve(RUN_STATE_DIR,
+// "..", "..") — selection above may have swapped the governing run). plan_path is resolved
+// through the shared plan-path.mjs helper: a plan_path pointing into ANOTHER repo is a named
+// violation and the declared scope is EMPTY — a foreign plan must block, never widen, and its
+// filenames must never reach a block message.
+function declaredScopeForRun(st, repoRoot) {
+  const { planPath, violation } = resolvePlanPath(st, repoRoot);
+  if (violation) return { declared: new Set(), planText: null, planPath, violation };
   let planText;
   try { planText = readFileSync(planPath, "utf8"); } catch { return { declared: new Set(), planText: null, planPath }; }
   const declared = new Set();
@@ -399,6 +406,17 @@ const toolInput = payload.tool_input || payload.input || {};
 // we fall through to a full DFS. Cache disabled via ZODYSSEY_NO_FIND_CACHE=1 for debugging.
 const FIND_CACHE_PATH = join(STATE_DIR, ".find-active-run.cache");
 const FIND_CACHE_DISABLE = !!process.env.ZODYSSEY_NO_FIND_CACHE;
+// I1 (oracle-r1 blocker 2): fingerprintStateDirs stats only files in the CACHED stateDirs, so a
+// sibling `.zcode/state` created mid-window is invisible on every hit — a quiet first run plus a
+// new second project was unbounded staleness (its state undefended, its run never governing).
+// A cache hit now ADDITIONALLY requires the entry to be younger than this bound; an aged entry
+// falls through to the full DFS below, which refreshes it. The mtime fingerprint stays the
+// hot-path check; this is the bound that makes "never loosens the gate" survive new projects.
+const FIND_CACHE_TTL_MS = 60 * 1000;
+// I1/I2: every ACTIVE run discovered for THIS tool call, [{state, stateDir, statePath}]. Per-call
+// selection (the block after RUN_STATE_DIR) and the union protectedDirs (the non-native guard)
+// both derive from this one list — cache-backed, so hits need no re-walk. Set by findActiveRun().
+let DISCOVERED_RUNS = [];
 
 // Compute a fingerprint of the current state files across a candidate stateDirs list.
 // Returns null if any state dir is unreadable (→ treat as cache miss / fall to full DFS).
@@ -439,55 +457,41 @@ function writeFindCache(cache) {
 
 function findActiveRun() {
   const now = Date.now();
-  // FAST PATH: validate the cached discovery against the live state-file mtimes.
+  // FAST PATH: validate the cached discovery against the live state-file mtimes. The cache holds
+  // the FULL runs list (not just the recency winner) so per-call selection and the union
+  // protectedDirs work on hits. A hit needs ALL of: fingerprint match (hot-path check, unchanged),
+  // a cached runs array, and an `at` no older than FIND_CACHE_TTL_MS (oracle-r1 blocker 2 — the
+  // fingerprint stats only files in the CACHED stateDirs, so it cannot see a newly CREATED
+  // sibling `.zcode/state`; without the bound, that staleness is unbounded). Any doubt → full
+  // DFS below, which refreshes the cache. The cache NEVER loosens the gate: the same
+  // terminal/stale filters are re-applied to the cached list (belt and suspenders, since phase
+  // transitions DO write state).
   const cached = readFindCache();
   if (cached && Array.isArray(cached.stateDirs)) {
     const fp = fingerprintStateDirs(cached.stateDirs);
-    if (fp !== null && fp === cached.fingerprint && cached.result) {
-      // Cache hit. Re-apply the staleness + terminal filter on the cached result (cheap, and
-      // defends against a cached run that went stale/terminal without a state-file mtime bump
-      // — belt and suspenders, since phase transitions DO write state).
-      const r = cached.result.run;
-      if (r && r.phase && !TERMINAL.has(r.phase)) {
-        const updated = r.updated_at ? new Date(r.updated_at).getTime() : 0;
-        if (!updated || now - updated <= STALE_MS) return cached.result;
-      }
-      // cached result no longer active → fall through to full DFS (refreshes the cache)
+    if (fp !== null && fp === cached.fingerprint && Array.isArray(cached.runs) &&
+        typeof cached.at === "number" && now - cached.at <= FIND_CACHE_TTL_MS) {
+      const runs = cached.runs.filter((r) => {
+        if (!r || !r.state || !r.state.phase || TERMINAL.has(r.state.phase)) return false;
+        const updated = r.state.updated_at ? new Date(r.state.updated_at).getTime() : 0;
+        return !updated || now - updated <= STALE_MS;
+      });
+      DISCOVERED_RUNS = runs;
+      const best = mostRecent(runs);
+      return best ? { run: best.state, dir: best.stateDir } : null;
     }
   }
-  let active = null;
-  let activeDir = null;
-  // Discover every `.zcode/state` dir under PROJECT_DIR (bounded DFS).
-  const SKIP_NAMES = new Set([".git", ".codegraph", "node_modules", "vendor", "target", "dist",
-    "build", ".next", ".nuxt", ".cache", ".turbo", "coverage", "__pycache__", ".venv", "venv",
-    "bower_components", "jspm_packages"]);
-  const MAX_DEPTH = 5;
-  const stateDirs = [];
-  const stack = [[PROJECT_DIR, 0, false]]; // [dir, depth, isZcodeChild]
-  const seen = new Set();
-  while (stack.length) {
-    const [dir, depth, isZcodeChild] = stack.pop();
-    let real;
-    try { real = realpathSync.native(dir); } catch { continue; }
-    if (seen.has(real)) continue;
-    seen.add(real);
-    // If we entered a `.zcode` directory, its `./state` is a candidate; don't recurse further in.
-    if (isZcodeChild) {
-      stateDirs.push(join(dir, "state"));
-      continue;
-    }
-    if (depth >= MAX_DEPTH) continue;
-    let entries;
-    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { continue; }
-    for (const e of entries) {
-      if (!e.isDirectory()) continue;
-      if (e.name.startsWith(".") && e.name !== ".zcode") continue; // only recurse into .zcode
-      if (SKIP_NAMES.has(e.name)) continue;
-      stack.push([join(dir, e.name), depth + 1, e.name === ".zcode"]);
-    }
-  }
+  // Discover every `.zcode/state` dir under PROJECT_DIR. I6 (project-isolation audit
+  // 2026-08-20): the DFS lives in ONE place — find-run.mjs's exported discoverStateDirs. The
+  // private twin this replaced still pushed the as-passed `dir` at the isZcodeChild branch while
+  // the shared copy pushes the realpath'd form (the Class-B fix), so RUN_STATE_DIR could carry
+  // symlink components the re-selection path normalized away. Equality of both consumers is
+  // pinned by lib/find-run.pin.test.mjs. SKIP_NAMES/MAX_DEPTH/the symlink-dir skip now live ONLY
+  // in the shared copy — never reintroduce local constants here.
+  const stateDirs = discoverStateDirs(PROJECT_DIR);
   // Also always consider the top-level STATE_DIR even if discovery missed it.
   if (!stateDirs.includes(STATE_DIR)) stateDirs.push(STATE_DIR);
+  const runs = [];
   for (const dir of stateDirs) {
     if (!existsSync(dir)) continue;
     let entries;
@@ -519,21 +523,43 @@ function findActiveRun() {
           continue;
         }
       }
+      // I4 (project-isolation audit 2026-08-20): a BOUND run belongs to the repo it was
+      // scaffolded in. The marker alone is project-blind (it proves "minted by this install's
+      // key", never "belongs here"), so when the optional project_dir field is present,
+      // discovery additionally requires it to name THIS state dir's repo root (sameFile —
+      // mount-spelling tolerant). Absent field → no rejection: every pre-v0.6.16 run must keep
+      // loading (backward-compat state.json rule). The predicate is shared with find-run.mjs's
+      // loop (state-auth.mjs) so the two walks cannot drift. Cache-safe by construction: the
+      // cached runs list is only ever written from this full-DFS path, and any later edit to a
+      // state file changes its mtime → fingerprint miss → re-scan re-applies this check.
+      if (!projectBindingHolds(st, dir)) {
+        if (env.ZODYSSEY_DEBUG) {
+          process.stderr.write(
+            `ZOdyssey: ignoring run state ${join(dir, f)} — project binding mismatch (state is bound to ${st.project_dir}, found under a different repo). ${adoptHint(PROJECT_DIR, st.slug || f.replace(/\.json$/, ""))}\n`
+          );
+        }
+        continue;
+      }
       if (!st.phase || TERMINAL.has(st.phase)) continue;
       const updated = st.updated_at ? new Date(st.updated_at).getTime() : 0;
       if (updated && now - updated > STALE_MS) continue;
-      if (!active || (st.updated_at || "") > (active.updated_at || "")) {
-        active = st;
-        activeDir = dir;
-      }
+      runs.push({ state: st, stateDir: dir, statePath: join(dir, f) });
     }
   }
-  const result = active ? { run: active, dir: activeDir } : null;
+  DISCOVERED_RUNS = runs;
+  // The recency winner is what no-anchor paths fall back to; the per-call selection block below
+  // swaps in the run that actually encloses this call's target/cwd. mostRecent applies the same
+  // updated_at string-compare the old inline tracker used, so the winner is byte-identical.
+  const best = mostRecent(runs);
+  const result = best ? { run: best.state, dir: best.stateDir } : null;
   // Persist the discovery so the next call can skip the DFS. Fingerprint keyed on state-file
-  // mtimes; any add/remove/modify invalidates. result may be null (no active run) — caching that
-  // is fine and useful (avoids re-walking when no run is active at all).
+  // mtimes; any add/remove/modify invalidates. The FULL runs list is cached alongside `result`
+  // (I1: per-call selection and the union protectedDirs must work on hits — and with the TTL
+  // bound above, a hit can never keep serving a list that predates a newly created sibling
+  // project indefinitely). result may be null (no active run) — caching that is fine and useful
+  // (avoids re-walking when no run is active at all).
   const fp = fingerprintStateDirs(stateDirs);
-  if (fp !== null) writeFindCache({ projectDir: PROJECT_DIR, stateDirs, fingerprint: fp, result, at: now });
+  if (fp !== null) writeFindCache({ projectDir: PROJECT_DIR, stateDirs, fingerprint: fp, runs, result, at: now });
   return result;
 }
 
@@ -552,6 +578,90 @@ let state = _found.run;
 // as a subdirectory) needs writes to land in the nested repo's .zcode/state/, not the workspace's.
 let RUN_STATE_DIR = _found.dir;
 
+const isEdit = ["Write", "Edit", "ApplyPatch", "MultiEdit", "NotebookEdit"].includes(toolName);
+// Test-file conventions, kept in sync with record-final-wave.mjs's TEST_PATH. Conservative: a
+// false positive blocks a legitimate edit, so only unambiguous conventions are matched.
+const TEST_PATH_RE = /(^|\/)(tests?|spec|__tests__)\/|(^|\/)test_[^/]+\.py$|[._-](test|spec)\.[cm]?[jt]sx?$|_test\.(go|py|rb)$|Test[s]?\.(java|kt|cs)$/;
+const isBash = toolName === "Bash";
+const isDispatch = ["Task", "Agent", "dispatch_agent"].includes(toolName);
+
+// SEC-H6 (external audit #8): the cached findActiveRun picks the globally most-recent active run,
+// which lets a SIBLING repo's run govern an edit in THIS repo (its Files: scope can never match
+// → every edit SCOPE VIOLATION; if that run's verdict is null, every product edit is blocked).
+// For EDIT tools (which carry a target path), re-select among ALL active runs by target-path
+// ancestry — the run whose repo root is the nearest ancestor of the target wins.
+//
+// I1 (project-isolation audit 2026-08-20): that re-selection existed on the edit path ONLY.
+// Every other tool — Bash, mcp__*/non-native, anything unnamed — kept the global-recency pick,
+// so in a workspace whose PROJECT_DIR contains several projects the freshest project's run
+// silently governed every call in the others (their edits judged against a foreign plan, their
+// shell activity ledgered into the neighbour's records, only the governing project defended).
+// Selection is now PER-CALL on every tool path, always over the same DISCOVERED_RUNS list
+// (cache-backed — the full list ships with the 2b cache, so hits need no re-walk):
+//   · Edit          → the tool's target path (SEC-H6, unchanged).
+//   · Task/dispatch → the dispatch's cwd (SEC audit M8, unchanged).
+//   · Bash          → the call's cwd (I5: the ungated ledger and every Bash gate below follow
+//                     the project the shell actually runs in).
+//   · everything else (mcp__*, unknown non-native) → the DEEPEST run whose repo root encloses
+//     any path-shaped string in tool_input, then cwd, then mostRecent. This anchor is
+//     steerable by the very payload the non-native guard below defends against — deliberately,
+//     because no better anchor exists for path-less tools — which is exactly why that guard
+//     protects ALL discovered runs, not just the selected one.
+// selectByTarget breaks equal-depth ties by updated_at (recency at every level, I1) and its
+// no-enclosure fallback is mostRecent — NEVER "no run encloses it → exit 0" (fail-open trap).
+if (isEdit) {
+  const _tp = toolInput.file_path || toolInput.path || toolInput.notebook_path || "";
+  if (_tp) {
+    const _sel = selectByTarget(DISCOVERED_RUNS, _tp);
+    if (_sel && _sel.state.slug !== state.slug) { state = _sel.state; RUN_STATE_DIR = _sel.stateDir; }
+  }
+} else if (isDispatch) {
+  // SEC (audit M8): a Task dispatch carries no file target, so run-selection fell back to the
+  // globally most-recent active run. In a workspace with 2+ active runs, a legit momus dispatch
+  // could mint its review nonce into the WRONG run — deadlocking the intended one (its
+  // record-momus-artifact finds no pending_nonce → exit 6) while the other accrues a stray nonce.
+  // Re-select by the dispatch's working directory: the run whose repo root encloses cwd wins.
+  const _cwd = payload.cwd || process.cwd();
+  const _sel = selectByTarget(DISCOVERED_RUNS, _cwd);
+  if (_sel && _sel.state.slug !== state.slug) { state = _sel.state; RUN_STATE_DIR = _sel.stateDir; }
+} else if (isBash) {
+  // I5: the same cwd anchor as dispatch — an ungated Bash call's ledger row (and every Bash
+  // gate below) must attribute to the project the shell is running in, not the workspace's
+  // recency winner. Bash write TARGETS keep being classified by quickClassify against the
+  // selected run's repo, so cross-repo targets still fail closed via scope.
+  const _cwd = payload.cwd || process.cwd();
+  const _sel = selectByTarget(DISCOVERED_RUNS, _cwd);
+  if (_sel && _sel.state.slug !== state.slug) { state = _sel.state; RUN_STATE_DIR = _sel.stateDir; }
+} else {
+  // I1: MCP/non-native tools carry no single target field, but their payloads are full of path
+  // strings. Collect them (the same walk the non-native guard below uses on tool_input), then
+  // anchor on the deepest run root enclosing ANY of them — depth first, recency among equal
+  // depths — falling back to cwd, then mostRecent via selectByTarget's own fallback.
+  const _strings = [];
+  (function collect(v, depth) {
+    if (depth > 4 || v == null || _strings.length > 200) return;
+    if (typeof v === "string") { _strings.push(v); return; }
+    if (Array.isArray(v)) { for (const x of v) collect(x, depth + 1); return; }
+    if (typeof v === "object") { for (const k of Object.keys(v)) collect(v[k], depth + 1); }
+  })(toolInput, 0);
+  let _anchor = null, _anchorLen = -1, _anchorAt = "";
+  for (const s of _strings) {
+    if (typeof s !== "string" || s.length > 4096) continue;
+    if (!s.includes("/") && !s.includes(sep)) continue; // not path-shaped
+    let _abs;
+    try { _abs = realpathSync.native(pathResolve(PROJECT_DIR, s)); } catch { _abs = pathResolve(PROJECT_DIR, s); }
+    for (const _r of DISCOVERED_RUNS) {
+      const _root = pathResolve(_r.stateDir, "..", "..");
+      if (_abs !== _root && !_abs.startsWith(_root + sep)) continue;
+      const _at = String(_r.state.updated_at || "");
+      if (_root.length > _anchorLen || (_root.length === _anchorLen && _at > _anchorAt)) {
+        _anchor = s; _anchorLen = _root.length; _anchorAt = _at;
+      }
+    }
+  }
+  const _sel = selectByTarget(DISCOVERED_RUNS, _anchor || payload.cwd || process.cwd());
+  if (_sel && _sel.state.slug !== state.slug) { state = _sel.state; RUN_STATE_DIR = _sel.stateDir; }
+}
 
 // W7-stall self-test: dump the real hook payload shape ONCE per run, so the owner-identity
 // assumption (does the harness actually send agent_id/session_id/tool_use_id?) becomes VERIFIED
@@ -559,6 +669,9 @@ let RUN_STATE_DIR = _found.dir;
 // .zcode/state/<slug>.payload-probe.json, idempotent per run.
 // PERF (memory fix 3a): the probe already served its purpose (proved agent_id is absent — see
 // external-audit finding). Skip the write in production unless ZODYSSEY_DEBUG=1 is set.
+// I1: this block sits BELOW the per-call selection (it used to sit above the edit-path
+// re-selection, so the probe always landed in the recency winner's dir) — the probe destination
+// is a witness of which run governs THIS call, and the project-isolation suite asserts on it.
 {
   const probePath = join(RUN_STATE_DIR, `${state.slug}.payload-probe.json`);
   if (process.env.ZODYSSEY_DEBUG && !existsSync(probePath)) {
@@ -578,39 +691,6 @@ let RUN_STATE_DIR = _found.dir;
       }, null, 2) + "\n");
     } catch {}
   }
-}
-
-const isEdit = ["Write", "Edit", "ApplyPatch", "MultiEdit", "NotebookEdit"].includes(toolName);
-// Test-file conventions, kept in sync with record-final-wave.mjs's TEST_PATH. Conservative: a
-// false positive blocks a legitimate edit, so only unambiguous conventions are matched.
-const TEST_PATH_RE = /(^|\/)(tests?|spec|__tests__)\/|(^|\/)test_[^/]+\.py$|[._-](test|spec)\.[cm]?[jt]sx?$|_test\.(go|py|rb)$|Test[s]?\.(java|kt|cs)$/;
-const isBash = toolName === "Bash";
-const isDispatch = ["Task", "Agent", "dispatch_agent"].includes(toolName);
-
-// SEC-H6 (external audit #8): the cached findActiveRun picks the globally most-recent active run,
-// which lets a SIBLING repo's run govern an edit in THIS repo (its Files: scope can never match
-// → every edit SCOPE VIOLATION; if that run's verdict is null, every product edit is blocked).
-// For EDIT tools (which carry a target path), re-select among ALL active runs by target-path
-// ancestry — the run whose repo root is the nearest ancestor of the target wins. Dispatch/read/Bash
-// tools keep the recency pick. This re-runs discovery (cheap, and the cache only covers the
-// recency winner), but only on the edit path.
-if (isEdit) {
-  const _tp = toolInput.file_path || toolInput.path || toolInput.notebook_path || "";
-  if (_tp) {
-    const _all = findActiveRuns({ projectDir: PROJECT_DIR, staleMs: STALE_MS });
-    const _sel = selectByTarget(_all, _tp);
-    if (_sel && _sel.state.slug !== state.slug) { state = _sel.state; RUN_STATE_DIR = _sel.stateDir; }
-  }
-} else if (isDispatch) {
-  // SEC (audit M8): a Task dispatch carries no file target, so run-selection fell back to the
-  // globally most-recent active run. In a workspace with 2+ active runs, a legit momus dispatch
-  // could mint its review nonce into the WRONG run — deadlocking the intended one (its
-  // record-momus-artifact finds no pending_nonce → exit 6) while the other accrues a stray nonce.
-  // Re-select by the dispatch's working directory: the run whose repo root encloses cwd wins.
-  const _cwd = payload.cwd || process.cwd();
-  const _all = findActiveRuns({ projectDir: PROJECT_DIR, staleMs: STALE_MS });
-  const _sel = selectByTarget(_all, _cwd);
-  if (_sel && _sel.state.slug !== state.slug) { state = _sel.state; RUN_STATE_DIR = _sel.stateDir; }
 }
 
 // MAJOR-3 (operational-consult): capability recording. The old path was circular —
@@ -815,7 +895,17 @@ if (isEdit) {
   // (record-momus-artifact / record-final-wave), never a direct Write. .zcode/reviews/ stays
   // gated in every phase.
   if (rel) {
-    const planPath = state.plan_path || join(PROJECT_DIR, ".zcode", "plans", `${state.slug}.md`);
+    // I3: the plan root is the run's OWN repo (per-call — selection may have swapped it), and
+    // a plan_path escaping that repo is refused before a single foreign byte is read.
+    const runRepo = RUN_STATE_DIR ? pathResolve(pathResolve(RUN_STATE_DIR, ".."), "..") : PROJECT_DIR;
+    const { planPath, violation } = resolvePlanPath(state, runRepo);
+    if (violation) {
+      block(
+        `SCOPE VIOLATION (plan isolation): ${violation}. ` +
+        `The declared scope for ${rel} cannot be verified — the edit is refused rather than judged ` +
+        `by a plan outside this run's repo. Fix state.plan_path or re-scaffold. (slug=${state.slug})`
+      );
+    }
     try {
       const planText = readFileSync(planPath, "utf8");
       // SEC-4 (external audit 2026-08-04): the plan is agent-writable (.zcode/plans/ is bookkeeping)
@@ -837,7 +927,7 @@ if (isEdit) {
       }
       // extract declared paths via the shared helper (SEC-M7: the anywhere-in-plan harvest that
       // granted forbidden Must-NOT-do paths is removed there; restricted to Files: + ## Scope).
-      const { declared } = declaredScopeForRun(state);
+      const { declared } = declaredScopeForRun(state, runRepo);
       // check: is the target file (or a parent dir) in the declared set?
       // allow exact match or prefix match (declared dir contains the file).
       // FAIL CLOSED on empty declared set: a plan that declares no editable files must not
@@ -1177,11 +1267,25 @@ if (isBash) {
     );
   }
 
+  // Derive the run's repo root (mirrors classifyTarget lines 522-524): RUN_STATE_DIR is
+  // .../.zcode/state -> up two levels is the repo root containing .zcode.
+  const runRepo = RUN_STATE_DIR ? pathResolve(pathResolve(RUN_STATE_DIR, ".."), "..") : PROJECT_DIR;
+  // I3 (audit 2026-08-20): plan_path is contained against the PER-CALL run's repo via the
+  // shared plan-path.mjs resolver. A plan_path pointing into another repo must block here —
+  // never be read, never hash a foreign plan, never quote its filenames.
+  const { planPath, violation } = resolvePlanPath(state, runRepo);
+  if (violation) {
+    block(
+      `SCOPE VIOLATION (Bash, plan isolation): ${violation}. ` +
+      `Cannot verify the write targets of: ${cmd.slice(0, 120)}${cmd.length > 120 ? "..." : ""}. ` +
+      `Fix state.plan_path or re-scaffold. (slug=${state.slug})`
+    );
+  }
+
   // PLAN-TAMPER GUARD (SEC-4 mirror — see block comment above). Re-hash the on-disk plan against
   // the sha bound to this OKAY verdict. Unreadable plan or sha drift -> BLOCK (fail closed).
   const boundSha = state.review && state.review.plan_sha256;
   if (boundSha) {
-    const planPath = state.plan_path || join(PROJECT_DIR, ".zcode", "plans", `${state.slug}.md`);
     let planText;
     try { planText = readFileSync(planPath, "utf8"); }
     catch (e) {
@@ -1217,14 +1321,10 @@ if (isBash) {
     );
   }
 
-  // Derive the run's repo root (mirrors classifyTarget lines 522-524): RUN_STATE_DIR is
-  // .../.zcode/state -> up two levels is the repo root containing .zcode.
-  const runRepo = RUN_STATE_DIR ? pathResolve(pathResolve(RUN_STATE_DIR, ".."), "..") : PROJECT_DIR;
-
   // Resolve + classify each target. Bookkeeping targets (.zcode/plans/, .zcode/notepads/) are
   // always fine; every other target must be in the declared Files: scope. declaredScopeForRun
   // returns declared.size===0 on plan read failure -> nothing is in scope -> BLOCK (fail closed).
-  const { declared } = declaredScopeForRun(state);
+  const { declared } = declaredScopeForRun(state, runRepo);
   for (const t of targets) {
     let abs;
     try {
@@ -1541,8 +1641,12 @@ if (isDispatch) {
     // plan, parser error, timeout) the dispatch proceeds, because this is an ergonomic guard and
     // record-review still enforces the real gate.
     try {
-      const planPath = state.plan_path || join(PROJECT_DIR, ".zcode", "plans", `${state.slug}.md`);
-      if (existsSync(planPath)) {
+      // I3: resolve through the shared helper. On a plan_path violation the lint is SKIPPED
+      // (this guard fails open by design; record-review.mjs hard-exits on the violation), so
+      // no foreign plan bytes are ever parsed or quoted into a block message here.
+      const runRepo = RUN_STATE_DIR ? pathResolve(pathResolve(RUN_STATE_DIR, ".."), "..") : PROJECT_DIR;
+      const { planPath, violation } = resolvePlanPath(state, runRepo);
+      if (!violation && existsSync(planPath)) {
         const r = spawnSync(process.execPath, [PARSE_PLAN_PATH, planPath, "--lint"],
           { encoding: "utf8", timeout: 10000 });
         if (r.status === 6) {
@@ -1657,9 +1761,24 @@ if (!isEdit && !isBash && !isDispatch) {
     // and must stay unaffected. env.HOME follows the repo's existing idiom; no HOME means no
     // registry to protect, and the empty string is filtered out below.
     const HOST_HOOK_REGISTRY = env.HOME ? join(env.HOME, ".zcode", "cli", "config.json") : "";
+    // I2 + oracle-r1 blocker 1: protection must NOT derive from the per-call selection. That
+    // selection is steerable by the very payload this guard defends against (deepest-enclosing
+    // + recency is attacker-determined whenever a sibling run's root is longer or nested), so a
+    // decoy path under project-b alongside a write target in project-a would otherwise leave a's
+    // state undefended while the write proceeds. Protect the UNION of ALL discovered active
+    // runs' .zcode/state + .zcode/reviews — the same DISCOVERED_RUNS list per-call selection
+    // used, so no extra scan (on find-cache hits that is the cached list, which is why the
+    // cache's TTL bound above is load-bearing here too). Zero availability cost: no sanctioned
+    // non-native writer targets ANY run's state. runRepo above stays the base for resolving
+    // RELATIVE payload strings below — normalization only, never the protection set. Pinned by
+    // the DECOY case in pre-tool.project-isolation.test.mjs.
+    const runProtected = [];
+    for (const _r of DISCOVERED_RUNS) {
+      const _root = pathResolve(_r.stateDir, "..", "..");
+      runProtected.push(join(_root, ".zcode", "state"), join(_root, ".zcode", "reviews"));
+    }
     const protectedDirs = [
-      join(runRepo, ".zcode", "state"),
-      join(runRepo, ".zcode", "reviews"),
+      ...new Set(runProtected),
       ...enforcementDirs,
       HOST_HOOK_REGISTRY,
     ].filter(Boolean);

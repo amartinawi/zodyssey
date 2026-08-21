@@ -304,6 +304,31 @@ re-arms the review gate + scope boundary + parallel cap — and restores `done` 
 hatch that exists specifically so post-`done` edits don't escape the isolation layer that
 motivated §6 in the first place.
 
+### 6.2 Per-call run selection — one workspace, several projects (v0.6.16)
+
+The hook does NOT pick "the active run" once and follow it. Discovery is unified in
+`find-run.mjs` (`discoverStateDirs`, the single DFS) and returns **all** live runs, cached with a
+60-second TTL and fingerprint-busted by state-file mtimes. Each tool call then selects its own
+governing run from that list by the **deepest-enclosing anchor**: the Edit target path, the
+Bash/dispatch cwd, or — for `mcp__`/non-native tools — the deepest run root enclosing any
+path-shaped string in the payload; recency (`updated_at`) is both the fallback when nothing
+matches and the tie-break at equal depth. The `runRepo`, the payload-probe destination, and the
+ungated-Bash ledger are all derived **per call** from the selected run, and `protectedDirs` is
+the **union** across every discovered run — so a write into any project's state dir is blocked
+without needing to know which run the call "belongs" to. Reader scripts resolve a run's plan
+through one shared helper (`scripts/lib/plan-path.mjs`): a foreign `plan_path` resolves to the
+caller's own repo and reports the violation. Run markers carry an ADDITIVE optional
+`project_dir` identity field (pre-0.6.16 markers verify byte-identically); `scaffold --adopt`
+re-stamps it after a repo relocation, and discovery rejects a bound state found under the wrong
+repo root.
+
+Deferred surfaces, documented deliberately: `post-tool.mjs` and `stop.mjs` still select via
+`mostRecent` on every path (they record, never enforce); Bash invoked with cwd = the parent
+workspace itself attributes to the recency winner (no deeper per-call signal exists); a
+pre-0.6.16 hook treats a bound state as unmarked (version-skew downgrade). Cross-repo Bash/Edit
+write targets fail closed via the scope check — steering the payload there yields denial, not
+bypass.
+
 ---
 
 ## 7. Effort scaling — the anti-over-engineering guardrail (enforced)

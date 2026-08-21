@@ -59,6 +59,12 @@ if (argv.includes("--adopt")) {
   let st;
   try { st = JSON.parse(readFileSync(adoptPath, "utf8")); }
   catch { console.error(`scaffold.mjs --adopt: ${adoptPath} is not valid JSON`); exit(3); }
+  // I4 (project-isolation audit 2026-08-20): (re)bind the adopted run to THIS repo before
+  // re-stamping — the sanctioned path for a relocated run (its old binding names the previous
+  // path, so discovery in the new location rejects it) and for the v0.5.0 legacy path alike.
+  // The field is optional in the marker's identity, so this stays additive: an adopt of an
+  // already-correctly-bound run re-stamps the same identity.
+  st.project_dir = adoptRepo;
   stampMarker(st, slug);
   st.updated_at = new Date().toISOString();
   const atmp = adoptPath + ".tmp." + process.pid;
@@ -310,6 +316,13 @@ const state = {
   started_at: now,
   updated_at: now,
   run_start_sha: runStartSha,
+  // I4 (project-isolation audit 2026-08-20): the repo this run belongs to, committed into the
+  // marker's identity (state-auth.mjs identityOf). OPTIONAL by contract — a state without it
+  // verifies under the pre-v0.6.16 identity — but newly scaffolded runs are bound, so a copy
+  // dropped into a sibling repo is rejected at discovery (projectBindingHolds). Residuals,
+  // documented in adoptHint: repo relocation disarms the run until `--adopt` re-stamps, and a
+  // pre-v0.6.16 hook ignores a bound state (version-skew downgrade).
+  project_dir: repoAbs,
   // Files already modified/untracked before this run began. F1 subtracts these so a run is not
   // failed for mess it inherited. See the capture above.
   dirty_at_start: dirtyAtStart,

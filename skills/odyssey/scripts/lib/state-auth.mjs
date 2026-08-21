@@ -27,6 +27,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { sameFile } from "./repo-path.mjs";
 
 export const MARKER_FIELD = "run_auth";
 const KEY_PATH = process.env.ZODYSSEY_RUN_KEY_PATH || join(homedir(), ".zcode", ".zodyssey-run-key");
@@ -53,12 +54,21 @@ export function loadOrCreateKey(keyPath = KEY_PATH) {
 // about — slug, when it started, and the commit it started from. NOT `phase`, `updated_at`, or
 // `review`, because legitimate writers change those on every write and re-signing on each mutation
 // would mean every trusted script needs the key (widening exposure for no gain).
+//
+// I4 (project-isolation audit 2026-08-20): an OPTIONAL `project_dir` may ride along, appended
+// LAST. Field ABSENT → the JSON is byte-identical to the pre-v0.6.16 identity, so every existing
+// marker verifies unchanged (the backward-compat state.json rule: new fields are optional). Field
+// PRESENT → the marker commits to the run's repo, so stripping or repointing it breaks the marker
+// (the downgrade case — the marker must never silently survive losing its binding). Never extend
+// this to mutable fields (phase/updated_at/review stay out, same reason as above).
 function identityOf(state, slug) {
-  return JSON.stringify({
+  const id = {
     slug: String(state?.slug ?? slug ?? ""),
     started_at: String(state?.started_at ?? ""),
     run_start_sha: String(state?.run_start_sha ?? ""),
-  });
+  };
+  if (state?.project_dir) id.project_dir = String(state.project_dir);
+  return JSON.stringify(id);
 }
 
 export function computeMarker(state, slug, keyPath = KEY_PATH) {
@@ -88,10 +98,34 @@ export function verifyMarker(state, slug, keyPath = KEY_PATH) {
   return diff === 0 ? { ok: true, reason: null } : { ok: false, reason: "marker mismatch" };
 }
 
+// I4 discovery half: does this state's OPTIONAL project binding match the repo it was found in?
+// The marker alone is project-blind — it proves "minted by this install's key", never "belongs
+// here" (the audit's I4 finding) — so discovery additionally requires a bound state to sit under
+// the repo root its `project_dir` names. Field ABSENT (every pre-v0.6.16 run) → true, no
+// rejection: the field is optional by contract and old runs must keep loading anywhere. The
+// comparison is sameFile (repo-path.mjs): mount-spelling-tolerant, so a repo reachable through
+// two spellings of the same filesystem still matches. ONE implementation shared by both
+// discovery loops (find-run.mjs and pre-tool.mjs's own state-file walk) — the twins must not
+// drift. Returns a boolean; callers own the skip and any diagnostic phrasing.
+export function projectBindingHolds(state, stateDir) {
+  if (!state?.project_dir) return true; // unbound — optional field, backward compatible
+  return sameFile(state.project_dir, join(stateDir, "..", ".."));
+}
+
 // Human-facing text the hook and scripts print when a state file is rejected, so an operator whose
 // legitimate pre-v0.5.0 run stopped being discovered knows the one command that fixes it.
+//
+// I4 residuals (oracle-r1 non-blocking notes, named here per the plan; CHANGELOG in v0.6.16):
+//   · repo RELOCATION disarms a bound run — the binding names the old path, so discovery in the
+//     new location rejects it until `--adopt` re-stamps;
+//   · version-skew downgrade — a pre-v0.6.16 hook computes the identity WITHOUT the binding, so
+//     a bound state's marker no longer matches and the run is silently ignored (same mechanics as
+//     stripping the field) until the version is restored or the run is re-adopted.
 export const adoptHint = (repo, slug) =>
   `run state for "${slug}" has no valid ${MARKER_FIELD} marker, so it is not treated as an active run ` +
   `(v0.5.0 authenticates run discovery — an unmarked state file could previously be dropped in to ` +
-  `hijack the review gate). If this is a legitimate run created before v0.5.0, adopt it once with: ` +
+  `hijack the review gate; since v0.6.16 the marker may also carry the run's project binding, so it ` +
+  `can additionally fail after the repo was relocated or after a pre-v0.6.16 plugin version ran ` +
+  `against a bound run). If this is a legitimate run created before the marker applied, or a ` +
+  `relocated/mismatched one, adopt it once with: ` +
   `node <plugin>/skills/odyssey/scripts/scaffold.mjs ${repo} ${slug} --adopt`;

@@ -18,7 +18,7 @@
 //
 // Usage:
 //   record-verify.mjs <repo> <slug> <todo-id> --criterion <cmd> [--exit-code <N> --trust-argv] [--output <file>] [--n <idx>] [--flake-check [--exit-code-2 <N>]]
-//   exit: 0 ok · 2 bad args · 3 no state file · 6 verification FAILED (exit-code != 0) · 7 FLAKY (flake-check runs disagree) · 10 STALLED (workspace unchanged since the last failed attempt; --no-stall-check overrides)
+//   exit: 0 ok · 2 bad args · 3 no state file · 6 verification FAILED (exit-code != 0) · 7 FLAKY (flake-check runs disagree) · 10 STALLED (workspace unchanged since the last failed attempt; --no-stall-check overrides) · 9 plan_path isolation violation
 //
 // --flake-check (opt-in, default OFF): runs the criterion a SECOND time and compares exit codes.
 //   - default (execute) path: the criterion is spawned twice in this process.
@@ -35,6 +35,7 @@ import { join } from "node:path";
 import { argv, exit } from "node:process";
 import { spawnSync, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { resolvePlanPath } from "./lib/plan-path.mjs";
 
 const [repo, slug, todoId, ...rest] = argv.slice(2);
 if (!repo || !slug || !todoId) {
@@ -325,8 +326,12 @@ function apply(st) {
   // status gate rather than assuming completeness from an unknown denominator.
   let expectedCriteria = null;
   let declaredCriteria = null;
+  // I3 (audit 2026-08-20): the unreadable-plan catch below falls back to the old status gate,
+  // but a plan_path pointing into ANOTHER repo is an isolation violation, not an unreadable
+  // plan — exit non-zero with the named reason instead of counting foreign criteria.
+  const { planPath, violation } = resolvePlanPath(st, repoAbs);
+  if (violation) { console.error(`record-verify.mjs: ${violation} (state: ${statePath})`); exit(9); }
   try {
-    const planPath = st.plan_path || join(repoAbs, ".zcode", "plans", `${slug}.md`);
     const parsed = JSON.parse(execFileSync(process.execPath,
       [new URL("./parse-plan.mjs", import.meta.url).pathname, planPath],
       { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 }));
