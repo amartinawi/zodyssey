@@ -57,7 +57,7 @@ flowchart TD
     R -- OKAY --> E["4 · EXECUTE <b>sisyphus-junior</b><br/>parallel waves, capped at 4"]
     E --> V["5 · VERIFY<br/>acceptance commands"]
     V --> CMP["automatic for large runs<br/>compact.mjs<br/>summarize notepads"]
-    CMP --> F{"6 · FINAL WAVE<br/>F1·F2·F3·F4"}
+    CMP --> F{"6 · FINAL WAVE<br/>F1·F2·F3·F4·F5"}
     F -- pass --> DONE(("done"))
     F -- fail --> E
     classDef gate fill:#ffebe9,stroke:#cf222e,stroke-width:2px;
@@ -79,8 +79,8 @@ flowchart TD
    3  REVIEW       momus returns OKAY | REJECT + blockers   ←  THE ENFORCED GATE
    4  EXECUTE      sisyphus-junior per todo, parallel-by-default, scope-locked to the plan's Files:
    5  VERIFY       run each todo's executable acceptance criteria
-      automatic   compact.mjs — fires at final entry for large runs; F1–F4 consume a brief, not the full doc set
-   6  FINAL WAVE   F1 plan-compliance · F2 code-quality · F3 manual-QA · F4 scope-fidelity
+      automatic   compact.mjs — fires at final entry for large runs; F1–F5 consume a brief, not the full doc set
+   6  FINAL WAVE   F1 plan-compliance · F2 code-quality · F3 manual-QA · F4 scope-fidelity · F5 capability-routing
 ```
 
 The orchestrator (main agent) drives this; the cast of sub-agents (`metis`, `prometheus`, `momus`, `sisyphus-junior`, plus read-only `explore`/`librarian`/`oracle`) does the work. The enforcement hooks are declared in `.zcode-plugin/plugin.json` under `hooks` (resolved via `${CLAUDE_PLUGIN_ROOT}`) and hard-block the invariants.
@@ -138,6 +138,8 @@ flowchart TD
 | **Reviewer reliability is measured, not assumed** (v0.6.0) | not enforced | `registry-report.mjs` folds consult verdicts + judge criterion results into a cross-run trust ledger keyed on agent-file content hashes, so editing a prompt creates a new identity rather than inheriting its predecessor's record. Laplace-smoothed with `n` always shown; advisory-only |
 | **The metrics corpus holds real runs only** (v0.6.1) | n/a | `ZODYSSEY_EVAL_LANE=synthetic`, declared at source, routes fixture scorecards to `results.synthetic.jsonl`; the operator lane takes real runs. Before this, 83.2% of the trend log was fixtures being read as evidence |
 | **Absent telemetry explains itself** (v0.6.3) | n/a | `collectRunTokens` returns `{inert:true, reason, node_version, at}` over a closed reason set instead of a bare null, so a dead collector is distinguishable from a healthy one. Attribution upgrades to session-exact when the orchestrator session id was witnessed. Needs **Node ≥ 22.5** for `node:sqlite`; below that the record says `binding-unavailable` rather than going quiet |
+| **A synthetic generator declares its lane at every producer site** (v0.6.15) | not enforced | the eval harness (`skills/odyssey/scripts/harness.mjs`) tags **every** spawn that can reach `set-phase.mjs` with `ZODYSSEY_EVAL_LANE: "synthetic"` (spreading `...process.env` first) **and** routes its baseline arm's direct self-append to `results.synthetic.jsonl` via an unconditional constant — closing the leak the harness itself had reopened through the one append path no spawn env can reach. The regression suite proves the inversion hermetically, immune to an inherited lane variable |
+| **Each tool call is judged by the project it touches** (v0.6.16) | not enforced | per-call project-scoped run selection: one workspace holding several projects no longer lets a single "active run" govern every check. Protected dirs are the union across runs (a cleared gate in project-a cannot admit writes into project-b's state), ledger/probe routing follows the *targeted* project, the full-runs cache is TTL-bounded so a project created mid-window becomes visible, one shared plan-path resolver fail-closes foreign/absolute plan paths, and `scaffold` stamps a project binding the discovery walks enforce — pre-0.6.16 markers verify byte-identically. Design: [`docs/DESIGN.md`](docs/DESIGN.md) §6.2 |
 
 > **⚠️ One row above is still not enforced — was two, corrected 2026-08-19.** Queue item 02 shipped
 > in **v0.6.0** and wired `check-imports`, `coverage-delta` and `resolve-capabilities` the two-sided
