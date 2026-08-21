@@ -15,7 +15,7 @@ this one change.
 
 **The mechanism.** When any orchestration run reaches a terminal phase, `set-phase.mjs`
 unconditionally appends its scorecard to the operator's live trend log:
-`skills/odyssey/scripts/set-phase.mjs:454` — `if (phase === "done" || phase === "audited") {`;
+`skills/odyssey/scripts/set-phase.mjs:500` — `if (phase === "done" || phase === "audited") {`;
 `:467` — `const resultsPath = join(env.HOME || "", ".zcode", "orchestration", "eval",
 "results.jsonl");`; `:474` — `appendFileSync(resultsPath, report.trim() + "\n");`; `:476` —
 `capJsonl(resultsPath, 1000)`. There is no guard of any kind in the block: no fixture check, no
@@ -72,7 +72,7 @@ source — via the environment variable `ZODYSSEY_EVAL_LANE=synthetic`, set by t
 process that spawns `set-phase.mjs` — appends its done/audited scorecard to
 `~/.zcode/orchestration/eval/results.synthetic.jsonl` instead of `results.jsonl`. Same directory,
 same record format (the untouched `run-report.mjs --json` line), same rolling cap, same stderr
-notice (`set-phase.mjs:477` already prints the destination path — it now names the lane file,
+notice (`set-phase.mjs:500` already prints the destination path — it now names the lane file,
 free observability).
 
 **2. Real runs are bit-for-bit unchanged.** With the variable unset — the state of every real

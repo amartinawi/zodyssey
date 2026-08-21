@@ -19,7 +19,7 @@ across `skills/`, `scripts/`, `agents/`, `commands/` (`*.mjs`, `*.bash`) returns
 emitted, no exporter exists, no OTLP protocol is spoken anywhere.
 
 **Meanwhile the data that would populate spans is already recorded — into a private silo.** When a
-run reaches `done|audited`, `skills/odyssey/scripts/set-phase.mjs:454-474` spawns the cached
+run reaches `done|audited`, `skills/odyssey/scripts/set-phase.mjs:477-497` spawns the cached
 run-report and appends its JSON record to `~/.zcode/orchestration/eval/results.jsonl`
 (203 records at re-derivation time; the file is live and drifted 184 → 185 → 203 across this
 queue's own lifetime — stamp your own count). That record already carries everything a run-span
@@ -76,7 +76,7 @@ Stated as observable behaviour, not as a diff:
    `{ status: "inert", reason: "export-failed", detail }` and the phase transition proceeds
    exactly as before. Telemetry is downstream of the run, never in its critical path — the same
    best-effort contract the results.jsonl append already carries
-   (`skills/odyssey/scripts/set-phase.mjs:454`, "never fail the phase transition on a report
+   (`skills/odyssey/scripts/set-phase.mjs:500`, "never fail the phase transition on a report
    error"). On success, state records `{ status: "exported", trace_id, span_id, at }`.
 4. **Emitter exit contract:** `0` for exported *or* inert (both are successful outcomes — inert is
    honest absence, not failure), `2` for bad args — the same shape as run-report's
@@ -140,7 +140,7 @@ update" belong to the release pass, not the gated run.
   run. The `ZODYSSEY_` prefix (the `ZODYSSEY_UNGATE_BASH` / `ZODYSSEY_PARALLEL_CAP` precedent)
   makes opt-in deliberate. Documenting the choice is part of the change.
 - Do not alter the results.jsonl record shape, the append at
-  `skills/odyssey/scripts/set-phase.mjs:471-474`, or run-report's exit contract.
+  `skills/odyssey/scripts/set-phase.mjs:494-497`, or run-report's exit contract.
 - Do not add a reviewer, judge, or verifier agent for anything here. **No LLM opinion layer** —
   every verification in this change is an exit code, a received HTTP body, or a grep.
 
@@ -254,7 +254,7 @@ Three probes, each with both directions stated:
 
 Controls required on BOTH builds — a probe that moves any of them has overreached: the
 `done|audited` transition still completes with the endpoint set to garbage (telemetry never blocks
-the run); the results.jsonl append at `skills/odyssey/scripts/set-phase.mjs:471-474` still fires,
+the run); the results.jsonl append at `skills/odyssey/scripts/set-phase.mjs:494-497` still fires,
 byte-shape unchanged; run-report's exit contract (`0/2/3`) is untouched; pre- and post-tool hooks
 are untouched; `node scripts/run-tests.mjs` still exits 0.
 
@@ -271,7 +271,7 @@ When configured, the honest blast radius is:
 - **Run close gains one outbound HTTP request and one bounded child spawn.** Opt-in by env var;
   the operator who set the endpoint asked for exactly this. The ~2 s timeout and
   inert-on-error contract bound the worst case (the B8/CRIT-4a wiring shape at
-  `skills/odyssey/scripts/set-phase.mjs:332-342` and `:479-490` is the precedent: best-effort
+  `skills/odyssey/scripts/set-phase.mjs:355-365` and `:502-513` is the precedent: best-effort
   child inside the transition, `try/catch`, never fail the phase).
 - **Consumers pinned to today's `gen_ai.*` attribute names can break when semconv renames them**
   — the external caveat, now inherited. Mitigated, not solved: the `SEMCONV_SNAPSHOT` constant
@@ -340,7 +340,7 @@ does not opt in, no security surface touched.
     span to a recorded `export-failed` inert; it is not re-emitted.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   **re-Get/Update the plugin so the marketplace cache picks up the scripts** — the emitter is
-  spawned from the cache path exactly like run-report is (`set-phase.mjs:457-461`), so a fix that
+  spawned from the cache path exactly like run-report is (`set-phase.mjs:480-484`), so a fix that
   stays only in the dev tree emits nothing (the `truncate-roundto` cache-refresh natural experiment
   documented in queue item 06 is the standing proof of that failure shape).
 

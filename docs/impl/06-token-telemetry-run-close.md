@@ -12,14 +12,14 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 ## What is broken
 
 **The wiring already exists and, since one specific moment, works.** When a run reaches
-`done|audited`, `skills/odyssey/scripts/set-phase.mjs:454-474` auto-appends a run-report record to
+`done|audited`, `skills/odyssey/scripts/set-phase.mjs:477-497` auto-appends a run-report record to
 `~/.zcode/orchestration/eval/results.jsonl` by executing run-report from the **plugin cache**
-(`skills/odyssey/scripts/set-phase.mjs:457-461` — `fileURLToPath(new URL("./run-report.mjs",
+(`skills/odyssey/scripts/set-phase.mjs:480-484` — `fileURLToPath(new URL("./run-report.mjs",
 import.meta.url))`, with the in-code comment "so it is found from the plugin cache install").
 `skills/odyssey/scripts/run-report.mjs:114` calls `collectRunTokens`, which reads ZCode's durable
 telemetry — the SQLite DB at `~/.zcode/cli/db/db.sqlite` (`skills/odyssey/scripts/lib/tokens.mjs:36`,
 table `model_usage` joined to `session` at `:105-114`). Token accounting shipped in 0.5.2
-(`CHANGELOG.md:495` dated 2026-08-15, entry at `CHANGELOG.md:555`; commit `6b0b428`
+(`CHANGELOG.md:511` dated 2026-08-15, entry at `CHANGELOG.md:571`; commit `6b0b428`
 "feat(telemetry): real per-run token accounting").
 
 **The corpus says "2 of ~193 populated" — and that number decomposes into three eras, none of which
@@ -154,7 +154,7 @@ docs listed under "Docs to update" belong to the release pass, not the gated run
   reproducible.
 - Do not make telemetry failure fail anything: run-report's exit contract
   (`skills/odyssey/scripts/run-report.mjs:13` — 0 ok, 2 bad args, 3 state missing) is unchanged,
-  and the auto-append's best-effort guarantee (`set-phase.mjs:450`, verified untouched) stands.
+  and the auto-append's best-effort guarantee (`set-phase.mjs:473`, verified untouched) stands.
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — every verification
   in this change is an exit code or a grep.
 
@@ -272,7 +272,7 @@ Three probes, each with both directions stated:
   record whose `tokens` is populated or inert-with-reason (criterion 8 asserts the shape on the
   live report). **Before: bare null whenever the source is absent; no reason anywhere.**
   **After: never bare null.** Cache lesson carried from the natural experiment: the auto-append
-  executes the CACHED run-report (`set-phase.mjs:457-461`), so the end-to-end direction is only
+  executes the CACHED run-report (`set-phase.mjs:480-484`), so the end-to-end direction is only
   observable after the release is re-Got/Updated into the plugin cache — a fix that stays only in
   the dev tree populates nothing (that is precisely why 116 records have no field).
 
@@ -360,7 +360,7 @@ ship it without unrelated riders so the cache-refresh effect is attributable).
     except that the record now says which mode it used.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   **re-Get/Update the plugin so the marketplace cache picks up the scripts** — the auto-append
-  runs the CACHED run-report (`set-phase.mjs:457-461`), and the `truncate-roundto` pair (null at
+  runs the CACHED run-report (`set-phase.mjs:480-484`), and the `truncate-roundto` pair (null at
   16:17Z, populated at 19:36Z, cache refresh 18:39Z) is the standing proof that a fix which stays
   in the dev tree populates nothing.
 

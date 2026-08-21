@@ -76,7 +76,7 @@ and derives the arm from the slug suffix instead. **The arm bug is a data-hygien
 Phase C blocker.**
 
 The real blocker is `harness.mjs:13-16` plus the baseline arm printing instructions to a human —
-the pre-item-09 state, narrated at `CHANGELOG.md:232`; the zodyssey arm is not automated either.
+the pre-item-09 state, narrated at `CHANGELOG.md:248`; the zodyssey arm is not automated either.
 Every datapoint costs an operator. So: n=1 per arm, 14 days and 12 releases stale, and the lone
 `+0.25` on arch-01 is both the project's entire empirical basis and `ROADMAP.md §A6`'s retraction.
 
@@ -103,7 +103,7 @@ filenames — a list would be the same bug in test form." A4 needs that move app
 | B5 tests read-only | shipped, scoped to `verify`/`final`, both paths |
 | B6 criteria must invoke `toolchain.test_cmd` | partial (`parse-plan --lint` gates executability) |
 | B7 call `probe-toolchain.mjs` | shipped (five code callers) |
-| B8 pass-to-pass regression gate | **HALF-SHIPPED — corrected 2026-08-16.** The `--snapshot` half is wired (`set-phase.mjs:339`, `record-review.mjs:295`). The `--check` half has **zero code callers**, and `--check` is the only writer of `status: "regressed"` (`regression-gate.mjs:181`) — the field `set-phase.mjs:131` blocks `done` on. The baseline is taken automatically; the comparison never runs, so the gate has never fired in an automated path |
+| B8 pass-to-pass regression gate | **HALF-SHIPPED — corrected 2026-08-16.** The `--snapshot` half is wired (`set-phase.mjs:362`, `record-review.mjs:295`). The `--check` half has **zero code callers**, and `--check` is the only writer of `status: "regressed"` (`regression-gate.mjs:181`) — the field `set-phase.mjs:131` blocks `done` on. The baseline is taken automatically; the comparison never runs, so the gate has never fired in an automated path |
 | B9 package-existence check | **built but never invoked from code** (§0.1) |
 | B10 pre-edit lint baseline | **absent** — `post-tool.mjs` lints the edited file with no before-reading |
 
@@ -121,7 +121,7 @@ the one that matters.
 
 ### 1.1 Context/memory — weakest, and inert rather than thin
 
-`set-phase.mjs:493-501` writes a fixed two-line template on every terminal transition. The entire
+`set-phase.mjs:516-524` writes a fixed two-line template on every terminal transition. The entire
 production corpus, `.zcode/memory/outcomes.jsonl`, is 8 lines of
 `"run <slug> reached done at <iso>"` / `"transition: done"`. Exactly one entry carries content —
 the `v0-3-1-audit` review-gate deadlock — because a human passed `--note`.
@@ -134,7 +134,7 @@ A memory system with no writer of substance and no enforced reader.
 
 ### 1.2 Observability — not thin, actively misleading
 
-`set-phase.mjs:454-474` appends every terminal run's scorecard to
+`set-phase.mjs:477-497` appends every terminal run's scorecard to
 `$HOME/.zcode/orchestration/eval/results.jsonl` unconditionally — **including from the hermetic
 test suite**. The corpus:
 
