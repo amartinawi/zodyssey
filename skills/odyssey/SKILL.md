@@ -281,6 +281,7 @@ because the auditor cannot inherit the run's assumptions.
      rubric: **plan compliance + code quality + bugs + security**
    - parses + normalizes the verdict, appends to `state.consult.history`, prints it
 3. **On ACCEPT:** mark `phase: "audited"`, summarize, STOP.
+   (A retroactive-audit vehicle parked at `abandoned` — a run opened only to carry an external audit of already-shipped work — rides the same edge: `abandoned → audited`, behind the same consult ACCEPT gate; `--force` still cannot reach `audited`.)
 4. **On REJECT:** remediation loop:
    - read `consult.last_gaps` — each gap is `{category, severity, issue, fix}`
    - dispatch `zodyssey:sisyphus-junior` per gap (parallel where independent — but see the limitation note

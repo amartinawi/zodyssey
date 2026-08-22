@@ -69,7 +69,7 @@ flowchart LR
 
 - **`done` → `audited`** is the only path that records an independent verdict. It is what `verify_origin: external-audit` means on the run record (v0.6.0).
 - **`remediate`** re-arms the enforcement hooks, which are otherwise disarmed after `done`, so gap-fixes run under the same gates the original work did.
-- **`blocked` and `abandoned`** are the two `--force`-able targets (`set-phase.mjs:318`). `abandoned` can resume into `plan`/`review`/`execute`, but **not** into `audited` — a run opened purely to carry an external audit of already-shipped work therefore has no legal path to `audited`, and contributes no trend record at all, because the terminal auto-append fires on `done`/`audited` only. That gap is tracked as candidate C1 in [`docs/impl/00-INDEX.md`](impl/00-INDEX.md).
+- **`blocked` and `abandoned`** are the two `--force`-able targets (`set-phase.mjs:319`). `abandoned` can resume into `plan`/`review`/`execute`, but **not** into `audited` — a run opened purely to carry an external audit of already-shipped work therefore has no legal path to `audited`, and contributes no trend record at all, because the terminal auto-append fires on `done`/`audited` only. That gap is tracked as candidate C1 in [`docs/impl/00-INDEX.md`](impl/00-INDEX.md).
 
 ---
 

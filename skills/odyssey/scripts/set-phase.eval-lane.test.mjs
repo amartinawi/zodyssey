@@ -133,7 +133,7 @@ console.log("set-phase.mjs eval lane — synthetic runs never touch the operator
   phase(repo, "done", home);             // operator lane: done first
   writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
     slug: "t", phase: "done", updated_at: new Date().toISOString(),
-    review: { verdict: "OKAY", round: 1, max_rounds: 3 }, final: { verdict: "pass" },
+    review: { verdict: "OKAY", round: 1, max_rounds: 3 }, final: { verdict: "pass" }, consult: { verdict: "ACCEPT" },
   }, null, 2));
   const r = phase(repo, "audited", home, "synthetic");
   check("(e) audited exits 0", r.status === 0, `(exit ${r.status})`);

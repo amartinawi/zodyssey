@@ -40,9 +40,9 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
   telemetry (entries 3–4).
 - **Evidence:** `skills/odyssey/references/scripts.md:47` — "Run it during verify on the run's
   changed files" is an instruction to a model, the only invocation path (notepad 1, rows b-B9-1/2/3);
-  `skills/odyssey/scripts/check-imports.mjs:1-23` + `CHANGELOG.md:838` (shipped v0.3.2, offline
+  `skills/odyssey/scripts/check-imports.mjs:1-23` + `CHANGELOG.md:851` (shipped v0.3.2, offline
   import resolution, exit 9 on unresolved); the wiring pattern is proven in-repo by B8:
-  `skills/odyssey/scripts/set-phase.mjs:362` auto-invokes the regression gate at the execute
+  `skills/odyssey/scripts/set-phase.mjs:363` auto-invokes the regression gate at the execute
   transition and nothing depends on prose for it. **no published outcome evidence** exists for
   "check invocation as phase transition" as a mechanism (notepad 3: harness-layer scoring models are
   absent from the fetched literature entirely).
@@ -103,7 +103,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
   recency-ordered lists.
 - **Evidence:** `skills/odyssey/scripts/compact.mjs` header — "OPT-IN … not wired into any phase
   transition or hook" — with `:37` (`MAX_LINES_PER_NOTEPAD = 40`, truncation to the first 40
-  non-empty lines); `skills/odyssey/SKILL.md:412` (memory-MCP knowledge graph written "at end of
+  non-empty lines); `skills/odyssey/SKILL.md:413` (memory-MCP knowledge graph written "at end of
   run" by instruction, nothing in code verifies the write); `skills/odyssey/scripts/
   recall-corrections.mjs:2-25` + `recall-outcomes.mjs:2-9` (top-K=5, recency-ranked); the only
   code-enforced property in the layer is negative — append-only notepads
@@ -126,7 +126,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 - **Evidence:** `skills/odyssey/scripts/judge.mjs:311` (`arm: "zodyssey"` literal in the record
   constructor; only `--double` is parsed, `judge.mjs:150`); `skills/odyssey/scripts/harness.mjs:21-23`
   (baseline marked TODO), `skills/odyssey/scripts/harness.mjs:90-91` (already parses `--arm zodyssey|baseline`),
-  `CHANGELOG.md:259` (prints instructions instead of running — pre-09 state); `~/.zcode/orchestration/eval/judged.jsonl` — 5 scored
+  `CHANGELOG.md:272` (prints instructions instead of running — pre-09 state); `~/.zcode/orchestration/eval/judged.jsonl` — 5 scored
   records, all `arm: "zodyssey"` (notepad 1, rows b-judge-1..3; re-read during synthesis, see Corrections); the
   settling-experiment design already exists (notepad 4, §5). **no published outcome evidence** that
   orchestration gates help (notepad 4 §5.3: no replicated evidence that enforcement specifically
@@ -159,7 +159,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 - **Claim:** classifying commands by head against known-safe heads eliminates the
   interpreter-enumeration class (residual G), the shell-split false-negative surface (F), and the
   accepted over-blocks (H) — on the Bash path.
-- **Evidence:** `CHANGELOG.md:451` (named terminus, deliberately unshipped — "it wants its own
+- **Evidence:** `CHANGELOG.md:464` (named terminus, deliberately unshipped — "it wants its own
   release and its own paired run"); residuals confirmed live: shell-split
   (`skills/odyssey/hooks/pre-tool.mjs:184,249-272`), unbounded interpreter list
   (`pre-tool.mjs:126,140-154` — posture already inverted, names still enumerated), over-blocks
@@ -188,7 +188,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 
 **Cut, not footnoted:** OS-level process confinement (cannot wrap the harness's Bash tool —
 harness-dependent, outside the constraint set as a complete fix); nonce-to-transcript-hash binding
-(explicitly blocked on harness support, `CHANGELOG.md:480`); any additional reviewer/verifier agent
+(explicitly blocked on harness support, `CHANGELOG.md:493`); any additional reviewer/verifier agent
 (LLM-opinion evidence against, see §5). Proposals that would have violated a hard constraint were
 dropped from candidacy entirely rather than included with a caveat.
 
@@ -213,7 +213,7 @@ evidence for that verdict:
    opt-in, "not wired into any phase transition or hook," and reduces each notepad to its first
    40 non-empty lines. No context-pressure trigger, no summarization: the layer's most advanced
    feature is unwired truncation.
-2. `skills/odyssey/SKILL.md:412` — the canonical cross-run store (memory-MCP knowledge graph)
+2. `skills/odyssey/SKILL.md:413` — the canonical cross-run store (memory-MCP knowledge graph)
    is sustained purely by end-of-run prompt convention; no hook, script, or gate verifies the
    write occurred. Contrast `skills/odyssey/hooks/pre-tool.mjs:748-766`, which enforces notepads
    append-only: the only code-enforced property in this layer is a negative one (don't destroy),
@@ -263,7 +263,7 @@ The repo ran a natural experiment on convention vs enforcement and convention lo
 `check-imports.mjs` shipped v0.3.2 with a passing test and zero code callers (its only invocation
 is the prose at `skills/odyssey/references/scripts.md:47`); token telemetry populated 1 of 177
 records; `compact.mjs` is opt-in and unwired. Meanwhile the one check that IS wired as a
-transition — the B8 regression gate, auto-invoked at `skills/odyssey/scripts/set-phase.mjs:362`
+transition — the B8 regression gate, auto-invoked at `skills/odyssey/scripts/set-phase.mjs:363`
 and blocking `done` on regression — holds and accumulated tests. Generalize the B8 pattern to every
 shipped check: `check-imports` at verify→final, compaction before final-wave dispatch, token
 collection at run close; unsupported repos degrade to a recorded `inert`, never a block.
@@ -307,7 +307,7 @@ Supporting argument (from notepad 4, grounded in notepads 1–3):
 - **The repo's own history is a natural experiment on the bet.** Every mechanism left to prompt
   convention measurably failed to fire: `check-imports.mjs` has zero code callers since v0.3.2
   (`skills/odyssey/references/scripts.md:47`); the canonical cross-run memory store is verified by
-  nothing (`skills/odyssey/SKILL.md:412`); token telemetry populated 1 of 177 records; `compact.mjs`
+  nothing (`skills/odyssey/SKILL.md:413`); token telemetry populated 1 of 177 records; `compact.mjs`
   is opt-in and unwired. Everything enforced in code — append-only notepads, review gate,
   regression gate — held and accumulated tests. Inside this codebase the question is already
   answered.
@@ -368,7 +368,7 @@ evidence exists that enforcement specifically wins.**
 **Settling evidence — the machinery exists and is half-born.** Per notepad 1 rows b-judge-1..3:
 `judge.mjs:311` hardcodes `arm: "zodyssey"`; `harness.mjs` already parses
 `--arm zodyssey|baseline` (`harness.mjs:90-91`) but the baseline arm is TODO and prints
-instructions instead of running (`harness.mjs:21-23`, pre-09 state narrated at `CHANGELOG.md:259`); `judged.jsonl` holds 5 real scored
+instructions instead of running (`harness.mjs:21-23`, pre-09 state narrated at `CHANGELOG.md:272`); `judged.jsonl` holds 5 real scored
 records — all one arm. The decisive measurement is therefore the missing half of existing
 machinery: run the baseline arm as the SAME pipeline with hook gates replaced by their
 prompt-convention equivalents (SKILL.md instruction text where `pre-tool.mjs` now enforces — the
@@ -395,21 +395,21 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 
 | CLAIM | VERDICT | file:line | one-line evidence |
 |---|---|---|---|
-| (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:285-288); hook gates at pre-tool.mjs:798,1315 |
+| (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:286-289); hook gates at pre-tool.mjs:798,1315 |
 | (a2) Non-forgeable verdicts via nonce chain | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1457-1483; skills/odyssey/scripts/record-review.mjs:113-124,130-141 | hook mints one-time nonce; record-review refuses verdicts whose nonce is not bound to artifact path+sha256+round; plan-sha mandatory |
 | (a3) Authenticated run discovery (HMAC) | CONFIRMED | skills/odyssey/scripts/lib/state-auth.mjs:26,65; skills/odyssey/hooks/lib/find-run.mjs:21 | createHmac over run identity; dropped/copied state files are inert |
 | (a4) Bash/Edit write gate with declared-file scope | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1262,1142-1143 | write-capable Bash requires OKAY + declared Files:; Edit path same at :798 (boundary behavior of the Edit path — see Reconciliation M1) |
 | (a5) Append-only notepads (hook-enforced) | CONFIRMED — enforced by PRE-TOOL | skills/odyssey/hooks/pre-tool.mjs:759-767 | Write on existing `.zcode/notepads/*` blocked: "notepads are APPEND-ONLY" |
 | (a6) Test-integrity guard | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:131,253-256 | SKIP_MARKER regex + `git diff --numstat` flags deleted/net-weakened test files |
-| (a7) Pass-to-pass regression gate | CONFIRMED | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:362 | auto-snapshot entering execute; exit 8 on pass→fail; done blocked while regressed |
+| (a7) Pass-to-pass regression gate | CONFIRMED | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:363 | auto-snapshot entering execute; exit 8 on pass→fail; done blocked while regressed |
 | (a8) F1–F5 incl. behavioural capability cross-check | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:87,468-481,500-503; skills/odyssey/hooks/post-tool.mjs:231-251 | F5 cross-checks declared `routed:` tokens against hook-witnessed state.capabilities[] |
 | (a9) Segment-tolerant capability matching | CONFIRMED | skills/odyssey/scripts/lib/capability-name.mjs:13; skills/odyssey/scripts/record-final-wave.mjs:61 | exact match wins, else final name segment — bare matches namespaced and vice versa |
 | (a10) Real token accounting from the session DB | CONFIRMED — at skills/odyssey/scripts/lib/tokens.mjs, reading ~/.zcode/cli/db/db.sqlite | skills/odyssey/scripts/lib/tokens.mjs:36,83,105-114; skills/odyssey/scripts/run-report.mjs:18,114 | node:sqlite read-only; SQL over model_usage JOIN session by repo+time-window; attribution honestly "estimate" |
 | (a11) "32 test suites" | CONFIRMED (re-measured) | package.json test script; npm test 2026-08-15 | `npm test` → "32/32 suite(s) passed in 59318ms" |
-| (a12) "~98 gate-surface cases" | CONFIRMED (re-measured; exactly 98 — not approximate) | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:1; CHANGELOG.md:455 | standalone run: "98 passed, 0 failed"; CHANGELOG v0.5.2: "Gate-surface is 98 cases (was 80)" |
-| (a13) Paired old/new probes | CONFIRMED | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:6; CHANGELOG.md:401,408; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17 | "Every case below fails on the pre-v0.5.0 code"; v0.5.2 paired run against v0.5.1 |
+| (a12) "~98 gate-surface cases" | CONFIRMED (re-measured; exactly 98 — not approximate) | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:1; CHANGELOG.md:468 | standalone run: "98 passed, 0 failed"; CHANGELOG v0.5.2: "Gate-surface is 98 cases (was 80)" |
+| (a13) Paired old/new probes | CONFIRMED | skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:6; CHANGELOG.md:414,421; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17 | "Every case below fails on the pre-v0.5.0 code"; v0.5.2 paired run against v0.5.1 |
 | (b-A4) Doc-code invariant registry "never built" (ROADMAP.md:158) | PARTIAL — named artifact absent, four equivalents exist | docs/ROADMAP.md:158; skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:17; scripts/version-consistency.test.mjs:15; scripts/smoke-gate.mjs:1 | no `invariants.test.mjs` anywhere (zero find hits), but bash-gate/gate-surface/version-consistency/smoke-gate deliver the function domain-by-domain without a unified registry |
-| (b-B9-1) Package-existence checking "absent" | REFUTED — code wins | skills/odyssey/scripts/check-imports.mjs:1-23; CHANGELOG.md:838 | check-imports.mjs exists (shipped v0.3.2): offline import resolution JS/TS + Python; exit 9 on unresolved import |
+| (b-B9-1) Package-existence checking "absent" | REFUTED — code wins | skills/odyssey/scripts/check-imports.mjs:1-23; CHANGELOG.md:851 | check-imports.mjs exists (shipped v0.3.2): offline import resolution JS/TS + Python; exit 9 on unresolved import |
 | (b-B9-2) check-imports has a test and is wired into a phase | PARTIAL | skills/odyssey/scripts/check-imports.test.mjs:1; skills/odyssey/references/scripts.md:47 | test passes (part of 32/32), but the ONLY caller is documentation — prose instructs the conductor; zero code callers repo-wide |
 | (b-B10) Pre-edit lint baseline "absent" | CONFIRMED | skills/odyssey/hooks/post-tool.mjs:96-177; skills/odyssey/scripts/lint-untrusted.mjs:1 | post-tool lints AFTER the edit, no baseline capture; lint-untrusted is injection scanning (different mechanism) |
 | (b-judge-1) judge.mjs:311 hardcodes `arm: "zodyssey"` | CONFIRMED | skills/odyssey/scripts/judge.mjs:311 | literal in the record constructor |
@@ -423,14 +423,14 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B5) Test files read-only at hook layer | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:789,1288-1292 | Edit path "test files are read-only during phase=…"; Bash path "test files are FROZEN" |
 | (b-B6) Criteria must invoke toolchain.test_cmd | CONFIRMED shipped (conditional) | skills/odyssey/scripts/parse-plan.mjs:370-373 | enforced only when .zcode/toolchain.json declares one (bare repo exempt) |
 | (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:341-355; skills/odyssey/scripts/pipeline-integration.test.mjs:98 | scaffold invokes it at run start; integration test asserts the wiring |
-| (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:362 | auto-snapshot entering execute; done blocked on regression |
-| (b-B9-3) Phase B item B9 shipped | CONFIRMED shipped as standalone script, NOT phase-wired | CHANGELOG.md:838; skills/odyssey/references/scripts.md:47 | shipped v0.3.2; pipeline presence is prompt-convention only |
+| (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:363 | auto-snapshot entering execute; done blocked on regression |
+| (b-B9-3) Phase B item B9 shipped | CONFIRMED shipped as standalone script, NOT phase-wired | CHANGELOG.md:851; skills/odyssey/references/scripts.md:47 | shipped v0.3.2; pipeline presence is prompt-convention only |
 | (b-B10-2) Phase B item B10 shipped | REFUTED (not shipped; brief correct) | skills/odyssey/hooks/post-tool.mjs:117-170 | no baseline mechanism exists; the lint arm blocks on any non-zero lint of the edited file |
-| (c-F) Shell-escaping splits command tokens | CONFIRMED | CHANGELOG.md:447; skills/odyssey/hooks/pre-tool.mjs:184,249-272 | `p\ython -c`, `py''thon -c` defeat regex tokenization; no shell-grammar parser |
-| (c-G) Interpreter deny-list unbounded by construction | CONFIRMED (posture inverted; names still enumerated) | CHANGELOG.md:448; skills/odyssey/hooks/pre-tool.mjs:126,140-154 | gawk/mawk/pypy/perl6/raku/jshell/ts-node ungated; posture inverted to allowlist-of-gated-names, but the NAME list remains unbounded |
-| (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:449; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
-| (c-head-allowlist) Head-allowlist inversion unshipped | CONFIRMED | CHANGELOG.md:451; skills/odyssey/hooks/pre-tool.mjs:100-199 | "deliberately **not** in this release: it wants its own release and its own paired run"; code remains a deny-list |
-| (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:480; skills/odyssey/hooks/pre-tool.mjs:1478 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
+| (c-F) Shell-escaping splits command tokens | CONFIRMED | CHANGELOG.md:460; skills/odyssey/hooks/pre-tool.mjs:184,249-272 | `p\ython -c`, `py''thon -c` defeat regex tokenization; no shell-grammar parser |
+| (c-G) Interpreter deny-list unbounded by construction | CONFIRMED (posture inverted; names still enumerated) | CHANGELOG.md:461; skills/odyssey/hooks/pre-tool.mjs:126,140-154 | gawk/mawk/pypy/perl6/raku/jshell/ts-node ungated; posture inverted to allowlist-of-gated-names, but the NAME list remains unbounded |
+| (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:462; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
+| (c-head-allowlist) Head-allowlist inversion unshipped | CONFIRMED | CHANGELOG.md:464; skills/odyssey/hooks/pre-tool.mjs:100-199 | "deliberately **not** in this release: it wants its own release and its own paired run"; code remains a deny-list |
+| (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:493; skills/odyssey/hooks/pre-tool.mjs:1478 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
 | (c-cache) Five stale cache versions, no pruning | CONFIRMED (5 stale + 1 live) | ~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/ (6 dirs); package.json:3 (0.5.2 at measurement; 0.6.x across the 2026-08-17/18 releases, cache follows on re-Get); scripts/install.mjs:764 | 0.3.2–0.5.1 stale, 0.5.2 live; install.mjs only warns, never prunes |
 
 **Phase B scorecard (code-derived):** B1–B9 shipped (B9 standalone-only — its invocation is
@@ -479,7 +479,7 @@ settled by code, never by preference or seniority.
 5. **Phase B scorecard** (map §0.5 ≡ notepad 1 rows b-B1..b-B10-2): B1–B9 shipped (B9
    standalone-only), B10 unshipped — identical tables.
 6. **Context/memory weakest** (map §1.1 ≡ §2): both argue it from `compact.mjs`'s unwired
-   truncation, the convention-only memory store (`SKILL.md:412`), and the recency-list retrieval
+   truncation, the convention-only memory store (`SKILL.md:413`), and the recency-list retrieval
    surface; the repo's own `outcomes.jsonl` corpus is 8 lines, nearly all contentless template
    entries (re-checked this run).
 7. **Observability not thin** (map §1.2 "not thin" ≡ notepad 2 MEDIUM): both disconfirm the
@@ -529,10 +529,10 @@ support the same conclusion; the file is append-only and live). The blind chain 
 (coverage gap, not disagreement), so it is recorded here rather than silently absorbed.
 
 **D4 — Standing of head-allowlist inversion.** The CHANGELOG names it the terminus
-(`CHANGELOG.md:451`); the map demotes it ("flips the sign but stays in the same game," §2.1).
+(`CHANGELOG.md:464`); the map demotes it ("flips the sign but stays in the same game," §2.1).
 **Winner: the map's skepticism, by code.** The gate's posture was already inverted
 (`skills/odyssey/hooks/pre-tool.mjs:140`, "Invert instead") while the enumerated interpreter names
-remained the unbounded residual (`:152`, `CHANGELOG.md:448`) — a sign-flip alone demonstrably did
+remained the unbounded residual (`:152`, `CHANGELOG.md:461`) — a sign-flip alone demonstrably did
 not kill this class; head classification is structurally a Bash-command concept and cannot touch
 the Edit path; and notepad 3 finds no published outcome evidence for the mechanism. This report
 keeps it ranked (§1 entry 7, low) for the same reasons.
