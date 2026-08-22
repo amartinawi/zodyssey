@@ -2,6 +2,18 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.2] — 2026-08-22
+
+### Fixed — trend records identify the plugin version that emitted them (candidate C3)
+
+The plugin-cache directory name tracks the last marketplace Get while its contents track the last
+--sync-cache (install.mjs:37), so a version-named cache dir can execute a different version's code
+— and the emitted trend record (run-report.mjs) carried no version at all, leaving every
+results.jsonl row anonymous as to emitter. run-report.mjs now stamps zodyssey_version into each
+record, read self-relative from its own .zcode-plugin/plugin.json (the copy that actually ran, whose
+content follows --sync-cache) and fail-safe to null so the best-effort auto-append never fails a
+close. Additive; smoke-gate's operator-facing version check is unchanged. Suite 56 → 57.
+
 ## [0.7.1] — 2026-08-22
 
 ### Fixed — the retroactive-audit vehicle can reach `audited` (candidate C1)

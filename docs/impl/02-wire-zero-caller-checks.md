@@ -18,7 +18,7 @@ Every remaining reference is doc prose: `check-imports` at
 `resolve-capabilities` at `skills/odyssey/SKILL.md:395`,
 `skills/odyssey/references/capabilities.md:106`,
 `skills/odyssey/references/scripts.md:50`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
-`docs/DESIGN.md:458`; `coverage-delta` at `CHANGELOG.md:1016` only (it has no
+`docs/DESIGN.md:458`; `coverage-delta` at `CHANGELOG.md:1028` only (it has no
 `references/scripts.md` entry at all). The three detectors:
 
 - `skills/odyssey/scripts/check-imports.mjs` — exits **9** on an import that resolves against

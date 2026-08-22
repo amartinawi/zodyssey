@@ -116,8 +116,24 @@ const tokens = collectRunTokens({ repoRoot, startMs: start, endMs: end, sessionI
 // report (and with it the auto-append). Inert means no numbers exist, so per-todo stays null.
 const tokensPerTodo = tokens && !tokens.inert ? Math.round(tokens.totals.total / Math.max(1, done)) : null;
 
+// --- zodyssey_version (item 27 / C3): the trend record self-identifies its emitting copy ---
+// Read the plugin manifest SELF-relative (up-3 from this script's own location — the depth
+// precedent is pre-tool.mjs:1750) because the cache dir NAME tracks the last Get while its
+// contents track the last --sync-cache: only the manifest beside the copy that RAN answers
+// provenance, so the repo's/cwd's manifest is never consulted. Fail-safe by contract: the
+// set-phase.mjs:479 auto-append swallows report errors, and a throw here would DROP the whole
+// record — so ANY failure (missing file, bad JSON, missing/non-string .version) yields null.
+const zodysseyVersion = (() => {
+  try {
+    const manifestPath = join(new URL(".", import.meta.url).pathname, "..", "..", "..", ".zcode-plugin", "plugin.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    return typeof manifest.version === "string" ? manifest.version : null;
+  } catch { return null; }
+})();
+
 const report = {
   slug,
+  zodyssey_version: zodysseyVersion,
   intent: state.intent,
   phase: state.phase,
   verdict,
