@@ -4,7 +4,7 @@ Build order **14** · depends-on **—** · queue row: [`docs/impl/00-INDEX.md`]
 `14 otel-genai-span-emission` · observability/measurement-class · **minor** release. Last in the
 queue on purpose: the item is externally blocked — every `gen_ai.*` semconv attribute is still
 "Development" stability (`docs/OPPORTUNITY-MAP.md:275`, label carried from the discovery pass,
-**not re-fetched** for this prompt) — so it was demoted behind everything the repo can finish on
+**re-fetched 2026-08-23: still "Development", none Stable; `gen_ai.*` has since split into a dedicated `semantic-conventions-genai` repo with no tagged release**) — so it was demoted behind everything the repo can finish on
 its own. That block is a design constraint here, not a footnote: see "What fixed means" item 5.
 
 This file is a complete, standalone brief. You are assumed competent and to know nothing about this
@@ -35,7 +35,7 @@ onto is already written down at `docs/OPPORTUNITY-MAP.md:411-412` (`invoke_agent
 
 **And the reason nothing was built is still true: the attribute vocabulary churns.** Every
 `gen_ai.*` attribute is "Development" stability, none Stable (`docs/OPPORTUNITY-MAP.md:275` — a
-label carried from the discovery pass, dated; this prompt deliberately does not re-fetch it). What
+label carried from the discovery pass; re-fetched 2026-08-23: unchanged, and the conventions have since moved to a dedicated `semantic-conventions-genai` repo with no tagged release). What
 that means concretely: attribute names and shapes may rename or disappear in any semconv revision,
 so any consumer query pinned to today's names can break underneath them. An emitter that scatters
 `gen_ai.*` string literals across its code inherits that churn as N edit sites; an emitter that
