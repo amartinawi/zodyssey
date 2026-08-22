@@ -94,13 +94,14 @@ const TRANSITIONS = {
   done: ["audited", "remediate"],
   audited: ["remediate"],
   blocked: ["plan", "review", "execute", "abandoned"],
-  abandoned: ["plan", "review", "execute", "blocked"],
+  abandoned: ["plan", "review", "execute", "blocked", "audited"],
 };
 // preconditions for entering a phase (read from the CURRENT state before mutation)
 function checkPrecondition(st, target, acceptWaivers = false) {
   if (target === "execute") {
     if (st.review?.verdict !== "OKAY") return "execute requires review.verdict === OKAY";
   }
+  if (target === "audited") { if (st.consult?.verdict !== "ACCEPT") return "audited requires consult.verdict === ACCEPT (minted only by trusted consult.mjs)"; }
   if (target === "done") {
     if (st.review?.verdict !== "OKAY") return "done requires review.verdict === OKAY";
     if (!st.final || st.final.verdict !== "pass") return "done requires final.verdict === pass (run record-final-wave.mjs first)";
