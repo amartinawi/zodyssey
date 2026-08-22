@@ -2,6 +2,19 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] — 2026-08-22
+
+### Fixed — the retroactive-audit vehicle can reach `audited` (candidate C1)
+
+A run opened only to carry an external audit of already-shipped work executes nothing, so it could
+never reach `done` and therefore never `audited` — it ended at `abandoned` and contributed ZERO
+records to the trend log (the auto-append fires on done|audited only, set-phase.mjs:477), the one
+run class whose external-audit origin most deserves recording. set-phase.mjs gains an
+`abandoned → audited` edge gated on a real external-audit ACCEPT (state.consult.verdict === ACCEPT,
+minted only by trusted consult.mjs) — audited stays out of the --force set, so the abandoned-force
+two-step cannot mint the label. The destination gate also closes the latent hole that done → audited
+never required an audit. All 16 existing audited runs satisfy the new precondition. Suite 55 → 56.
+
 ## [0.7.0] — 2026-08-22
 
 ### Added — the eval-loop meta-layer: the corpus learns, staging-only (item 25)
