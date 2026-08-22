@@ -112,7 +112,7 @@ deliberately widened to list each doc literally. Do not widen it by default.
 - Do not modify any existing `SEC-*` member — security checks in this file are append-only; new
   checks are additive siblings.
 - Do not fix the adjacent named residuals (new-file lexical-resolution symlink redirect,
-  `CHANGELOG.md:526`; the unlocked state writes) — separate releases.
+  `CHANGELOG.md:538`; the unlocked state writes) — separate releases.
 - Do not add a reviewer, judge, or verifier agent. **No LLM opinion layer** — every verification
   in this change is an exit code.
 
@@ -239,7 +239,7 @@ suites are Bash-path commands, not Edit targets.
 **A guard added to one path and not its twin.** In this repo's own words:
 `skills/odyssey/hooks/pre-tool.mjs:287-289` — the v0.5.0 fix for T1-5 "armed `isState` on the Edit
 path only, which is the very Class A shape this release exists to close — a guard added to one
-path and not its Bash twin" (full account at `CHANGELOG.md:569`, including that the suite did
+path and not its Bash twin" (full account at `CHANGELOG.md:581`, including that the suite did
 NOT catch it — a re-verification against 0.4.1 did); and v0.5.1 shipped the same shape again in the
 nonce lane — exact-match guard on one site, segment-tolerant matching on its twin
 (`CHANGELOG.md:503`). This instance is the shape inverted in origin but identical in effect: the
@@ -297,7 +297,7 @@ the same file.
   - Root-equality edge: a target exactly equal to the run repo or `PROJECT_DIR` returns `rel: ""`
     on both twins; the tools reject directory targets themselves.
    - Pre-existing residuals this change does not touch: the new-file lexical fallback / symlink
-     redirect (`CHANGELOG.md:526`), the unlocked state writes.
+     redirect (`CHANGELOG.md:538`), the unlocked state writes.
 - Release mechanics per `docs/DEVELOPMENT.md`: CHANGELOG → tag → `scripts/install.mjs`, then
   re-Get/Update the plugin so the marketplace cache picks up the hook — a fix that stays only in
   the repo protects no run.

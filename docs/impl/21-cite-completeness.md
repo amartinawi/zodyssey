@@ -168,7 +168,7 @@ target, unscanned citing document — that let 3afd81c's +17 half-shift ship unn
 One class is explicitly NOT closed: the fourth. A citation resolves, the fingerprint matches, and the claim is false — semantic drift no mechanical pin can see. This change pins what a line
 SAYS, not whether it says what the citing claim means; closing that needs a judge, not a hash.
 The live instance this run opened on: a queue row cites its gate-deletion evidence at
-`CHANGELOG.md:974`, which resolves and will pin happily — and points at installer prose, not the
+`CHANGELOG.md:986`, which resolves and will pin happily — and points at installer prose, not the
 deletion history, which sits 17 lines lower. Mechanical checks make such lies stable; only
 reading closes them.
 

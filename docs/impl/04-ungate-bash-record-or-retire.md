@@ -37,7 +37,7 @@ Two pieces of in-repo history prove the silence is the dangerous part, not the o
   TWICE … v0.1.1 shipped it deleted — the author's local ZODYSSEY_UNGATE_BASH=1 copy was mirrored
   to the public repo verbatim"). During the ungated v0.2.0 window, "`ZODYSSEY_UNGATE_BASH` survived
   in four documentation locations and **zero lines of executable code**" (`CHANGELOG.md:826`), and
-  the v0.1.2 restore entry (`CHANGELOG.md:993`) carries the post-mortem note that the first fix
+  the v0.1.2 restore entry (`CHANGELOG.md:1005`) carries the post-mortem note that the first fix
   "did not hold".
 - Observed live during this queue's own probing (2026-08-16, prompt 01's Bash-twin probe, recorded
   in run `impl-prompts-v0-6`): an executor shell whose ambient environment carried
@@ -318,7 +318,7 @@ How this change could reintroduce the class: the hatch pattern is one copy-paste
 contributor adding availability or debugging affordances ("`ZODYSSEY_SKIP_SCOPE=1`",
 "`ZODYSSEY_DEBUG_BYPASS=1`", or the UNGATE check moved during a refactor so the recorder no longer
 sits between the env read and the exit) recreates a silent bypass with zero ill intent — the exact
-path by which the second deletion shipped unnoticed (`CHANGELOG.md:831`: audits review the diff in
+path by which the second deletion shipped unnoticed (`CHANGELOG.md:843`: audits review the diff in
 front of them). What prevents it: (a) the **shared structural assertion** in the regression suite —
 it scans the hook source for every `process.env.ZODYSSEY_*` read whose branch guards an early
 `exit(0)` and requires the recorder to be routed between read and exit, so a second bypass variable
