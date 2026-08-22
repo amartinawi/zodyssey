@@ -160,7 +160,7 @@ Three defects found at run-close: C1 and C2 while closing item 04, C3 while clos
 Recorded here rather than added to the DAG, because none has a written prompt and this table's
 contract is one row = one `docs/impl/NN-<slug>.md`.
 
-**C1 — the retroactive-audit vehicle cannot reach `audited` — QUEUED as row 26 (2026-08-22); `docs/impl/26-audit-vehicle-audited-edge.md` is the build brief.** The phase graph gives `audited`
+**C1 — the retroactive-audit vehicle cannot reach `audited` — SHIPPED as row 26 (v0.7.1); `docs/impl/26-audit-vehicle-audited-edge.md` is the build brief.** The phase graph gives `audited`
 exactly two predecessors: `done` (skills/odyssey/scripts/set-phase.mjs:94) and `remediate`
 (skills/odyssey/scripts/set-phase.mjs:93). A run opened purely to carry an external audit of work
 that already shipped executes nothing, so it cannot reach either — it ends at `abandoned`, whose
