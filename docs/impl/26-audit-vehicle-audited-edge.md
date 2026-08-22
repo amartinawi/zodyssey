@@ -13,11 +13,11 @@ The `audited` phase is unreachable for exactly the runs that earn it. The phase 
 (`:94`) and `remediate` (`:93`). A run opened purely to carry an external audit of work that
 already shipped — a *retroactive-audit vehicle* — executes nothing: it never records a
 `review.verdict === OKAY`, never runs the final wave, so it cannot satisfy the `done` precondition
-(`set-phase.mjs:105-107`) and can never enter `done` or `remediate`. It terminates at `abandoned`,
+(`set-phase.mjs:106-108`) and can never enter `done` or `remediate`. It terminates at `abandoned`,
 whose edges are `plan`, `review`, `execute`, `blocked` (`:97`) — `audited` is not among them.
 
 The consequence is not cosmetic. The terminal trend-log auto-append fires on `done` and `audited`
-**only** (`set-phase.mjs:477`), so a run that ends at `abandoned` contributes **zero** records to
+**only** (`set-phase.mjs:478`), so a run that ends at `abandoned` contributes **zero** records to
 `~/.zcode/orchestration/eval/results.jsonl`. The one run class whose whole purpose is an external
 audit therefore never lands in the corpus — and row 18's `verify_origin: external-audit` label
 (the field that distinguishes audited work from self-graded work) is never contributed by the runs
@@ -49,7 +49,7 @@ that scoping `--force` exists to close.
    an audit at all (a `done` run that was never consulted could take the `audited` label; after
    this it cannot). That tightening is intended, not incidental.
 3. **`audited` stays out of `FORCEABLE`.** `FORCEABLE` remains `{blocked, abandoned}`
-   (`set-phase.mjs:318`); the `forcing && !FORCEABLE.has(phase)` refusal (`:325-328`) already
+   (`set-phase.mjs:319`); the `forcing && !FORCEABLE.has(phase)` refusal (`:326-329`) already
    rejects `--force audited`. Combined with (2), the two-command master-bypass the INDEX warns of
    — `set-phase abandoned --force` then `set-phase audited` — is blocked: the second step is not a
    force target, and its precondition demands a `consult.verdict === "ACCEPT"` that only the
@@ -94,7 +94,7 @@ pass` + regression/imports clauses stay exactly as they are — this brief only 
 destination gate).
 
 Zero npm dependencies · Node 18+ built-ins only · synchronous, no daemon · every transition stays
-lock-guarded (`set-phase.mjs:333`) · the trusted-script allowlist means any agent has the same argv
+lock-guarded (`set-phase.mjs:334`) · the trusted-script allowlist means any agent has the same argv
 surface the operator does, so no flag authenticates anyone · fail closed.
 
 Anti-goal: no second way to reach `audited` that a self-graded run could take. One destination gate,
@@ -151,7 +151,7 @@ implementing run, this brief stays the commissioning record.
 
 A run opened only to carry an external audit of already-shipped work executes nothing, so it could
 never reach `done` and therefore never `audited` — it ended at `abandoned` and contributed ZERO
-records to the trend log (the auto-append fires on done|audited only, set-phase.mjs:477), the one
+records to the trend log (the auto-append fires on done|audited only, set-phase.mjs:478), the one
 run class whose external-audit origin most deserves recording. set-phase.mjs gains an
 `abandoned → audited` edge gated on a real external-audit ACCEPT (state.consult.verdict === ACCEPT,
 minted only by trusted consult.mjs) — audited stays out of the --force set, so the abandoned-force

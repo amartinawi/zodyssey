@@ -8,7 +8,7 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
 
 A run opened only to carry an external audit of already-shipped work executes nothing, so it could
 never reach `done` and therefore never `audited` — it ended at `abandoned` and contributed ZERO
-records to the trend log (the auto-append fires on done|audited only, set-phase.mjs:477), the one
+records to the trend log (the auto-append fires on done|audited only, set-phase.mjs:478), the one
 run class whose external-audit origin most deserves recording. set-phase.mjs gains an
 `abandoned → audited` edge gated on a real external-audit ACCEPT (state.consult.verdict === ACCEPT,
 minted only by trusted consult.mjs) — audited stays out of the --force set, so the abandoned-force

@@ -15,7 +15,7 @@ this one change.
 
 **The mechanism.** When any orchestration run reaches a terminal phase, `set-phase.mjs`
 unconditionally appends its scorecard to the operator's live trend log:
-`skills/odyssey/scripts/set-phase.mjs:500` — `if (phase === "done" || phase === "audited") {`;
+`skills/odyssey/scripts/set-phase.mjs:501` — `if (phase === "done" || phase === "audited") {`;
 `:467` — `const resultsPath = join(env.HOME || "", ".zcode", "orchestration", "eval",
 "results.jsonl");`; `:474` — `appendFileSync(resultsPath, report.trim() + "\n");`; `:476` —
 `capJsonl(resultsPath, 1000)`. There is no guard of any kind in the block: no fixture check, no
@@ -34,7 +34,7 @@ Sixteen further records carry `"slug":"t"` — the fixture slug used across the 
 `skills/odyssey/scripts/regression-gate.test.mjs:122` crafts `.zcode/state/t.json`). No test in
 today's tree successfully drives `t` → done (regression-gate's done at
 `skills/odyssey/scripts/regression-gate.test.mjs:124` is asserted BLOCKED, exit ≠ 0, and the
-precondition at `skills/odyssey/scripts/set-phase.mjs:131` fires before the append), so those 16
+precondition at `skills/odyssey/scripts/set-phase.mjs:132` fires before the append), so those 16
 are historical fixture writes — generated in four bursts on 2026-08-15T17:06-17:07Z, fixture-
 shaped (`todos_total: 0`) — produced by the same unconditional mechanism, which is unchanged.
 
@@ -72,7 +72,7 @@ source — via the environment variable `ZODYSSEY_EVAL_LANE=synthetic`, set by t
 process that spawns `set-phase.mjs` — appends its done/audited scorecard to
 `~/.zcode/orchestration/eval/results.synthetic.jsonl` instead of `results.jsonl`. Same directory,
 same record format (the untouched `run-report.mjs --json` line), same rolling cap, same stderr
-notice (`set-phase.mjs:500` already prints the destination path — it now names the lane file,
+notice (`set-phase.mjs:501` already prints the destination path — it now names the lane file,
 free observability).
 
 **2. Real runs are bit-for-bit unchanged.** With the variable unset — the state of every real
@@ -301,7 +301,7 @@ Unchanged controls, required on BOTH builds — a probe that moves any of them h
 | Control | Before | After |
 |---|---|---|
 | A real (unlaned) run reaching `done`/`audited` | appends to `results.jsonl` | appends to `results.jsonl` — CRIT-4a bit-for-bit |
-| `done` blocked by a recorded regression (`set-phase.mjs:131`) | no append, exit ≠ 0 | no append, exit ≠ 0 — the lane never gates |
+| `done` blocked by a recorded regression (`set-phase.mjs:132`) | no append, exit ≠ 0 | no append, exit ≠ 0 — the lane never gates |
 | `audited` transition | appends to `results.jsonl` | routes by the same lane rule as `done` |
 | `run-report.mjs --json` output format | lane-agnostic | lane-agnostic — untouched |
 | `dashboard.mjs` on the existing historical file | renders (vacuously) | renders identically — zero code change |

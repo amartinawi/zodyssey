@@ -308,9 +308,9 @@ unbuilt, and do not read it as a claim that a shipped item works.
 
 **B8 is half-shipped, and this document's framing hid it.** The §7 row reads "Snapshot passing tests
 at `phase→execute`, re-run at verify, any pass→fail is a hard failure." The snapshot half is wired
-(`set-phase.mjs:362`, `record-review.mjs:295`, both `--snapshot`). The re-run half is not:
+(`set-phase.mjs:363`, `record-review.mjs:295`, both `--snapshot`). The re-run half is not:
 `regression-gate.mjs --check` has **zero code callers**, and `--check` is the only writer of
-`status: "regressed"` (`regression-gate.mjs:181`) — the exact field `set-phase.mjs:131` refuses
+`status: "regressed"` (`regression-gate.mjs:181`) — the exact field `set-phase.mjs:132` refuses
 `done` on. The baseline is taken automatically, the comparison never runs, and the refusal reads a
 field nothing populates. **The gate has never fired.**
 

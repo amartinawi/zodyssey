@@ -23,7 +23,7 @@ party independent of the model — never confirms them.** The chain, anchored:
   model-derived. The user's only touchpoints in the whole pipeline are: the ambiguity ritual at
   PRIME ("· ambiguities → ask the user (max 3, then commit)" at `skills/odyssey/SKILL.md:74`;
   "ask the user FIRST and WAIT" at `:85-86`), metis's user-questions at consult
-  (`skills/odyssey/SKILL.md:108`, `:373`), and the momus-loop safety rail (`:290`). **None of these
+  (`skills/odyssey/SKILL.md:108`, `:374`), and the momus-loop safety rail (`:291`). **None of these
   confirms the criteria themselves** — ambiguities are about what was asked, not about what will
   count as done.
 - The criteria that actually gate execution are authored later, by prometheus, into the plan the
@@ -86,7 +86,7 @@ qualitative, vague, or absent → **no round** — the trigger fails and the flo
 **2. Recording — a stamped state, not a memory.** The conductor passes the round's outcome to the
 scaffold when it creates the run: `scripts/scaffold.mjs <repo> <slug> <title> <intent> [task-brief]
 --criteria-state confirmed|adjusted|skipped` (the invocation the conductor already makes, at
-`skills/odyssey/SKILL.md:390`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
+`skills/odyssey/SKILL.md:391`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
 writes for the primed brief (`skills/odyssey/scripts/scaffold.mjs:239`, `:242`) — with a first
 line:
 
