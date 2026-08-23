@@ -58,6 +58,7 @@ flowchart LR
     ANY["any active phase"] -.-> BLK
     ANY -.-> ABN
     ABN -- "resume" --> RES["plan / review / execute"]
+    ABN -- "consult ACCEPT<br/>(v0.7.1)" --> AUD
 
     classDef good fill:#dafbe1,stroke:#2da44e,stroke-width:2px,color:#1f2328;
     classDef warn fill:#fff8c5,stroke:#d4a72c,color:#1f2328;
@@ -67,9 +68,10 @@ flowchart LR
     class BLK,ABN dead;
 ```
 
-- **`done` → `audited`** is the only path that records an independent verdict. It is what `verify_origin: external-audit` means on the run record (v0.6.0).
+- **`done` → `audited`** is the primary path that records an independent verdict. It is what `verify_origin: external-audit` means on the run record (v0.6.0).
+- **`abandoned` → `audited`** (v0.7.1, queue item 26) serves the **audit vehicle**: a run opened purely to carry an external audit of already-shipped work executes nothing, so it could never reach `done` — it ended at `abandoned`, unable to wear the label it earned and contributing no trend record (the auto-append fires on `done`/`audited` only). The edge is gated on `consult.verdict === "ACCEPT"` — minted by `consult.mjs` alone, never `--force` — so the run class that most deserves `external-audit` labeling now produces it.
 - **`remediate`** re-arms the enforcement hooks, which are otherwise disarmed after `done`, so gap-fixes run under the same gates the original work did.
-- **`blocked` and `abandoned`** are the two `--force`-able targets (`set-phase.mjs:319`). `abandoned` can resume into `plan`/`review`/`execute`, but **not** into `audited` — a run opened purely to carry an external audit of already-shipped work therefore has no legal path to `audited`, and contributes no trend record at all, because the terminal auto-append fires on `done`/`audited` only. That gap is tracked as candidate C1 in [`docs/impl/00-INDEX.md`](impl/00-INDEX.md).
+- **`blocked` and `abandoned`** are the two `--force`-able targets (`set-phase.mjs:319`). `abandoned` can resume into `plan`/`review`/`execute` — and, since v0.7.1, transition to `audited` through the consult-ACCEPT gate above. The pre-v0.7.1 gap (tracked as candidate C1, shipped as row 26 in [`docs/impl/00-INDEX.md`](impl/00-INDEX.md)) is closed.
 
 ---
 
@@ -239,6 +241,7 @@ flowchart TD
 
     RPT --> ORIG["verify_origin<br/>external-audit | in-session-only<br/>+ consult_rounds"]
     RPT --> UNG["ungated_bash_calls"]
+    RPT --> ZVER["zodyssey_version<br/>the executing copy's own<br/>plugin.json — fail-safe null<br/>(v0.7.2)"]
 
     POP --> LANE{"ZODYSSEY_EVAL_LANE"}
     INERT --> LANE
@@ -267,5 +270,6 @@ flowchart TD
 | **`verify_origin`** | v0.6.0 | an externally audited run and a self-graded one were indistinguishable in the corpus, while the docs claimed the external auditor was the stronger check |
 | **Narrator trust ledger** | v0.6.0 | reviewer verdicts were scored per-run and thrown away. Trust is now cross-run and keyed on agent-file content hashes, so editing a prompt starts a new record instead of inheriting the old one's reputation |
 | **`ungated_bash_calls`** | v0.6.2 | the documented `ZODYSSEY_UNGATE_BASH=1` escape hatch left no trace, so a run that used it read exactly like one that did not |
+| **`zodyssey_version`** | v0.7.2 | the version-named cache directory names the last marketplace Get while its contents track the last `--sync-cache`, so the only thing that could answer "which copy emitted this record?" answered it wrong exactly when it mattered. The record now answers — read self-relative from the executing copy's own manifest, fail-safe to `null` |
 
 **The cache caveat.** `run-report.mjs` executes from the installed plugin cache, not your working tree — so a telemetry fix that stays in the dev tree changes nothing at close. Refresh the plugin (`--sync-cache`, then a marketplace Update on a version bump) before trusting a new record shape, and check `npm run smoke`, which compares the deployed version against the repo.

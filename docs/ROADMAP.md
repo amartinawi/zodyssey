@@ -327,3 +327,38 @@ deliver its function domain-by-domain. Queued as `docs/impl/08-claim-assertion-c
 
 Successor documents: `docs/OPPORTUNITY-MAP.md`, `docs/ideation-report.md`, and the build queue in
 `docs/impl/00-INDEX.md`.
+
+---
+
+## Status addendum — 2026-08-23
+
+**Appended, not inserted** — same protocol as the 2026-08-16 block above, so every `file:line`
+citation into this document stays valid. Three of that block's claims describe gaps that have
+since closed, plus a Phase C status the 2026-08-16 block predates entirely:
+
+**B8 is fully wired — the gate fires.** The half-shipped state described above ended at
+**v0.6.17** (queue item 24, `docs/impl/24-regression-gate-wiring.md`): the `done` transition now
+runs `regression-gate.mjs --check` itself over the exact tree the final wave judged, re-reads the
+recorded lane, and refuses on `regressed` / `toolchain-drift`. §9 open question 1 is therefore
+answered by the shipping design: the check **records evidence** (a status field in run state) and
+the refusal consumes the recorded status — the subprocess exit code never gates directly, and an
+already-red baseline is recorded, never blamed on the run.
+
+**A4 is fully true.** The unified registry shipped at **v0.6.5** (queue item 08,
+`docs/impl/08-claim-assertion-coverage-ledger.md`): `scripts/claims-ledger.mjs` +
+`scripts/check-claims.mjs`, discovered by `run-tests.mjs` so the ledger cannot become the next
+zero-caller it exists to index.
+
+**Phase C — the instrument exists; the verdict is still out.** The two-arm eval is automated
+(v0.6.7 judge `--arm`/`--compare`; v0.6.8 permission-pinned baseline spawn), the guidance surface
+was censused (v0.6.11 — with the honest substrate gap: 0 of 6 eval-run states carry a
+`capabilities` key, so the prompt-surface effect fraction stays unmeasured), the corpora hold real
+runs only (v0.6.1 lane split; v0.6.15 harness lane), and since v0.7.0 the loop feeds back
+(`mine-corrections.mjs` stages evidence-cited proposals the next consult reads). What no release
+has yet produced is the Phase C decision itself — a settled two-arm comparison on enough real
+seeds to say whether the pipeline beats a single agent. Until then §8 remains what it set out to
+be: a decision point, not a commitment.
+
+**Queue state at this writing:** 26 of 27 DAG rows shipped (v0.5.3 → v0.7.2); row 14 (OTel spans)
+externally blocked on semconv stability (re-fetched 2026-08-23 — unchanged); candidate C5
+(harness `--dry-run` prints a spawn without its permission pin) awaits a commissioning brief.
