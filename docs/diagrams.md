@@ -206,6 +206,7 @@ flowchart LR
     RUN -- "hands off" --> DIFF
     DIFF -- "spawn" --> AUD
     AUD --> V
+    AUD -. "snapshot → spawn → snapshot<br/>(v0.7.3 tripwire)" .-> TRIP["readOnlyViolation<br/>false \| true \| null<br/>fail-closed, beside audit_head"]
 
     V -- "ACCEPT" --> OK(("phase: audited"))
     V -- "REJECT + gaps" --> REM["dispatch sisyphus-junior<br/>per gap (remediate)"]
@@ -220,6 +221,8 @@ flowchart LR
 ```
 
 **Why this is stronger than any in-session reviewer:** the auditor is a separate process — it has not seen the plan rationale, the consult debate, or the executor's self-justifications. It judges the diff against the plan cold. A sub-agent reviewer (even momus) shares the run's context; the external auditor does not.
+
+**Since v0.7.3 the window is witnessed, not promised:** every auditor spawn is wrapped before/after by a two-git-read work-tree snapshot (`workTreeSnapshot`/`compareWorkTree` in `consult.mjs`); the tri-state `readOnlyViolation` — `false` (clean), `true` (any work-path change or HEAD move), `null` (fail-closed on unreadable git) — lands beside `audit_head` in consult history. A `true` warns on stderr naming both possible causes (the auditor OR a concurrent session committing mid-window) and never mutates the verdict, the exit code, or triggers a rerun: record, don't adjudicate. The plan-audit lane is stderr-only (it writes `state.plan_audit`, not history). Pinned by `consult.tripwire.test.mjs`.
 
 **Honest limitation:** this fires only on `/orchestrate-consult` (opt-in) and only after the run reaches `done`. It needs a second provider's CLI installed (default `claude`; override with `CLAUDE_CLI`). The `--multi-auditor` mode runs two independent passes and flags disagreement.
 

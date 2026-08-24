@@ -362,3 +362,12 @@ be: a decision point, not a commitment.
 **Queue state at this writing:** 26 of 27 DAG rows shipped (v0.5.3 → v0.7.2); row 14 (OTel spans)
 externally blocked on semconv stability (re-fetched 2026-08-23 — unchanged); candidate C5
 (harness `--dry-run` prints a spawn without its permission pin) awaits a commissioning brief.
+
+**2026-08-24 addendum:** 27 of 28 DAG rows shipped (v0.5.3 → v0.7.3). Row 28 — the read-only
+audit tripwire, candidate C6 of the delegate-skills/review-skills adaptation study
+(`docs/DELEGATE-REVIEW.md` D-read-only-tripwire, the study's single VIABLE verdict) — shipped
+v0.7.3: every external-auditor spawn window now records tri-state `readOnlyViolation` beside
+`audit_head` in consult history (fail-closed `null`, stderr warning naming both possible causes,
+surface-don't-adjudicate), closing the study's "promises without witnesses" class and completing
+the symmetry with the harness's empty-work guard. Row 14 (OTel spans) still externally blocked on
+semconv stability; candidate C5 still awaits a commissioning brief.
