@@ -2,6 +2,15 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.3] — 2026-08-24
+### Added
+- Consult history now records `readOnlyViolation` (tri-state `false|true|null`) for every
+  external-auditor spawn window (post-done, plan-audit, multi-auditor passes): a before/after
+  two-surface git check (porcelain + untracked, HEAD) filtered to work paths, fail-closed to
+  `null`. A violation warns on stderr and is recorded — never mutated into a verdict change
+  (a concurrent session can legally commit mid-window). Closes candidate C6
+  (delegate-skills adaptation study, docs/DELEGATE-REVIEW.md D-read-only-tripwire).
+
 ## [0.7.2] — 2026-08-22
 
 ### Fixed — trend records identify the plugin version that emitted them (candidate C3)
