@@ -37,6 +37,10 @@
 // The module is import-safe: the entry-point dispatch lives under the `isMain` guard at the
 // bottom. Tests import { buildPlanAuditPrompt, runPlanAudit, runMultiAuditor, compareAuditorVerdicts }
 // directly and pass a stub `spawn`, so no real `claude` process is ever spawned in tests.
+// Item 28 (read-only audit tripwire) widens that surface with workTreeSnapshot / compareWorkTree /
+// runPostDoneConsult({ repoRoot, slug, spawn }) — every auditor spawn window below is wrapped
+// snapshot → spawn → snapshot → compare and records a tri-state readOnlyViolation
+// (false | true | null, fail-closed) beside audit_head in consult.history.
 
 import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSync, renameSync, statSync, mkdirSync, appendFileSync } from "node:fs";
 import { realpathSync } from "node:fs";
@@ -76,6 +80,106 @@ import { resolvePlanPath } from "./lib/plan-path.mjs";
 // the same file via this single const. `new URL(..., import.meta.url)` yields a file: URL which
 // fs.readFileSync accepts directly.
 const AUDITOR_PROMPT_URL = new URL("../references/auditor-prompt.md", import.meta.url);
+
+// ---------------------------------------------------------------------------
+// READ-ONLY AUDIT TRIPWIRE (item 28 / candidate C6). Every spawn below launches the external
+// auditor with read-only flags (`--permission-mode plan --allowedTools ""`), but flags are a
+// promise, not a witness — nothing checked that the multi-minute window actually left the tree
+// alone (the existing HEAD-movement warning sees committed history only; a dirtied working
+// tree or a dropped untracked file passed silently). The tripwire inverts the harness's
+// empty-work check (harness.mjs:272-309): not "did work happen" but "did anything change during
+// the read-only window". A change is evidence, not accusation — a concurrent session in the
+// same repo can legitimately commit mid-window — so a violation warns on stderr and is
+// recorded; it NEVER mutates a verdict, an exit code, or a rerun (surface, don't adjudicate).
+// ---------------------------------------------------------------------------
+
+// The work-path exclusion set, COPIED from harness.mjs:276 (never imported — the harness owns
+// its copy, consult owns its own; a lib/ extraction is explicitly out of scope for item 28).
+// .zcode/ is conductor + concurrent-session bookkeeping; the directory roots are install/build
+// artifacts. The auditor has no legal write surface inside those, so only changes to work
+// paths count as violations.
+const TRIPWIRE_EXCLUDED_DIR_RE = /^(node_modules|dist|build|target|coverage|\.cache|\.next)\//;
+function isTripwireWorkPath(f) {
+  return !f.startsWith(".zcode/") && !TRIPWIRE_EXCLUDED_DIR_RE.test(f);
+}
+
+/**
+ * workTreeSnapshot(repoAbs) → { head, paths } | null
+ *
+ * Exactly TWO git reads (rev-parse + porcelain — no polling loop, no watchers): `head` is the
+ * trimmed `git rev-parse HEAD`; `paths` is `git status --porcelain --untracked-files=all`,
+ * each line harness-style sliced to the bare path (status codes dropped), Boolean-filtered,
+ * filtered through the copied exclusion set, and SORTED so compareWorkTree can compare
+ * element-wise. Fail-closed: if EITHER git read fails (not a repo, git unavailable) the
+ * snapshot is null — never a throw, never a fake-clean object (the Step-5 constraint, same
+ * spirit as harness.mjs:290-293).
+ */
+export function workTreeSnapshot(repoAbs) {
+  try {
+    const head = String(execFileSync("git", ["-C", repoAbs, "rev-parse", "HEAD"], {
+      encoding: "utf8", maxBuffer: 50 * 1024 * 1024, shell: false, // argv only — no interpolation
+    })).trim();
+    const porcelain = execFileSync("git", ["-C", repoAbs, "status", "--porcelain", "--untracked-files=all"], {
+      encoding: "utf8", maxBuffer: 50 * 1024 * 1024, shell: false,
+    });
+    const paths = porcelain.split("\n").map((l) => l.slice(3).trim()).filter(Boolean)
+      .filter(isTripwireWorkPath).sort();
+    return { head, paths };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * compareWorkTree(before, after) → false | true | null
+ *
+ *   false — both snapshots valid, heads equal AND sorted path arrays element-wise equal.
+ *   true  — heads differ OR any work-path entry was added/removed/changed.
+ *   null  — either snapshot is null/invalid (a git read failed): fail-closed indeterminate,
+ *           NEVER a silent false. null is recorded but does NOT warn (indeterminate is not
+ *           a violation).
+ */
+export function compareWorkTree(before, after) {
+  const valid = (s) => !!s && typeof s === "object" &&
+    typeof s.head === "string" && Array.isArray(s.paths);
+  if (!valid(before) || !valid(after)) return null;
+  if (before.head !== after.head) return true;
+  const a = before.paths;
+  const b = after.paths;
+  if (a.length !== b.length) return true;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return true;
+  return false;
+}
+
+/**
+ * warnReadOnlyViolation() — the single warning emitter (the brief's sentence lives here ONCE,
+ * so every wrapped site prints the identical text). Both possible causes are named in the
+ * warning itself because the tripwire performs no attribution (a mid-window change is
+ * evidence, not accusation), and the warning states the verdict below is untouched.
+ */
+function warnReadOnlyViolation() {
+  console.error("consult.mjs: WARNING — read-only window violated — tree changed during audit; " +
+    "could be the auditor OR a concurrent session; verdict below is untouched " +
+    "(readOnlyViolation=true recorded; the verdict and every exit code are NOT changed).");
+}
+
+/**
+ * mergeReadOnlyViolation(a, b) — multi-auditor fail-closed merge of the two per-pass
+ * tri-states: true if any true, else null if any null, else false.
+ */
+function mergeReadOnlyViolation(a, b) {
+  if (a === true || b === true) return true;
+  if (a === null || b === null) return null;
+  return false;
+}
+
+// Internal control-flow signal for runPostDoneConsult: it must RETURN (never process.exit) so
+// the hermetic suite can call it in-process through the injectable `spawn`; the CLI dispatcher
+// alone maps this to an exit code. Message printing stays at the throw site so every path's
+// CLI output is byte-identical to the pre-tripwire behavior.
+class ConsultExit extends Error {
+  constructor(exitCode) { super(`consult exit ${exitCode}`); this.exitCode = exitCode; }
+}
 
 // ---------------------------------------------------------------------------
 // PLAN-AUDIT MODE (pre-execution plan review).
@@ -245,14 +349,18 @@ export async function runPlanAudit({ repoRoot, slug, spawn }) {
 
   // Spawn the external CLI. `spawn` defaults to the real headless invocation (read-only,
   // permission-mode plan) matching the post-done path. Tests override it.
+  // Item 28 tripwire: snapshot → spawn → snapshot → compare. This site writes state.plan_audit
+  // (NOT consult.history), so its violation is STDERR-ONLY — no history write happens here.
   const claudeBin = env.CLAUDE_CLI || "claude";
   const args = ["-p", "--output-format", "json", "--permission-mode", "plan", "--allowedTools", ""];
+  const tripwireBefore = workTreeSnapshot(repoRoot);
   const res = (spawn || ((bin, a, opts) => spawnSync(bin, a, opts)))(claudeBin, args, {
     encoding: "utf8",
     input: prompt,
     maxBuffer: 200 * 1024 * 1024,
     timeout: 10 * 60 * 1000,
   });
+  if (compareWorkTree(tripwireBefore, workTreeSnapshot(repoRoot)) === true) warnReadOnlyViolation();
 
   if (isFatalSpawnError(res)) {
     console.error("plan-auditor process error: " + (res.error ? res.error.message : "killed by signal " + res.signal));
@@ -502,12 +610,17 @@ ${plan}${promptSuffix}
 Return the JSON verdict object now.`;
 
   const args = ["-p", "--output-format", "json", "--permission-mode", "plan", "--allowedTools", ""];
+  // Item 28 tripwire: snapshot → spawn → snapshot → compare. The per-pass tri-state is
+  // returned so runMultiAuditor can fail-closed-merge the two passes' values.
+  const tripwireBefore = workTreeSnapshot(repoRoot);
   const res = (spawn || ((bin, a, opts) => spawnSync(bin, a, opts)))(claudeBin, args, {
     encoding: "utf8",
     input: prompt,
     maxBuffer: 200 * 1024 * 1024,
     timeout: 10 * 60 * 1000,
   });
+  const readOnlyViolation = compareWorkTree(tripwireBefore, workTreeSnapshot(repoRoot));
+  if (readOnlyViolation === true) warnReadOnlyViolation();
 
   if (isFatalSpawnError(res)) {
     const msg = "auditor process error (" + claudeBin + "): " + (res.error ? res.error.message : "killed by signal " + res.signal);
@@ -544,7 +657,7 @@ Return the JSON verdict object now.`;
   }
 
   const normalized = normalizeConsultVerdict(verdict);
-  return { normalized, auditor: claudeBin, raw: verdict };
+  return { normalized, auditor: claudeBin, raw: verdict, readOnlyViolation };
 }
 
 /**
@@ -587,6 +700,9 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
   const p2 = await runSingleAudit({ repoRoot, slug, spawn, claudeBin: cli2, promptSuffix: pass2Suffix });
 
   const comparison = compareAuditorVerdicts(p1.normalized, p2.normalized);
+  // Item 28: fail-closed merge of the two per-pass tripwire values (true if any true, else
+  // null if any null, else false) — recorded on the consensus history push below.
+  const readOnlyViolation = mergeReadOnlyViolation(p1.readOnlyViolation, p2.readOnlyViolation);
 
   const at = new Date().toISOString();
   const result = {
@@ -645,6 +761,7 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
           gaps: winner.gaps,
           advisories: winner.advisories,
           multi_auditor: true,
+          readOnlyViolation,
         });
       } else {
         // DISAGREEMENT: never set a verdict — force human adjudication.
@@ -707,22 +824,29 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
 // prompt from references/auditor-prompt.md, spawns the CLI, parses the verdict
 // via normalizeConsultVerdict, writes to state.consult. Wrapped in a function
 // so the isMain guard can dispatch; the logic itself is unchanged.
+//
+// Item 28: exported with an OBJECT param { repoRoot, slug, spawn, rest } — `spawn` is
+// injectable exactly like the plan-audit and runSingleAudit sites, so the hermetic tripwire
+// suite drives this path offline with no real CLI. The function RETURNS the normalized
+// verdict and never process.exits (error paths throw ConsultExit; the CLI dispatcher alone
+// prints and owns exit codes). The spawn window is tripwire-wrapped and the history push
+// records readOnlyViolation beside audit_head.
 // ===========================================================================
-function runPostDoneConsult(repoRoot, slug, rest) {
+export function runPostDoneConsult({ repoRoot, slug, spawn, rest = [] }) {
 const statePath = join(repoRoot, ".zcode", "state", `${slug}.json`);
 if (!existsSync(statePath)) {
   console.error("no state file: " + statePath);
-  exit(3);
+  throw new ConsultExit(3);
 }
 const state = JSON.parse(readFileSync(statePath, "utf8"));
 // I3 (audit 2026-08-20): the auditor may read THIS run's plan only — a plan_path pointing
 // into another repo is a hard refusal with the named reason, never foreign bytes on a prompt.
 const { planPath, violation } = resolvePlanPath(state, repoRoot);
-if (violation) { console.error(`consult.mjs: ${violation} — refusing to read a foreign plan (state: ${statePath})`); exit(9); }
+if (violation) { console.error(`consult.mjs: ${violation} — refusing to read a foreign plan (state: ${statePath})`); throw new ConsultExit(9); }
 
 if (!existsSync(planPath)) {
   console.error("plan file missing: " + planPath);
-  exit(3);
+  throw new ConsultExit(3);
 }
 
 const taskIdx = rest.indexOf("--task");
@@ -750,7 +874,7 @@ try {
   repoAbs = realpathSync(repoRoot);
 } catch {
   console.error("consult.mjs: repoRoot does not exist: " + repoRoot);
-  exit(2);
+  throw new ConsultExit(2);
 }
 function git(args, maxBuffer = 50 * 1024 * 1024) {
   return execFileSync("git", ["-C", repoAbs, ...args], {
@@ -1038,20 +1162,26 @@ Return the JSON verdict object now.`;
 // diff can then neither write files nor execute code via the auditor's tool surface.
 const claudeBin = env.CLAUDE_CLI || "claude";
 const args = ["-p", "--output-format", "json", "--permission-mode", "plan", "--allowedTools", ""];
-const res = spawnSync(claudeBin, args, {
+// Item 28 tripwire: snapshot → spawn → snapshot → compare. `spawn` is injectable exactly like
+// the plan-audit and runSingleAudit sites so the hermetic suite drives this path offline. The
+// tri-state lands on the history push below, beside audit_head.
+const tripwireBefore = workTreeSnapshot(repoAbs);
+const res = (spawn || ((bin, a, opts) => spawnSync(bin, a, opts)))(claudeBin, args, {
   encoding: "utf8",
   input: prompt,
   maxBuffer: 200 * 1024 * 1024,
   timeout: 10 * 60 * 1000, // 10 min hard cap; auditor rarely exceeds 3
 });
+const readOnlyViolation = compareWorkTree(tripwireBefore, workTreeSnapshot(repoAbs));
+if (readOnlyViolation === true) warnReadOnlyViolation();
 
 if (isFatalSpawnError(res)) {
   console.error("auditor process error: " + (res.error ? res.error.message : "killed by signal " + res.signal));
-  exit(4);
+  throw new ConsultExit(4);
 }
 if (res.status !== 0 || !res.stdout) {
   console.error("auditor failed (exit " + res.status + "): " + (res.stderr || "").slice(0, 500));
-  exit(4);
+  throw new ConsultExit(4);
 }
 
 // Parse Claude's JSON envelope, then extract OUR verdict JSON from the text body.
@@ -1072,12 +1202,12 @@ if (m) {
   } catch (e) {
     console.error("could not parse auditor verdict JSON: " + e.message);
     console.error("raw body: " + body.slice(0, 800));
-    exit(4);
+    throw new ConsultExit(4);
   }
 } else {
   console.error("no JSON object found in auditor response");
   console.error("raw body: " + body.slice(0, 800));
-  exit(4);
+  throw new ConsultExit(4);
 }
 
 // Normalize
@@ -1112,6 +1242,7 @@ state.consult.history.push({
   advisories: normalized.advisories,
   run_start_sha: startSha || null,
   audit_head: headSha || null,
+  readOnlyViolation, // item 28 tripwire: false | true | null (fail-closed), never adjudicated
 });
 state.updated_at = new Date().toISOString();
 // atomic write under O_EXCL lockfile (audit gap #5c: last-writer-safe vs stop.mjs/pre-tool.mjs).
@@ -1144,7 +1275,7 @@ state.updated_at = new Date().toISOString();
     console.error("consult.mjs: could not acquire state lock after retries — consult verdict NOT recorded. Re-run consult.mjs; do NOT write state non-atomically.");
     // emit the verdict to stdout so the operator sees it even though it wasn't persisted
     console.log(JSON.stringify({ verdict: normalized.verdict, gaps: normalized.gaps, round: state.consult.rounds, not_recorded: true }, null, 2));
-    exit(6);
+    throw new ConsultExit(6);
   }
   try {
     const fresh = JSON.parse(readFileSync(statePath, "utf8"));
@@ -1158,9 +1289,11 @@ state.updated_at = new Date().toISOString();
   }
 }
 
-// --- emit the verdict for the caller (the remediation loop) ---
-console.log(JSON.stringify(normalized));
-exit(0);
+// --- return the verdict for the caller (the remediation loop) ---
+// Item 28: runPostDoneConsult RETURNS the normalized verdict — the CLI dispatcher (the isMain
+// block) prints it and owns the exit code. In-process callers (the hermetic suite) read the
+// return value; any violation was already warned + recorded above.
+return normalized;
 } // end runPostDoneConsult
 
 // ===========================================================================
@@ -1200,7 +1333,17 @@ if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
       exit(0);
     });
   } else {
-    // POST-DONE mode (default): byte-identical to the pre-plan-audit behavior.
-    runPostDoneConsult(repoRoot, slug, rest);
+    // POST-DONE mode (default): byte-identical CLI behavior. runPostDoneConsult returns the
+    // normalized verdict (it never exits — item 28's injectable refactor); the dispatcher
+    // prints it and owns the exit code, mapping ConsultExit to the same codes the old inline
+    // exits used. Unexpected errors propagate uncaught, exactly as before the refactor.
+    try {
+      const normalized = runPostDoneConsult({ repoRoot, slug, rest });
+      console.log(JSON.stringify(normalized));
+      exit(0);
+    } catch (e) {
+      if (e instanceof ConsultExit) exit(e.exitCode);
+      throw e;
+    }
   }
 }
