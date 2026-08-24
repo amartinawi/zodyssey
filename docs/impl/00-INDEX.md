@@ -221,3 +221,32 @@ harness.mjs:81), but the dry-run preview prints `spawn: <cli> -p --output-format
 `--permission-mode` (harness.mjs:162) — an operator auditing the surface via `--dry-run` sees a
 different command than the one that executes, hiding exactly the tool-permission surface the pin
 exists to make visible. Found run-close 2026-08-20 while queueing item 12; no written brief yet.
+
+**C6 — the read-only auditor's write behavior is a promise, never verified.** Every external
+auditor spawn is pinned read-only at the flag level (`--permission-mode plan --allowedTools ""` —
+skills/odyssey/scripts/consult.mjs:1040 post-done, :249 plan-audit, :504 multi-auditor pass), and
+consult.mjs itself concedes the pin is a promise, not an observation: the head-freeze comment
+reasons about an auditor "less locked than `--allowedTools \"\"` promises"
+(skills/odyssey/scripts/consult.mjs:781-782). The only post-spawn check catches COMMITTED moves
+(the HEAD-moved race warning re-reads `rev-parse HEAD`, consult.mjs:1094-1098) — a working-tree
+write by a "read-only" auditor is undetectable, and the tests stub the spawn entirely
+(consult.mjs:452-453), so nothing anywhere observes actual write behavior. The detection
+primitive already exists in-tree on another lane: the baseline empty-work guard runs
+`git status --porcelain --untracked-files=all` plus `diff run_start_sha..HEAD`, with
+git-unreadable treated fail-closed (harness.mjs:276-309). The narrow fix: capture the porcelain
+state around each auditor spawn (or diff the post-spawn set against `state.dirty_at_start`,
+scaffold.mjs:328) and record a tri-state `readOnlyViolation: true|false|null` (null = git
+unavailable — coverage incomplete, never "clean") into the consult history entry beside
+`run_start_sha`/`audit_head` (consult.mjs:1106-1115). Deterministic git plumbing only — zero
+new model calls, zero new judgment stages, no prompt changes. Overlap check against open and
+staged work, all five surfaces clear: the three staged proposals under `.zcode/staging/proposals/`
+(all propose an agents/metis.md prompt edit; this is consult.mjs code plus one state field, and it
+verifies the external-audit lane none of them touches); open C5 (00-INDEX.md:218-223 — dry-run
+preview fidelity in harness.mjs vs post-spawn outcome verification in consult.mjs, disjoint files
+and seams); blocked row 14 (00-INDEX.md:38 — no telemetry, no OTel, no external-stability
+dependency; git is already a hard dependency of consult's diff gather); the item-25 meta-layer
+(00-INDEX.md:49 — a zero-LLM corpus miner writing staged proposals vs pipeline code writing one
+state field; no proposals produced or consumed); the row-19 registry (00-INDEX.md:43 — no trust
+scoring, no narrator identity; a per-round fact for humans and auditors, which the registry may
+later consume but that is row 19's call). Found 2026-08-23 in the delegate-skills adaptation
+study (mechanism D-read-only-tripwire; docs/DELEGATE-REVIEW.md); no written brief yet.
