@@ -31,7 +31,7 @@ A multi-agent orchestration pipeline for the ZCode harness. Phases: Prime→Tria
 14. WRITE_PATTERNS (pre-tool.mjs:61-87) false-negatives: bare `git stash` (only stash pop/drop caught), `git merge/pull/fetch/branch/tag/checkout<branch>`, `tar`, `unzip`, `gcc -o`, `make`, `docker run -v` all slip pre-verdict. Verify the git check was inverted to a safe-verb allowlist.
 15. File-lock owner (pre-tool.mjs:885) collapses to session_id — agent_id is ABSENT in this harness's payload (proven by a live payload-probe). Parallel executors on a shared file don't serialize (MEDIUM — requires plan-level file-overlap, not the default case). Verify the owner key uses tool_use_id or the orchestrator passes distinct agent_id.
 16. TRANSITIONS (set-phase.mjs:64-74) has no keys for abandoned/blocked → unrecoverable DAG dead-ends; --force does NOT help (the DAG check :93 runs before the --force branch :312). Verify abandoned/blocked now have re-entry edges.
-17. CLAUDE_CLI (consult.mjs:339, judge.mjs:262) is taken raw, unvalidated, despite the "Environment overrides" section of SKILL.md (SKILL.md:377) formerly claiming "all validated". Verify it's validated or the SKILL.md claim is corrected.
+17. CLAUDE_CLI (consult.mjs:447, judge.mjs:262) is taken raw, unvalidated, despite the "Environment overrides" section of SKILL.md (SKILL.md:377) formerly claiming "all validated". Verify it's validated or the SKILL.md claim is corrected.
 
 # Adversarial questions — answer each with concrete evidence (file:line)
 

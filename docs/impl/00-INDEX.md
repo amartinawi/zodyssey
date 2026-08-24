@@ -25,7 +25,7 @@ its own measurement date.
 | 01 | edit-path-containment-escape | — | **SHIPPED v0.5.3.** Cheapest and most severe open defect; the escape is post-OKAY-only (pre-OKAY targets outside PROJECT_DIR are already blocked at skills/odyssey/hooks/pre-tool.mjs:798). Own release, shipped alone. | No edit path skips the scope gate; the `if (rel)` branch is gone. |
 | 02 | wire-zero-caller-checks | — | **SHIPPED v0.6.0.** check-imports, coverage-delta and resolve-capabilities have zero code callers (re-confirmed this run); wiring follows the B8 precedent at skills/odyssey/scripts/set-phase.mjs:358. Ahead of 08 so the wired checks land as registry rows. | The three checks fire from phase transitions instead of by hand. |
 | 03 | nonce-lane-minter-allowlist | — | **SHIPPED v0.5.5.** Security-class, grouped adjacently with 01/04 (same file cluster) but explicitly not merged — own release. The false header assertion at skills/odyssey/scripts/lib/capability-name.mjs:17 is corrected in the same change. | Only the declared minter can grant the nonce lane. |
-| 04 | ungate-bash-record-or-retire | — | **SHIPPED v0.6.2 (2026-08-18).** Decision: record every ungated call, not retirement — the affordance is documented (docs/INSTALL.md:163) and the v0.1.1/v0.2.0 gate-deletion history (CHANGELOG.md:826, CHANGELOG.md:991) is the causal evidence against removal. Security-class, own release. | Every `ZODYSSEY_UNGATE_BASH=1` call is recorded in run state. |
+| 04 | ungate-bash-record-or-retire | — | **SHIPPED v0.6.2 (2026-08-18).** Decision: record every ungated call, not retirement — the affordance is documented (docs/INSTALL.md:163) and the v0.1.1/v0.2.0 gate-deletion history (CHANGELOG.md:835, CHANGELOG.md:1000) is the causal evidence against removal. Security-class, own release. | Every `ZODYSSEY_UNGATE_BASH=1` call is recorded in run state. |
 | 05 | metrics-corpus-decontamination | — | **SHIPPED v0.6.1 (2026-08-17).** skills/odyssey/scripts/set-phase.mjs:498 appends every run to the trend log unconditionally: 153/184 records synthetic (83.2%, measured 2026-08-16). All measurement items are gated behind this. | The trend log holds real runs only; the synthetic share is measured, not guessed. |
 | 06 | token-telemetry-run-close | 05 | **SHIPPED v0.6.3 (2026-08-18).** The wiring already existed (set-phase auto-append, run-report collect); the defects were null reason-blindness (five null sites in skills/odyssey/scripts/lib/tokens.mjs flattened to one sentinel — measured 2026-08-18, 393-record operator lane: 8/8 real runs populated since telemetry went live, so the unobservability, not a broken mechanism, was the item) and estimate-grade attribution (skills/odyssey/scripts/lib/tokens.mjs:20-24). Fixed as inert-stamped reasons + session-exact attribution; docs/impl/06-token-telemetry-run-close.md is the build brief. Externally audited ACCEPT (round 2, zero gaps; round 1's four citation gaps remediated in 7d4d5b1); both close records populated through the fixed cached run-report (operator-lane populated 8 → 10). | Token counts are populated or reason-stamped, never bare null; attribution is session-exact when the id was witnessed. |
 | 07 | b10-pre-edit-lint-baseline | — | **SHIPPED v0.6.4 (2026-08-19).** First-touch pre-edit baseline (frozen per target per run, side-file `.zcode/state/<slug>.lint-baseline.json`) + attributed post-edit comparison via the shared `lib/lint-invocation.mjs`; blocks only diagnostics NEW to the edit; pre-existing noise, timeouts, and pre-change runs record `inert`. Paired 39-case suite demonstrated RED against the unmodified hooks before the fix. | Lint regressions are caught against a captured per-run baseline. |
@@ -105,7 +105,7 @@ or `set-phase.mjs` (29).
 - The anchor problem generalised into row 15. Fixing the two above produced two more instances of the same defect inside the same day: a one-line insertion into skills/odyssey/references/scripts.md shifted check-imports from :45 to :46 and silently invalidated nine citations (seven of them in docs/ideation-report.md, a committed audit artifact); and a first draft of the ROADMAP addendum, inserted at the top, broke fourteen more across docs/ideation-report.md, docs/impl/07, docs/impl/08 and this file. Both edits were reshaped to be line-count-neutral, and the class was queued as row 15. Repo-wide surface, measured 2026-08-16: 761 citations, 28 documents, 68 cited-into files, 0 currently out of range.
 - build-capsules.mjs is a fourth zero-caller script (zero references of any kind, measured 2026-08-16). Outside the Step-2 candidate set — recorded here, not added as a 15th prompt.
 - results.jsonl drift across this task's lifetime: 172 (map, 08-15) → 177 (report, 08-15) → 181 (metis consult, 08-16 early) → 184 (notepad 2, 2026-08-16T03:05:00Z) → 185 (during todo 3, 08-16). Every prompt quoting the file stamps its own count and date.
-- CORRECTED during the run (wave 6): an earlier bullet here claimed `docs/ADAPT.md` does not exist — that was wrong. The file exists (committed in 6039199, v0.1.0) and `docs/ADAPT.md:48` is the live, canonical anchor for the ZODYSSEY_UNGATE_BASH affordance ("set ZODYSSEY_UNGATE_BASH=1 if you want the lower-friction ungated behavior"). docs/INSTALL.md:163 and CHANGELOG.md:826/:991 are additional live anchors also used in row 04. Prompt 04 may cite any of these. The false-absence claim was caught by the prompt-04 executor and re-verified by the conductor against the working tree — the exact drift class this INDEX exists to prevent, caught inside the same run that wrote it.
+- CORRECTED during the run (wave 6): an earlier bullet here claimed `docs/ADAPT.md` does not exist — that was wrong. The file exists (committed in 6039199, v0.1.0) and `docs/ADAPT.md:48` is the live, canonical anchor for the ZODYSSEY_UNGATE_BASH affordance ("set ZODYSSEY_UNGATE_BASH=1 if you want the lower-friction ungated behavior"). docs/INSTALL.md:163 and CHANGELOG.md:835/:1000 are additional live anchors also used in row 04. Prompt 04 may cite any of these. The false-absence claim was caught by the prompt-04 executor and re-verified by the conductor against the working tree — the exact drift class this INDEX exists to prevent, caught inside the same run that wrote it.
 
 ## Amendment — 2026-08-17, item 05 shipped + bookkeeping catch-up
 
@@ -183,7 +183,7 @@ audited label in two commands — the master-bypass shape that scoping `--force`
 
 **C2 — item 15 is blind to continuation citations — SHIPPED as row 21, v0.6.9 (2026-08-19).** The
 old `CITE` demanded a path prefix per number (scripts/check-anchors.mjs:88), so the second half of
-a continued form was never discovered: in `CHANGELOG.md:826/:991` only the `:826` half was ever
+a continued form was never discovered: in `CHANGELOG.md:835/:1000` only the `:835` half was ever
 seen — this paragraph itself carried the twice-stale halves `:531` and `:696` (blank), the class
 alive inside its own description — and in prose like "the verdict gate at :1105" after a range,
 only the range was seen. Undiscovered meant unpinned and unswept: 3afd81c's +17 half-shift in the
@@ -225,20 +225,20 @@ exists to make visible. Found run-close 2026-08-20 while queueing item 12; no wr
 
 **C6 — the read-only auditor's write behavior is a promise, never verified.** Every external
 auditor spawn is pinned read-only at the flag level (`--permission-mode plan --allowedTools ""` —
-skills/odyssey/scripts/consult.mjs:1040 post-done, :249 plan-audit, :504 multi-auditor pass), and
+skills/odyssey/scripts/consult.mjs:1164 post-done, :355 plan-audit, :615 multi-auditor pass), and
 consult.mjs itself concedes the pin is a promise, not an observation: the head-freeze comment
 reasons about an auditor "less locked than `--allowedTools \"\"` promises"
-(skills/odyssey/scripts/consult.mjs:781-782). The only post-spawn check catches COMMITTED moves
-(the HEAD-moved race warning re-reads `rev-parse HEAD`, consult.mjs:1094-1098) — a working-tree
+(skills/odyssey/scripts/consult.mjs:905-906). The only post-spawn check catches COMMITTED moves
+(the HEAD-moved race warning re-reads `rev-parse HEAD`, consult.mjs:1224-1228) — a working-tree
 write by a "read-only" auditor is undetectable, and the tests stub the spawn entirely
-(consult.mjs:452-453), so nothing anywhere observes actual write behavior. The detection
+(consult.mjs:560-561), so nothing anywhere observes actual write behavior. The detection
 primitive already exists in-tree on another lane: the baseline empty-work guard runs
 `git status --porcelain --untracked-files=all` plus `diff run_start_sha..HEAD`, with
 git-unreadable treated fail-closed (harness.mjs:276-309). The narrow fix: capture the porcelain
 state around each auditor spawn (or diff the post-spawn set against `state.dirty_at_start`,
 scaffold.mjs:328) and record a tri-state `readOnlyViolation: true|false|null` (null = git
 unavailable — coverage incomplete, never "clean") into the consult history entry beside
-`run_start_sha`/`audit_head` (consult.mjs:1106-1115). Deterministic git plumbing only — zero
+`run_start_sha`/`audit_head` (consult.mjs:1236-1246). Deterministic git plumbing only — zero
 new model calls, zero new judgment stages, no prompt changes. Overlap check against open and
 staged work, all five surfaces clear: the three staged proposals under `.zcode/staging/proposals/`
 (all propose an agents/metis.md prompt edit; this is consult.mjs code plus one state field, and it

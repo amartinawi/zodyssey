@@ -76,7 +76,7 @@ and derives the arm from the slug suffix instead. **The arm bug is a data-hygien
 Phase C blocker.**
 
 The real blocker is `harness.mjs:13-16` plus the baseline arm printing instructions to a human —
-the pre-item-09 state, narrated at `CHANGELOG.md:272`; the zodyssey arm is not automated either.
+the pre-item-09 state, narrated at `CHANGELOG.md:281`; the zodyssey arm is not automated either.
 Every datapoint costs an operator. So: n=1 per arm, 14 days and 12 releases stale, and the lone
 `+0.25` on arch-01 is both the project's entire empirical basis and `ROADMAP.md §A6`'s retraction.
 
