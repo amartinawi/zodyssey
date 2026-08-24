@@ -72,7 +72,7 @@ Covering capability: the plan's task grammar IS a brief contract — each todo b
 
 ### D-claim-workflow — DUPLICATE
 Mechanism (delegate-skills@2ecfa84d CONTRIBUTING.md §Contributing, §Review; delegate-skills@2ecfa84d .github/ISSUE_TEMPLATE/claim-implementer.yml §Autonomy): claim work publicly before building — a claim issue forces the load-bearing facts up front, colliding PRs are decided by verification evidence then earlier claim.
-Covering capability: the INDEX candidates block is ZOdyssey's single work-claims registry — "Recorded here rather than added to the DAG, because none has a written prompt and this table's contract is one row = one `docs/impl/NN-<slug>.md`" (docs/impl/00-INDEX.md:158-162) — with the promotion path proven four times (C1→row 26, C2→row 21, C3→row 27, C4→row 22, witnessed at docs/impl/00-INDEX.md:164-216) and the acyclicity rule preventing id collisions (docs/impl/00-INDEX.md:12-14). Duplicate-work prevention in ZOdyssey's shape is "claim it in exactly one dated place before building"; the delegate shape (GitHub claim issues) is the same mechanism for a multi-contributor marketplace.
+Covering capability: the INDEX candidates block is ZOdyssey's single work-claims registry — "Recorded here rather than added to the DAG, because none has a written prompt and this table's contract is one row = one `docs/impl/NN-<slug>.md`" (docs/impl/00-INDEX.md:159-163) — with the promotion path proven four times (C1→row 26, C2→row 21, C3→row 27, C4→row 22, witnessed at docs/impl/00-INDEX.md:165-217) and the acyclicity rule preventing id collisions (docs/impl/00-INDEX.md:12-14). Duplicate-work prevention in ZOdyssey's shape is "claim it in exactly one dated place before building"; the delegate shape (GitHub claim issues) is the same mechanism for a multi-contributor marketplace.
 
 ### D-conformance-suite — DUPLICATE
 Mechanism (delegate-skills@2ecfa84d test/relay/index.mjs §runners; delegate-skills@2ecfa84d test/relay/package-shape.mjs §runPackageShape): a conformance smoke driving real, unmodified relays against fake CLIs on PATH, self-enforcing registration — a skill missing from the smoke matrix fails the suite itself.
@@ -263,7 +263,7 @@ No mechanism was rejected for lack of a quote. The two nearest-miss DUPLICATEs t
 The sole VIABLE (D-read-only-tripwire → candidate C6) was checked against all five staged/open surfaces before being recorded:
 
 1. **The three staged proposals** under `.zcode/staging/proposals/` (2026-08-21, all proposing `Proposed edit target: agents/metis.md` at line 13 of each — read, never applied or dismissed): not duplicative — C6 is consult.mjs code plus one state field, not a metis premortem-prompt edit; it verifies the external-audit lane, a surface none of the three proposals touches.
-2. **Open candidate C5** (docs/impl/00-INDEX.md:218-223): not duplicative — C5 is dry-run PREVIEW fidelity in harness.mjs (the printed spawn vs the real spawn); C6 is post-spawn OUTCOME verification in consult.mjs. Adjacent theme (spawn-surface honesty), disjoint files and seams.
+2. **Open candidate C5** (docs/impl/00-INDEX.md:219-224): not duplicative — C5 is dry-run PREVIEW fidelity in harness.mjs (the printed spawn vs the real spawn); C6 is post-spawn OUTCOME verification in consult.mjs. Adjacent theme (spawn-surface honesty), disjoint files and seams.
 3. **Blocked row 14** (docs/impl/00-INDEX.md:38): not duplicative — no telemetry, no OTel, no external-stability dependency; the tripwire needs only git, already a hard dependency of consult.mjs's diff gather.
 4. **The item-25 meta-layer** (docs/impl/00-INDEX.md:49): not duplicative — mine-corrections is a zero-LLM corpus MINER writing staged proposals; C6 is pipeline code writing one state field. No proposals produced, none consumed.
 5. **The row-19 registry** (docs/impl/00-INDEX.md:43): not duplicative — no trust scoring, no narrator identity, no Laplace arithmetic; the field is a per-round fact for humans and auditors to read. (If the registry later wants it as input, that is row 19's call, not this candidate's.)
@@ -282,7 +282,7 @@ The 33 DUPLICATEs overlap by construction — each names the existing capability
 
 **Counts are as-of-2026-08-23.** The census notepads are append-only; a refinement appended after the verdict mapping would not appear here, and the set-equality binding held at doc-write time only.
 
-**The one VIABLE is a candidate, not work.** C6 has no written brief; "viable" means a named integration point, a passed five-surface overlap check, and zero new model calls — not a decision to build. The INDEX candidates contract (one row = one written brief, docs/impl/00-INDEX.md:158-162) still stands between C6 and the DAG.
+**The one VIABLE is a candidate, not work.** C6 has no written brief; "viable" means a named integration point, a passed five-surface overlap check, and zero new model calls — not a decision to build. The INDEX candidates contract (one row = one written brief, docs/impl/00-INDEX.md:159-163) still stands between C6 and the DAG.
 
 ---
 
