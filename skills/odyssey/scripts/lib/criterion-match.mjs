@@ -19,10 +19,13 @@
 
 const NORM = (s) => String(s || "").toLowerCase().replace(/`/g, "").replace(/\s+/g, " ").trim();
 // The sanctioned outcome-annotation tails a declared criterion may carry beyond the bare
-// command (consult round 1 advisory): `exits N`, `— prints X`, `returns N`, `passes`. Anything
-// else after the command means the invocation is NOT the declared criterion verbatim — it
-// records as undeclared and does not count toward coverage.
-const TAIL_RE = /(?:\s*[-–—]\s*)?\s*(?:exits?\s+\d+|prints?\s+.+|returns?\s+\d+|passes?)(?:\s+(?:ok|successfully))?\s*$/i;
+// command (consult round 1 advisory): `exits N`, `— prints X`, `returns N`, `passes`. The tail
+// must be separated from the command by at least one whitespace or dash (consult round 4
+// advisory: a zero-width-capable separator let a command merely ENDING in "…pass"/"…bypass"
+// strip to a truncated prefix that then counted as declared). Anything else after the command
+// means the invocation is NOT the declared criterion verbatim — it records as undeclared and
+// does not count toward coverage.
+const TAIL_RE = /(?:\s*[-–—]\s*|\s+)(?:exits?\s+\d+|prints?\s+.+|returns?\s+\d+|passes?)(?:\s+(?:ok|successfully))?\s*$/i;
 
 export function makeCriterionMatcher(declaredCriteria) {
   const decl = Array.isArray(declaredCriteria) && declaredCriteria.length

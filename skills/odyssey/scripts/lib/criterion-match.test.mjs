@@ -39,6 +39,11 @@ test("bare command counts when the declared text carries a tail annotation", () 
   assert.equal(makeCriterionMatcher(["`npm test` passes"] )("npm test"), true, "bare `passes` tail");
   assert.equal(makeCriterionMatcher(["`npm test` passes ok"] )("npm test"), true, "`passes ok` tail");
   assert.equal(makeCriterionMatcher(["`npm test` passes"] )("npm test -- --grep x"), false, "altered command still refused");
+  // (consult round 4 advisory) the tail separator must be REAL: a command merely ENDING in
+  // "…pass"/"…bypass" must not strip to a truncated prefix that then counts as declared.
+  assert.equal(makeCriterionMatcher(["`./check.sh --bypass` exits 0"] )("./check.sh --bypass"), true, "full text still matches");
+  assert.equal(makeCriterionMatcher(["`./check.sh --bypass` exits 0"] )("./check.sh --by"), false, "zero-width tail strip refused");
+  assert.equal(makeCriterionMatcher(["`grep -c pass f` exits 0"] )("grep -c"), false, "command ending in 'pass' does not self-strip");
 });
 
 test("backticks and case and whitespace collapse are normalized on both sides", () => {
