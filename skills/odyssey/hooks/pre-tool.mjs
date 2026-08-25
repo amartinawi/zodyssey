@@ -1567,19 +1567,50 @@ if (isDispatch) {
 
   if (EXEC_PHASES.has(state.phase)) {
     const now = Date.now();
-    let arr = pruneStale(readLedger(RUN_STATE_DIR, state.slug), now);
-    if (arr.length >= CAP) {
+    // (audit F5, 2026-08-25) the ledger read-check-push-write was the one state mutation with NO
+    // lockfile discipline — two concurrent PreToolUse invocations for parallel Tasks (the exact
+    // scenario the ledger exists for) both read the same snapshot, both pass the cap check, and
+    // the last rename wins: N+1 dispatches go out under a cap of N. Same O_EXCL + stale-reap
+    // idiom as the nonce mint / file locks / every record-* writer. Contention fails CLOSED
+    // (block + retry) — the cap cannot be verified under a concurrent writer.
+    const lLock = ledgerPath(RUN_STATE_DIR, state.slug) + ".lock";
+    const LEDGER_LOCK_STALE_MS = 60 * 1000;
+    let lfd = null;
+    try { lfd = openSync(lLock, "wx"); } catch {
+      try {
+        if (Date.now() - statSync(lLock).mtimeMs > LEDGER_LOCK_STALE_MS) {
+          try { unlinkSync(lLock); } catch {}
+          try { lfd = openSync(lLock, "wx"); } catch {}
+        }
+      } catch {}
+    }
+    if (lfd === null) {
+      block(
+        `parallel-cap ledger is locked by a concurrent writer — cannot safely verify the cap. ` +
+          `Retry this dispatch in a moment. (slug=${state.slug})`
+      );
+    }
+    let capExceeded = false;
+    let arr = null;
+    try {
+      arr = pruneStale(readLedger(RUN_STATE_DIR, state.slug), now);
+      if (arr.length >= CAP) {
+        capExceeded = true;
+      } else {
+        // Allowed — register this dispatch so subsequent calls in the same turn see it.
+        const id =
+          payload.tool_use_id ||
+          `${toolName}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+        arr.push({ id, at: now });
+        writeLedgerAtomic(RUN_STATE_DIR, state.slug, arr);
+      }
+    } finally { try { closeSync(lfd); unlinkSync(lLock); } catch {} }
+    if (capExceeded) {
       block(
         `parallel cap reached (${arr.length}/${CAP} in flight). ` +
           `Wait for in-flight todos to settle before dispatching more. (slug=${state.slug})`
       );
     }
-    // Allowed — register this dispatch so subsequent calls in the same turn see it.
-    const id =
-      payload.tool_use_id ||
-      `${toolName}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-    arr.push({ id, at: now });
-    writeLedgerAtomic(RUN_STATE_DIR, state.slug, arr);
   }
   // W7-2 + CRIT-2: issue a one-time nonce for any review-bearing dispatch the hook observes, so
   // the resulting artifact is bound to a real Task() call (not forgeable from Bash). momus→review,
