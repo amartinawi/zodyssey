@@ -153,7 +153,9 @@ if (violation) { console.error(`record-final-wave.mjs: ${violation} (state: ${st
 // its own machine check when not skipped.
 if (skip.has("F1")) {
   results.F1 = { passed: true, skipped: true };
-} else
+} else {
+  // (consult advisory, rounds 1+2) braced so the ~90-line try body visibly belongs to this
+  // else — a bare `else try` reads like a missing block at a glance.
 try {
   const planText = readFileSync(planPath, "utf8");
   // SEC-4 (external audit 2026-08-04): the plan is agent-writable, so F1 must refuse to pass if the
@@ -330,6 +332,7 @@ try {
   }
 } catch (e) {
   results.F1 = { passed: false, error: "F1 check failed: " + e.message };
+}
 }
 
 // SEC-H1 (external audit #5 + in-session F1/F4): F2/F4 nonces were minted into
