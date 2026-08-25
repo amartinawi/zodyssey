@@ -61,6 +61,10 @@ function makeFixture() {
     { seed_id: "std-01", slug: "std-01-baseline", arm: "zodyssey", at: "2026-08-01T20:47:01.502Z",
       overall: 0.62, dimensions: { correctness: 0.85, scope_fidelity: 1, verification_rigor: 0.6,
         code_quality: 0.9, efficiency: 1 }, criterion_results: [], summary: "", blockers: [] },
+    // (deep audit 2026-08-25, eval finding 3) a judge REFUSAL — overall null, the shape judge.mjs
+    // writes when a pass declines to score. The win-rate must exclude it, never launder it as 0.0.
+    { seed_id: "std-02", slug: "std-02-zodyssey", arm: "zodyssey", at: "2026-08-01T21:10:00.000Z",
+      overall: null, dimensions: {}, criterion_results: [], summary: "", blockers: [] },
   ];
   writeFileSync(join(dir, "results.jsonl"), results.map((r) => JSON.stringify(r)).join("\n") + "\n");
   writeFileSync(join(dir, "judged.jsonl"), judged.map((j) => JSON.stringify(j)).join("\n") + "\n");
@@ -82,6 +86,14 @@ console.log("dashboard.mjs tests\n");
     check("fixture: baseline arm derived from -baseline slug", stdout.includes("baseline"));
     // mean overall: zodyssey arm has one judged run at 0.83
     check("fixture: zodyssey mean overall rendered", stdout.includes("0.83"));
+    // (eval finding 3) the null-overall refusal is EXCLUDED from win-rate (GAP-1: never a 0.0
+    // loss) and disclosed as its own note instead.
+    // (the run-log section may still LIST the record with overall "n/a" — a listing is not a
+    // score; the win-rate table row shape is `| seed | arm | wins | runs | pct |`.)
+    check("fixture: unscored judged record excluded from the win-rate table",
+      !/\| std-02 \| zodyssey \| \d+ \| \d+ \|/.test(stdout), "a std-02 win-rate row must not exist");
+    check("fixture: unscored disclosure note rendered",
+      /1 judged record\(s\) with a non-numeric overall/.test(stdout));
     // verify column (ISNAD R4): the audited record renders its origin, legacy records render "-"
     // (anchored to the FINAL column — verify is the last cell, so a bare .*\| - \| could be
     // satisfied by the overall column rendering "-" and would not witness the verify column)
