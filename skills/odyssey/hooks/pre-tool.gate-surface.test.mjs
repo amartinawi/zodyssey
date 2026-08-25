@@ -191,6 +191,15 @@ console.log("\n  interpreter eval + redirection (audit-3):");
     "su -c 'node evil.js'", "ssh host node evil.js", "docker exec ctr node evil.js", "setsid node evil.js",
   ]) check(`    consult-r3 bypass family still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
 
+  // Consult round 4 (REJECT, major): the ordinary prefix LAUNCHERS — siblings of nice/stdbuf/
+  // timeout — were never listed, so `taskset -c 0 node x` freed the interpreter; and the
+  // PREFIXES skip tested the RAW token, so quoting past the keyword (`'time' node x` reaches
+  // /usr/bin/time, which takes a command) stranded head="time" in neither set.
+  for (const cmd of [
+    "taskset -c 0 node evil.js", "ionice -c3 node evil.js", "flock /tmp/l node evil.js",
+    "doas node evil.js", "busybox node evil.js", "\\time node evil.js", "'time' node evil.js",
+  ]) check(`    consult-r4 launcher/quoted-keyword still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
   // G-class (audit-4): DIRECT EXECUTION OF A PATH. No interpreter token exists in these, so no
   // list of binaries reaches them — what identifies them is that the command HEAD is a path.
   for (const cmd of ["./deploy.sh", "/tmp/evil", "src/foo.js", "~/bin/evil", "exec /tmp/evil"])
