@@ -180,7 +180,7 @@ approval_gate: open | passed
 ### Parallel execution waves      ← which todos run together (independent)
 ### Dependency matrix             ← which todos block which
 ## Todos                          ← the executable grammar (below)
-## Final verification wave        ← F1–F4, fixed
+## Final verification wave        ← F1–F5, fixed
 ## Commit strategy
 ## Success criteria
 ```
