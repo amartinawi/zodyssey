@@ -179,6 +179,18 @@ console.log("\n  interpreter eval + redirection (audit-3):");
     "for f in *; do node $f; done", "until node x; do :; done", "\\node evil.js",
   ]) check(`    consult-r2 keyword-prefix head still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
 
+  // Consult round 3 (REJECT, CRITICAL — three trivial shapes) + the same-class shapes found by
+  // replaying the auditor's methodology before round 4 could: empty-value env prefixes
+  // (`FOO=` left as head), wrapper option padding past the old 8-token cutoff, multi-layer
+  // quoting (`''node`), variable heads (`x=node; $x`), and the execution-reachable wrapper
+  // fronts the old anywhere-rule gated implicitly (su -c, ssh, docker exec, setsid).
+  for (const cmd of [
+    "FOO= node evil.js", "A=1 B= node evil.js", "FOO= sh evil.sh", "FOO= python3 x.py",
+    "sudo -u a -g b -H -E -P -n -k node evil.js", "''node evil.js",
+    "x=node; $x evil.js", "$RUN_CMD evil.js",
+    "su -c 'node evil.js'", "ssh host node evil.js", "docker exec ctr node evil.js", "setsid node evil.js",
+  ]) check(`    consult-r3 bypass family still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
   // G-class (audit-4): DIRECT EXECUTION OF A PATH. No interpreter token exists in these, so no
   // list of binaries reaches them — what identifies them is that the command HEAD is a path.
   for (const cmd of ["./deploy.sh", "/tmp/evil", "src/foo.js", "~/bin/evil", "exec /tmp/evil"])

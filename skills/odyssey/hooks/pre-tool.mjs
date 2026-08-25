@@ -164,7 +164,11 @@ const WRITE_PATTERNS = [
   (cmd) => {
     const INTERP = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)$/;
     const VERSION_ONLY = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)\s+(?:--version|-V|--help|-h)$/;
-    const WRAPPERS = new Set(["sudo", "nohup", "env", "exec", "command", "builtin", "nice", "stdbuf", "timeout", "xargs", "watch", "strace", "ltrace", "valgrind"]);
+    // (consult round 3) WRAPPERS grew the execution-reachable remote/sandbox fronts: ssh/host,
+    // su, docker/podman exec, setsid, gdb --args, script -c, unshare/chroot/nsenter — a head of
+    // any of these with an interpreter/path behind it is an invocation the old anywhere-rule
+    // gated and head-position alone would free.
+    const WRAPPERS = new Set(["sudo", "nohup", "env", "exec", "command", "builtin", "nice", "stdbuf", "timeout", "xargs", "watch", "strace", "ltrace", "valgrind", "su", "ssh", "docker", "podman", "setsid", "gdb", "script", "unshare", "chroot", "nsenter"]);
     // (consult round 2, CRITICAL) Shell reserved words and transparent prefixes are NOT command
     // heads — `time node x`, `eval node x`, `! node x`, `{ node x; }`, `if/then/do node x` all
     // put a keyword where the head test looked, freeing the interpreter behind it. Skip them
@@ -178,7 +182,9 @@ const WRITE_PATTERNS = [
     // CRITICAL: without the backtick separator, `echo`/`cat` stayed the segment head and the
     // interpreter inside the substitution was invisible → classified read-only → exit(0)).
     for (const seg of String(cmd).split(/(?:^|[;&|()`\n])+|\|\||&&/)) {
-      const stripped = seg.trim().replace(/^(?:[A-Za-z_]\w*=\S+\s+)+/, "");
+      // (consult round 3, CRITICAL) `\S+` required a NON-EMPTY assignment value, so `FOO= node x`
+      // left `FOO=` as the head and freed the interpreter. `\S*` strips empty values too.
+      const stripped = seg.trim().replace(/^(?:[A-Za-z_]\w*=\S*\s+)+/, "");
       if (!stripped) continue;
       const toks = stripped.split(/\s+/);
       if (!toks.length) continue;
@@ -186,14 +192,22 @@ const WRITE_PATTERNS = [
       let start = 0;
       while (start < toks.length && PREFIXES.has(toks[start])) start++;
       if (start >= toks.length) continue;
-      // A single leading backslash or surrounding quotes on the head (`\node`, `'node'`) is
-      // shell quoting of the SAME command — strip it, or the anchored test misses the token
-      // (consult round 2: `\node evil.js` was freed this way).
-      const unquote = (t) => t.replace(/^\\/, "").replace(/^['"]|['"]$/g, "");
+      // (consult round 3, CRITICAL) strip ALL quoting/backslash characters from a candidate
+      // token, not one layer — `''node` yielded `'node` and failed the anchored test. This only
+      // affects match SENSITIVITY (a filename that normalizes to `node` gets gated — an
+      // acceptable over-block); it never opens a gate.
+      const unquote = (t) => t.replace(/[\\'"]/g, "");
       const head = unquote(toks[start]);
+      // A VARIABLE head (`$x evil.js`, after `x=node`) executes whatever the expansion holds —
+      // unresolvable at classification time, so it gates (the pre-wave anywhere-rule caught this
+      // by accident via the assignment's interpreter token).
+      if (head.startsWith("$")) return true;
       const candidates = [head];
       if (WRAPPERS.has(head)) {
-        for (let i = start + 1; i < toks.length && i < start + 8; i++) {
+        // (consult round 3, CRITICAL) no token-count bound: `sudo -u a -g b -H -E -P -n -k node x`
+        // put the interpreter at token 10, past the old i < start+8 cutoff. Commands are short;
+        // scanning to the end is free.
+        for (let i = start + 1; i < toks.length; i++) {
           if (!toks[i].startsWith("-")) candidates.push(unquote(toks[i]));
         }
       }
