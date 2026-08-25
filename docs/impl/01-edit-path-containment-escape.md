@@ -13,7 +13,7 @@ The Edit-path scope boundary — plan-sha tamper guard, declared-`Files:` contai
 fail-closed catch for unreadable plans — is entirely wrapped in `if (rel) {` at
 `skills/odyssey/hooks/pre-tool.mjs:817`, and the file-lock branch below it re-uses the same guard
 at `skills/odyssey/hooks/pre-tool.mjs:1037`. `classifyTarget`
-(`skills/odyssey/hooks/pre-tool.mjs:664-726`) initializes `let rel = ""` at `:677` and assigns
+(`skills/odyssey/hooks/pre-tool.mjs:834-896`) initializes `let rel = ""` at `:677` and assigns
 `rel` only inside the run-repo branch (`:681-692`) or the `PROJECT_DIR` branch (`:694-717`). A
 target that resolves outside **both** roots therefore returns `rel: ""`: the scope gate at `:817`
 is skipped, the lock at `:904` is skipped, and control falls through to the allow at
