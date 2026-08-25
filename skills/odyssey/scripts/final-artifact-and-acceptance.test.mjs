@@ -316,6 +316,25 @@ console.log("record-final-artifact + acceptance completeness\n");
     state(repo).acceptance?.["1"]?.pass === false, JSON.stringify(state(repo).acceptance?.["1"]));
 }
 
+{
+  // (audit H1, 2026-08-25) bidirectional substring matching let a fabricated FRAGMENT count as a
+  // declared criterion: "node --check" is a substring of "`node --check src/a.js` exits 0", and a
+  // one-token invoke matched almost anything. Matching is equality-after-tail-strip now, so the
+  // fragment is recorded but must NOT advance criteria_run nor flip pass.
+  const repo = makeRun({ phase: "verify", criteria: 2 });
+  const v = (n, crit, extra = []) => node(sc("record-verify.mjs"), repo, "t", "1", "--criterion", crit, "--n", String(n), ...extra);
+  v(1, "node --check src/a.js");
+  v(2, "node --check", ["--trust-argv", "--exit-code", "0"]);
+  const acc = state(repo).acceptance?.["1"];
+  check("a substring fragment of a declared criterion does NOT count as coverage",
+    acc?.criteria_run === 1 && acc?.pass === false, JSON.stringify(acc));
+  check("the fragment is flagged as undeclared", acc?.criteria_undeclared === 1, JSON.stringify(acc));
+  // And the byte-exact full-text invocation still counts (the sanctioned discipline).
+  v(2, "node -e \"process.exit(0)\"");
+  check("the full declared text (tail-stripped) still completes coverage",
+    state(repo).acceptance?.["1"]?.pass === true, JSON.stringify(state(repo).acceptance?.["1"]));
+}
+
 for (const d of cleanup) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
