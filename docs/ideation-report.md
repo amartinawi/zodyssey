@@ -203,7 +203,7 @@ Verdicts from the code inventory (notepad 2); citations are `file:line`.
 | Tool orchestration | **STRONG** | parallel cap hook-enforced (`skills/odyssey/hooks/pre-tool.mjs:43,1439`), per-file locks with owner identity (`pre-tool.mjs:968,995-1020`), capability routing cross-checked at F5 (`skills/odyssey/scripts/record-final-wave.mjs:472`), dispatch observation feed (`skills/odyssey/hooks/post-tool.mjs:231-251`) |
 | Verification | **STRONG** | criteria executed not trusted, `--trust-argv` required (`skills/odyssey/scripts/record-verify.mjs:69-107`), regression gate three-way semantics (`skills/odyssey/scripts/regression-gate.mjs:2-29`), F1 fails closed (`record-final-wave.mjs:6-7,178-198`); one soft spot — `check-imports.mjs` unwired (`skills/odyssey/references/scripts.md:47` prose-only) |
 | Context/memory | **THIN — WEAKEST** | see the three pieces of evidence below |
-| Guardrails | **STRONG** | review gate (`pre-tool.mjs:879`), fail-closed scope isolation (`:940`), hook-minted nonces (`:1456-1485`), plan-tamper guard (`:916,1287`), HMAC run discovery (`:30,516`) — the project's center of mass |
+| Guardrails | **STRONG** | review gate (`pre-tool.mjs:894`), fail-closed scope isolation (`:940`), hook-minted nonces (`:1456-1485`), plan-tamper guard (`:916,1287`), HMAC run discovery (`:30,516`) — the project's center of mass |
 | Observability | **MEDIUM** | real DB-backed token accounting (`skills/odyssey/scripts/lib/tokens.mjs:36,105-114`), 177-record longitudinal store, 5 genuinely judged runs, dashboard + written methodology (`docs/MEASUREMENT.md:3-42`) — but telemetry populated 1/177 and the baseline arm never measured (`skills/odyssey/scripts/harness.mjs:21-23`) |
 
 **WEAKEST: context/memory. Runner-up: observability.** The three strongest pieces of code
@@ -297,7 +297,7 @@ POSITION: "Swiss army knife" here must mean the one orchestrator whose guarantee
 
 Supporting argument (from notepad 4, grounded in notepads 1–3):
 
-- **Where the code actually is:** guardrails STRONG (review gate `skills/odyssey/hooks/pre-tool.mjs:879`,
+- **Where the code actually is:** guardrails STRONG (review gate `skills/odyssey/hooks/pre-tool.mjs:894`,
   fail-closed scope isolation `:940`, hook-minted nonces `:1456-1485`), verification STRONG, tool
   orchestration STRONG; context/memory THIN, observability MEDIUM (notepad 2). Breadth builds
   where the repo is weakest, against competitors whose whole product is breadth. The
@@ -395,10 +395,10 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 
 | CLAIM | VERDICT | file:line | one-line evidence |
 |---|---|---|---|
-| (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:286-289); hook gates at pre-tool.mjs:798,1315 |
+| (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:286-289); hook gates at pre-tool.mjs:864,1345 |
 | (a2) Non-forgeable verdicts via nonce chain | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1457-1483; skills/odyssey/scripts/record-review.mjs:113-124,130-141 | hook mints one-time nonce; record-review refuses verdicts whose nonce is not bound to artifact path+sha256+round; plan-sha mandatory |
 | (a3) Authenticated run discovery (HMAC) | CONFIRMED | skills/odyssey/scripts/lib/state-auth.mjs:26,65; skills/odyssey/hooks/lib/find-run.mjs:21 | createHmac over run identity; dropped/copied state files are inert |
-| (a4) Bash/Edit write gate with declared-file scope | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1262,1142-1143 | write-capable Bash requires OKAY + declared Files:; Edit path same at :798 (boundary behavior of the Edit path — see Reconciliation M1) |
+| (a4) Bash/Edit write gate with declared-file scope | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1345,1225-1226 | write-capable Bash requires OKAY + declared Files:; Edit path same at :864 (boundary behavior of the Edit path — see Reconciliation M1) |
 | (a5) Append-only notepads (hook-enforced) | CONFIRMED — enforced by PRE-TOOL | skills/odyssey/hooks/pre-tool.mjs:759-767 | Write on existing `.zcode/notepads/*` blocked: "notepads are APPEND-ONLY" |
 | (a6) Test-integrity guard | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:138,253-256 | SKIP_MARKER regex + `git diff --numstat` flags deleted/net-weakened test files |
 | (a7) Pass-to-pass regression gate | CONFIRMED | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:363 | auto-snapshot entering execute; exit 8 on pass→fail; done blocked while regressed |
@@ -420,7 +420,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-B2) Append-only notepads shipped | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:755-772 | block message explicitly permits Edit appends and new notepad files |
 | (b-B3) Test-integrity guard shipped | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:138,214,253-256 | wired into F1 on the run's start SHA |
 | (b-B4) F1 converse (declared-but-untouched) | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:46,250,308-310 | `--allow-untouched` flag; ORCH-1 extended it to waive all files for read-only runs |
-| (b-B5) Test files read-only at hook layer | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:920,1460 | Edit path "test files are read-only during phase=…"; Bash path "test files are FROZEN" |
+| (b-B5) Test files read-only at hook layer | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:935,1473 | Edit path "test files are read-only during phase=…"; Bash path "test files are FROZEN" |
 | (b-B6) Criteria must invoke toolchain.test_cmd | CONFIRMED shipped (conditional) | skills/odyssey/scripts/parse-plan.mjs:370-373 | enforced only when .zcode/toolchain.json declares one (bare repo exempt) |
 | (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:341-355; skills/odyssey/scripts/pipeline-integration.test.mjs:98 | scaffold invokes it at run start; integration test asserts the wiring |
 | (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:363 | auto-snapshot entering execute; done blocked on regression |

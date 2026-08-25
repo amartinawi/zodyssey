@@ -20,7 +20,7 @@ is skipped, the lock at `:904` is skipped, and control falls through to the allo
 `skills/odyssey/hooks/pre-tool.mjs:996`.
 
 The escape is **post-OKAY only**. Pre-OKAY, outside targets are blocked by the unconditional
-verdict gate at `skills/odyssey/hooks/pre-tool.mjs:798`; the comment at `:796` ("Outside
+verdict gate at `skills/odyssey/hooks/pre-tool.mjs:864`; the comment at `:796` ("Outside
 PROJECT_DIR entirely and not bookkeeping → treat as product code (gated)") is true only for that
 window. Once `review.verdict == "OKAY"`, an executor may edit any absolute path outside the run
 repo and `PROJECT_DIR` — `~/.zcode/cli/config.json`, `/etc/...`, a sibling project — with no scope
