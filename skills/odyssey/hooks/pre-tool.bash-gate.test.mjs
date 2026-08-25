@@ -101,6 +101,27 @@ console.log("pre-tool.mjs — Bash write-gate regression suite\n");
     "git apply /tmp/p.patch",
     "tee src/foo.js < /dev/null",
     "python -c \"open('src/foo.js','w').write('x')\"",
+    // deep audit 2026-08-25 (F2): write/execute primitives that contained no enumerated token
+    // and classified READ-ONLY pre-OKAY. Each must stay BLOCKED.
+    "npx some-package",
+    "npm i some-package",
+    "npm add some-package",
+    "yarn add some-package",
+    "go run ./cmd/evil.go",
+    "find src -name '*.ts' -delete",
+    "find . -name '*.log' -fprintf /tmp/manifest '%p\\n'",
+    "unlink src/foo.js",
+    "rmdir build",
+    "git diff --output=/tmp/x HEAD",
+    "git log --output=/tmp/x --oneline",
+    // consult round 2: -exec runs an arbitrary command per match; the -delete family alone
+    // left this execution shape to the (rewritten) interpreter patterns, which freed it.
+    "find . -name x -exec node evil.js \\;",
+    "find . -type f -okdir rm {} \\;",
+    // consult round 3 same-class: tools whose ARGUMENT is an arbitrary command string — the
+    // anywhere-lookbehind gated these implicitly via the interpreter token inside the payload.
+    "su -c 'node evil.js'",
+    "awk 'system(\"rm -rf /tmp/x\")' data.txt",
   ]) {
     const { code } = runHook(repo, { command: cmd });
     check(`pre-OKAY BLOCKS: ${cmd.slice(0, 38)}`, code === 2, `(exit ${code}, expected 2)`);
@@ -111,7 +132,14 @@ console.log("pre-tool.mjs — Bash write-gate regression suite\n");
 // A gate that blocks `ls` would be abandoned within a day. This is what keeps it usable.
 {
   const { repo } = repoFor({ verdict: "REJECT" });
-  for (const cmd of ["ls -la", "cat src/foo.js", "grep -rn TODO src/", "git status", "npm test"]) {
+  // (consult round 3 advisory) PINNED DELIBERATE OVER-BLOCKS: the new plain-token entries
+  // (npx/unlink/rmdir/go run) match at any position, so grep-ing FOR those words gates too —
+  // the same accepted convention as rm/dd/truncate/xargs. Documented intent, not an oversight.
+  for (const cmd of ["grep -rn unlink src/", "ls | grep 'go run'"]) {
+    const { code } = runHook(repo, { command: cmd });
+    check(`deliberate over-block (documented): ${cmd}`, code === 2, `(exit ${code}, expected 2)`);
+  }
+  for (const cmd of ["ls -la", "cat src/foo.js", "grep -rn TODO src/", "git status", "npm test", "git diff HEAD", "find src -name '*.ts'"]) {
     const { code } = runHook(repo, { command: cmd });
     check(`read-only ALLOWED pre-OKAY: ${cmd}`, code === 0, `(exit ${code}, expected 0)`);
   }
