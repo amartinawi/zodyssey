@@ -83,6 +83,18 @@ for (const [label, cmd] of [
   ["carriage-return second cmd", `node ${RV} ${repo} t 1\rsed -i s/a/b/ src/a.js`],
   ["tab then second command",   `node ${RV} ${repo} t 1\tsed -i s/a/b/ src/a.js`],
   ["leading newline before node", `\nnode ${RV} ${repo} t 1`],
+  // audit F1 (2026-08-25): an env-assignment prefix passes the quote scan, gets STRIPPED so the
+  // command-word scan sees `node`, and the operand still resolves inside SCRIPTS_DIR — so node
+  // loads attacker JS (NODE_OPTIONS --require/--import, LD_*/DYLD_* preloads, interpreter-path
+  // hijacks) BEFORE the trusted script runs, under the hook's unconditional exit(0). The payload
+  // file is placeable for free: .zcode/staging/ is bookkeeping, writable in every phase.
+  ["NODE_OPTIONS --require preload", `NODE_OPTIONS=--require=.zcode/staging/evil.js node ${RV} ${repo} t 1`],
+  ["NODE_OPTIONS --import preload",  `NODE_OPTIONS=--import=./evil.mjs node ${RV} ${repo} t 1`],
+  ["NODE_PATH module hijack",        `NODE_PATH=/tmp/evil node ${RV} ${repo} t 1`],
+  ["LD_PRELOAD injection",           `LD_PRELOAD=/tmp/x.so node ${RV} ${repo} t 1`],
+  ["DYLD_INSERT_LIBRARIES",          `DYLD_INSERT_LIBRARIES=/tmp/x.dylib node ${RV} ${repo} t 1`],
+  ["PYTHONPATH hijack",              `PYTHONPATH=/tmp/evil node ${RV} ${repo} t 1`],
+  ["BASH_ENV on spawned shells",     `BASH_ENV=/tmp/evil.sh node ${RV} ${repo} t 1`],
 ]) {
   check(`    ${label}`, blocked(cmd), `(exit ${run(cmd)})`);
 }

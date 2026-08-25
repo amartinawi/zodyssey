@@ -1205,6 +1205,19 @@ function shellSafeForTrustedInvoke(cmd) {
   return quote === null; // unterminated quote → untrusted
 }
 
+// (audit F1, 2026-08-25) Env-assignment prefixes that hijack the trusted node process before the
+// script runs: NODE_OPTIONS accepts --require/--import (attacker JS preload), NODE_PATH redirects
+// module resolution, LD_*/DYLD_* inject shared objects, PYTHON*/PERL*/RUBY* reach other
+// interpreters, and BASH_ENV/ENV/SHELLOPTS steer any shell the script spawns. A prefix carrying
+// one of these keys is refused outright — it must never reach the strip below, where it would
+// become invisible to the command-word scan. Benign prefixes (FOO=bar node …) stay allowed.
+const ENV_INJECT_KEYS = new Set([
+  "NODE_OPTIONS", "NODE_PATH",
+  "LD_PRELOAD", "LD_LIBRARY_PATH",
+  "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
+  "PYTHONPATH", "PYTHONHOME", "PERL5OPT", "RUBYOPT", "GEM_HOME",
+  "BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS",
+]);
 function isTrustedScriptInvoke(cmd) {
   if (!SCRIPTS_DIR) return false;
   // Metacharacters are dangerous where the SHELL will act on them — not where they are quoted
@@ -1214,8 +1227,8 @@ function isTrustedScriptInvoke(cmd) {
   // Shakedown round 3 paid for that: `record-verify.mjs --criterion "node -e 'process.exit(0)'"`
   // was blocked because of the parens INSIDE the criterion. The tester could record only 1 of 4
   // acceptance criteria, so the run reached `done` with acceptance {pass:false, criteria_run:1,
-  // criteria_declared:4}. A hook rule meant to protect the evidence chain was degrading it, and
-  // it silently rules out every criterion containing (), $, quotes — a large share of real ones.
+  // criteria_declared:4}. A hook rule meant to protect the evidence chain was degrading it, and it
+  // silently rules out every criterion containing (), $, quotes — a large share of real ones.
   //
   // The rule now follows actual shell quoting semantics:
   //   · unquoted      — every metachar is live: ; & | ` $ < > ( )
@@ -1225,6 +1238,12 @@ function isTrustedScriptInvoke(cmd) {
   // Backslash escapes are honoured outside single quotes. An unterminated quote is untrusted:
   // the shell would consume the following text in ways this scan cannot predict.
   if (!shellSafeForTrustedInvoke(cmd)) return false;
+  // Env-prefix injection gate (audit F1, 2026-08-25) — see ENV_INJECT_KEYS above.
+  const envPrefix = cmd.match(/^\s*((?:[A-Za-z_]\w*=\S+\s+)+)/);
+  if (envPrefix) {
+    const keys = [...envPrefix[1].matchAll(/([A-Za-z_]\w*)=/g)].map((m) => m[1]);
+    if (keys.some((k) => ENV_INJECT_KEYS.has(k))) return false;
+  }
   // Strip a leading env-var assignment prefix (FOO=bar node ...) so the command-word scan sees node.
   const stripped = cmd.replace(/^\s*(?:[A-Za-z_]\w*=\S*\s+)*/, "");
   // Must START with `node` (optional flags) then a single positional operand. Anchoring ^node
