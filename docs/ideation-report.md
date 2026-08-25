@@ -179,7 +179,7 @@ arithmetic is shown per entry; the rank order is exactly the computed-score orde
 - **Claim:** five stale plugin versions accumulate in the marketplace cache with no pruning.
 - **Evidence:** `~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/` — 6 dirs on disk (0.3.2,
   0.4.0, 0.4.1, 0.5.0, 0.5.1 stale; 0.5.2 live, all three manifests agree); `scripts/install.mjs`
-  contains no pruning, only a stale-cache warning at `install.mjs:764` (notepad 1, row c-cache).
+  contains no pruning, only a stale-cache warning at `install.mjs:977` (notepad 1, row c-cache).
   **no published outcome evidence** — trivially internal.
 - **Cost:** low-medium (the safety logic matters: never touch the live/registered version;
   marketplace rollback semantics must survive).
@@ -203,7 +203,7 @@ Verdicts from the code inventory (notepad 2); citations are `file:line`.
 | Tool orchestration | **STRONG** | parallel cap hook-enforced (`skills/odyssey/hooks/pre-tool.mjs:43,1439`), per-file locks with owner identity (`pre-tool.mjs:968,995-1020`), capability routing cross-checked at F5 (`skills/odyssey/scripts/record-final-wave.mjs:472`), dispatch observation feed (`skills/odyssey/hooks/post-tool.mjs:231-251`) |
 | Verification | **STRONG** | criteria executed not trusted, `--trust-argv` required (`skills/odyssey/scripts/record-verify.mjs:69-107`), regression gate three-way semantics (`skills/odyssey/scripts/regression-gate.mjs:2-29`), F1 fails closed (`record-final-wave.mjs:6-7,178-198`); one soft spot — `check-imports.mjs` unwired (`skills/odyssey/references/scripts.md:47` prose-only) |
 | Context/memory | **THIN — WEAKEST** | see the three pieces of evidence below |
-| Guardrails | **STRONG** | review gate (`pre-tool.mjs:878`), fail-closed scope isolation (`:940`), hook-minted nonces (`:1456-1485`), plan-tamper guard (`:916,1287`), HMAC run discovery (`:30,516`) — the project's center of mass |
+| Guardrails | **STRONG** | review gate (`pre-tool.mjs:894`), fail-closed scope isolation (`:940`), hook-minted nonces (`:1456-1485`), plan-tamper guard (`:916,1287`), HMAC run discovery (`:30,516`) — the project's center of mass |
 | Observability | **MEDIUM** | real DB-backed token accounting (`skills/odyssey/scripts/lib/tokens.mjs:36,105-114`), 177-record longitudinal store, 5 genuinely judged runs, dashboard + written methodology (`docs/MEASUREMENT.md:3-42`) — but telemetry populated 1/177 and the baseline arm never measured (`skills/odyssey/scripts/harness.mjs:21-23`) |
 
 **WEAKEST: context/memory. Runner-up: observability.** The three strongest pieces of code
@@ -297,7 +297,7 @@ POSITION: "Swiss army knife" here must mean the one orchestrator whose guarantee
 
 Supporting argument (from notepad 4, grounded in notepads 1–3):
 
-- **Where the code actually is:** guardrails STRONG (review gate `skills/odyssey/hooks/pre-tool.mjs:878`,
+- **Where the code actually is:** guardrails STRONG (review gate `skills/odyssey/hooks/pre-tool.mjs:894`,
   fail-closed scope isolation `:940`, hook-minted nonces `:1456-1485`), verification STRONG, tool
   orchestration STRONG; context/memory THIN, observability MEDIUM (notepad 2). Breadth builds
   where the repo is weakest, against competitors whose whole product is breadth. The
@@ -395,12 +395,12 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 
 | CLAIM | VERDICT | file:line | one-line evidence |
 |---|---|---|---|
-| (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:286-289); hook gates at pre-tool.mjs:798,1315 |
+| (a1) Phase DAG with hook-enforced gates | CONFIRMED | skills/odyssey/SKILL.md:65; skills/odyssey/scripts/set-phase.mjs:90-93 | 8-phase state machine; TRANSITIONS map refuses illegal transitions (set-phase.mjs:286-289); hook gates at pre-tool.mjs:864,1345 |
 | (a2) Non-forgeable verdicts via nonce chain | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1457-1483; skills/odyssey/scripts/record-review.mjs:113-124,130-141 | hook mints one-time nonce; record-review refuses verdicts whose nonce is not bound to artifact path+sha256+round; plan-sha mandatory |
 | (a3) Authenticated run discovery (HMAC) | CONFIRMED | skills/odyssey/scripts/lib/state-auth.mjs:26,65; skills/odyssey/hooks/lib/find-run.mjs:21 | createHmac over run identity; dropped/copied state files are inert |
-| (a4) Bash/Edit write gate with declared-file scope | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1262,1142-1143 | write-capable Bash requires OKAY + declared Files:; Edit path same at :798 (boundary behavior of the Edit path — see Reconciliation M1) |
+| (a4) Bash/Edit write gate with declared-file scope | CONFIRMED | skills/odyssey/hooks/pre-tool.mjs:1345,1225-1226 | write-capable Bash requires OKAY + declared Files:; Edit path same at :864 (boundary behavior of the Edit path — see Reconciliation M1) |
 | (a5) Append-only notepads (hook-enforced) | CONFIRMED — enforced by PRE-TOOL | skills/odyssey/hooks/pre-tool.mjs:759-767 | Write on existing `.zcode/notepads/*` blocked: "notepads are APPEND-ONLY" |
-| (a6) Test-integrity guard | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:131,253-256 | SKIP_MARKER regex + `git diff --numstat` flags deleted/net-weakened test files |
+| (a6) Test-integrity guard | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:138,253-256 | SKIP_MARKER regex + `git diff --numstat` flags deleted/net-weakened test files |
 | (a7) Pass-to-pass regression gate | CONFIRMED | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:363 | auto-snapshot entering execute; exit 8 on pass→fail; done blocked while regressed |
 | (a8) F1–F5 incl. behavioural capability cross-check | CONFIRMED | skills/odyssey/scripts/record-final-wave.mjs:87,468-481,500-503; skills/odyssey/hooks/post-tool.mjs:231-251 | F5 cross-checks declared `routed:` tokens against hook-witnessed state.capabilities[] |
 | (a9) Segment-tolerant capability matching | CONFIRMED | skills/odyssey/scripts/lib/capability-name.mjs:13; skills/odyssey/scripts/record-final-wave.mjs:61 | exact match wins, else final name segment — bare matches namespaced and vice versa |
@@ -418,9 +418,9 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (b-seed) REPLACE_WITH seed bug fixed | CONFIRMED | skills/odyssey/scripts/seed.jsonl:1-5 | `grep REPLACE_WITH` → zero matches; concrete ids/prompts/criteria |
 | (b-B1) Verdict ambiguity → `missing` | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:96-111; skills/odyssey/scripts/record-final-artifact.mjs:76-86 | "AMBIGUITY RESOLVES TO 'missing', NEVER 'approve'" |
 | (b-B2) Append-only notepads shipped | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:755-772 | block message explicitly permits Edit appends and new notepad files |
-| (b-B3) Test-integrity guard shipped | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:131,214,253-256 | wired into F1 on the run's start SHA |
-| (b-B4) F1 converse (declared-but-untouched) | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:45,231,300-302 | `--allow-untouched` flag; ORCH-1 extended it to waive all files for read-only runs |
-| (b-B5) Test files read-only at hook layer | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:789,1288-1292 | Edit path "test files are read-only during phase=…"; Bash path "test files are FROZEN" |
+| (b-B3) Test-integrity guard shipped | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:138,214,253-256 | wired into F1 on the run's start SHA |
+| (b-B4) F1 converse (declared-but-untouched) | CONFIRMED shipped | skills/odyssey/scripts/record-final-wave.mjs:46,250,308-310 | `--allow-untouched` flag; ORCH-1 extended it to waive all files for read-only runs |
+| (b-B5) Test files read-only at hook layer | CONFIRMED shipped | skills/odyssey/hooks/pre-tool.mjs:935,1473 | Edit path "test files are read-only during phase=…"; Bash path "test files are FROZEN" |
 | (b-B6) Criteria must invoke toolchain.test_cmd | CONFIRMED shipped (conditional) | skills/odyssey/scripts/parse-plan.mjs:370-373 | enforced only when .zcode/toolchain.json declares one (bare repo exempt) |
 | (b-B7) probe-toolchain called in pipeline | CONFIRMED shipped | skills/odyssey/scripts/scaffold.mjs:341-355; skills/odyssey/scripts/pipeline-integration.test.mjs:98 | scaffold invokes it at run start; integration test asserts the wiring |
 | (b-B8) Pass-to-pass regression gate shipped | CONFIRMED shipped | skills/odyssey/scripts/regression-gate.mjs:1; skills/odyssey/scripts/set-phase.mjs:363 | auto-snapshot entering execute; done blocked on regression |
@@ -431,7 +431,7 @@ suites; `pre-tool.gate-surface.test.mjs` standalone → exactly 98 passed; `pre-
 | (c-H) Accepted over-blocks | CONFIRMED | CHANGELOG.md:471; skills/odyssey/hooks/pre-tool.mjs:173-192 | `/usr/bin/git status` gated (path-heads classified as execution); over-block asserted deliberately in the suite |
 | (c-head-allowlist) Head-allowlist inversion unshipped | CONFIRMED | CHANGELOG.md:473; skills/odyssey/hooks/pre-tool.mjs:100-199 | "deliberately **not** in this release: it wants its own release and its own paired run"; code remains a deny-list |
 | (c-nonces) Nonces prove dispatched-not-said | CONFIRMED (still true; fix NOT done) | skills/odyssey/scripts/record-final-artifact.mjs:110-116; CHANGELOG.md:502; skills/odyssey/hooks/pre-tool.mjs:1478 | nonce lives in agent-readable .zcode/state/; transcript-hash binding "NOT done" (needs harness support) |
-| (c-cache) Five stale cache versions, no pruning | CONFIRMED (5 stale + 1 live) | ~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/ (6 dirs); package.json:3 (0.5.2 at measurement; 0.6.x across the 2026-08-17/18 releases, cache follows on re-Get); scripts/install.mjs:764 | 0.3.2–0.5.1 stale, 0.5.2 live; install.mjs only warns, never prunes |
+| (c-cache) Five stale cache versions, no pruning | CONFIRMED (5 stale + 1 live) | ~/.zcode/cli/plugins/cache/zodyssey-local/zodyssey/ (6 dirs); package.json:3 (0.5.2 at measurement; 0.6.x across the 2026-08-17/18 releases, cache follows on re-Get); scripts/install.mjs:977 | 0.3.2–0.5.1 stale, 0.5.2 live; install.mjs only warns, never prunes |
 
 **Phase B scorecard (code-derived):** B1–B9 shipped (B9 standalone-only — its invocation is
 convention); B10 unshipped. The brief's "validated gaps" section is therefore wrong on B9 (already
@@ -491,7 +491,7 @@ settled by code, never by preference or seniority.
 9. **§5 steelman convergence** (map §5 ≡ §5 above): both identify enumeration-as-intrinsic-shape,
    permanent maintenance cost, and unreplicated evidence as the core attack; both settling designs
    count gate-relevant violations/failures as a primary observable.
-10. **Cache pruning residual** (map item #13 ≡ §1 entry 8): 5 stale versions, `install.mjs:764`
+10. **Cache pruning residual** (map item #13 ≡ §1 entry 8): 5 stale versions, `install.mjs:977`
     warns but never prunes.
 
 ### Divergences (settled by code)

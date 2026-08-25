@@ -30,7 +30,7 @@ to a successful `done`: `skills/odyssey/scripts/pipeline-integration.test.mjs:61
 add-truncate done`, which hits `:474` and appends a fixture scorecard to the **live operator
 log** (the run's `run()` helper at `:33` inherits `process.env`; nothing reroutes `HOME`).
 Sixteen further records carry `"slug":"t"` — the fixture slug used across the hook/script suites
-(`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:173,185`; `skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:236`;
+(`skills/odyssey/hooks/pre-tool.bash-gate.test.mjs:185,187`; `skills/odyssey/hooks/pre-tool.gate-surface.test.mjs:236`;
 `skills/odyssey/scripts/regression-gate.test.mjs:122` crafts `.zcode/state/t.json`). No test in
 today's tree successfully drives `t` → done (regression-gate's done at
 `skills/odyssey/scripts/regression-gate.test.mjs:124` is asserted BLOCKED, exit ≠ 0, and the
