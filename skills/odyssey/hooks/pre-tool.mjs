@@ -292,6 +292,8 @@ const WRITE_PATTERNS = [
   /\bgo\s+run\b/,                                  // compiles AND executes (go build|install are gated; run was not)
   /\bfind\b[^&;\n]*\s(?:-delete|-fprint\w*|-fls|-fprintf)\b/, // find's writing/deleting actions
   /\bfind\b[^&;\n]*\s-(?:exec|execdir|ok|okdir)\b/, // find -exec runs ANY command on every match (consult round 2: `find -exec node x \;` was freed by PR #22's head-position rewrite — the old anywhere-lookbehind gated it)
+  /\bsu\s+[^;&|\n]*\s-c\b/,                        // su -c executes an arbitrary command string (consult round 3 same-class)
+  /\bawk\b[^;&|\n]*\bsystem\s*\(/,                 // awk's system() executes shell commands from the program text (consult round 3 same-class)
   /(?<![\w.-])(?:unlink|rmdir)\b/,                 // deletion primitives the rm|shred|wipe list never named
   /\bgit\s+(?:diff|log|show)\b[^;&|\n]*--output/,  // safe-verb subcommands with a file-writing flag
 ];
