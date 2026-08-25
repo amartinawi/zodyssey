@@ -141,6 +141,23 @@ console.log("\n  interpreter eval + redirection (audit-3):");
   for (const cmd of ["sh deploy.sh", "bash -c 'echo x > f'", "; sh evil", "zsh script.zsh"])
     check(`    CONTROL still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
 
+  // F4 (deep audit 2026-08-25): an interpreter word in ARGUMENT position is data, not an
+  // invocation — `grep node package.json` was hard-blocked in EVERY phase by the position-less
+  // lookbehind plus the fail-closed no-targets branch, with no workaround (the trusted-invoke
+  // escape only exists for node). Head-position matching fixes the reads...
+  for (const cmd of [
+    "grep node package.json", "pgrep -f bash", "grep -r python3 .",
+    "cat error.log | grep ruby", "grep 'node' package.json", "grep -q sh notes.txt",
+  ]) check(`    F4 argument-position interpreter allowed: ${cmd}`, bash(repo, cmd) === 0, `(exit ${bash(repo, cmd)})`);
+
+  // ...while wrapper descents that land on an interpreter stay gated (sudo/env/nice/timeout/
+  // xargs — every non-dash token after the wrapper is a candidate head, so option-value
+  // ambiguity can never hide the interpreter).
+  for (const cmd of [
+    "sudo node evil.js", "sudo -u deploy python3 x.py", "env node evil.js",
+    "timeout 10 python x.py", "nice -n 19 node evil.js", "xargs sh", "echo hi | python f.py",
+  ]) check(`    F4 wrapper descent still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
   // G-class (audit-4): DIRECT EXECUTION OF A PATH. No interpreter token exists in these, so no
   // list of binaries reaches them — what identifies them is that the command HEAD is a path.
   for (const cmd of ["./deploy.sh", "/tmp/evil", "src/foo.js", "~/bin/evil", "exec /tmp/evil"])
