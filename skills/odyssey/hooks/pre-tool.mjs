@@ -1205,19 +1205,16 @@ function shellSafeForTrustedInvoke(cmd) {
   return quote === null; // unterminated quote → untrusted
 }
 
-// (audit F1, 2026-08-25) Env-assignment prefixes that hijack the trusted node process before the
-// script runs: NODE_OPTIONS accepts --require/--import (attacker JS preload), NODE_PATH redirects
-// module resolution, LD_*/DYLD_* inject shared objects, PYTHON*/PERL*/RUBY* reach other
-// interpreters, and BASH_ENV/ENV/SHELLOPTS steer any shell the script spawns. A prefix carrying
-// one of these keys is refused outright — it must never reach the strip below, where it would
-// become invisible to the command-word scan. Benign prefixes (FOO=bar node …) stay allowed.
-const ENV_INJECT_KEYS = new Set([
-  "NODE_OPTIONS", "NODE_PATH",
-  "LD_PRELOAD", "LD_LIBRARY_PATH",
-  "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
-  "PYTHONPATH", "PYTHONHOME", "PERL5OPT", "RUBYOPT", "GEM_HOME",
-  "BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS",
-]);
+// (audit F1, 2026-08-25 → consult round 2) An env-assignment prefix hijacks the trusted node
+// process before the script ever runs: NODE_OPTIONS accepts --require/--import (JS preload),
+// LD_*/DYLD_* inject shared objects, PATH redirects the very resolution of `node` itself
+// (`PATH=/tmp/evil node <script>` runs the attacker's binary), NODE_V8_COVERAGE /
+// NODE_REPL_EXTERNAL_MODULE load attacker code, and BASH_ENV/ENV steer spawned shells. A
+// KEY DENYLIST was tried first and the external audit found it incomplete within one round
+// (PATH, LD_AUDIT, PERL5LIB, RUBYLIB…). Denylists lose this game, so the rule is now total:
+// the trusted-script lane accepts NO env-assignment prefix at all. The trusted scripts read
+// their configuration from process.env (ambient, inherited from the harness), never from
+// command-prefix assignments, so nothing legitimate is lost.
 function isTrustedScriptInvoke(cmd) {
   if (!SCRIPTS_DIR) return false;
   // Metacharacters are dangerous where the SHELL will act on them — not where they are quoted
@@ -1238,13 +1235,14 @@ function isTrustedScriptInvoke(cmd) {
   // Backslash escapes are honoured outside single quotes. An unterminated quote is untrusted:
   // the shell would consume the following text in ways this scan cannot predict.
   if (!shellSafeForTrustedInvoke(cmd)) return false;
-  // Env-prefix injection gate (audit F1, 2026-08-25) — see ENV_INJECT_KEYS above.
-  const envPrefix = cmd.match(/^\s*((?:[A-Za-z_]\w*=\S+\s+)+)/);
-  if (envPrefix) {
-    const keys = [...envPrefix[1].matchAll(/([A-Za-z_]\w*)=/g)].map((m) => m[1]);
-    if (keys.some((k) => ENV_INJECT_KEYS.has(k))) return false;
-  }
-  // Strip a leading env-var assignment prefix (FOO=bar node ...) so the command-word scan sees node.
+  // Env-prefix injection gate (audit F1 + consult round 2, CRITICAL): NO prefix is accepted.
+  // The first fix denied a key list; the external audit defeated it with PATH alone
+  // (poisoned node resolution = the identical pre-script hijack the list existed to stop).
+  // Total refusal also moots future keys no list anticipated.
+  if (/^\s*[A-Za-z_]\w*=/.test(cmd)) return false;
+  // Strip a leading env-var assignment prefix (unreachable while the gate above refuses all
+  // prefixes; kept for the day the rule is consciously relaxed, so the command-word scan still
+  // sees `node` rather than a silently-stripped assignment).
   const stripped = cmd.replace(/^\s*(?:[A-Za-z_]\w*=\S*\s+)*/, "");
   // Must START with `node` (optional flags) then a single positional operand. Anchoring ^node
   // defeats both `echo node ...` (node is an arg) and `mynode ...` (different command word).

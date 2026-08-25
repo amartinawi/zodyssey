@@ -95,6 +95,16 @@ for (const [label, cmd] of [
   ["DYLD_INSERT_LIBRARIES",          `DYLD_INSERT_LIBRARIES=/tmp/x.dylib node ${RV} ${repo} t 1`],
   ["PYTHONPATH hijack",              `PYTHONPATH=/tmp/evil node ${RV} ${repo} t 1`],
   ["BASH_ENV on spawned shells",     `BASH_ENV=/tmp/evil.sh node ${RV} ${repo} t 1`],
+  // Consult round 2 (CRITICAL): the key denylist above was defeated by PATH alone — a poisoned
+  // PATH redirects the very resolution of `node`, so `PATH=/tmp/evil node <script>` runs the
+  // attacker's binary under the hook's unconditional exit(0). LD_AUDIT, PERL5LIB and RUBYLIB
+  // were missing for the same reason. The rule is now TOTAL refusal of env prefixes; even the
+  // benign FOO=bar shape is refused (nothing legitimate loses — the scripts read process.env).
+  ["PATH-poisoned node resolution",  `PATH=/tmp/evil node ${RV} ${repo} t 1`],
+  ["LD_AUDIT injection",             `LD_AUDIT=/tmp/x.so node ${RV} ${repo} t 1`],
+  ["PERL5LIB hijack",                `PERL5LIB=/tmp/evil node ${RV} ${repo} t 1`],
+  ["RUBYLIB hijack",                 `RUBYLIB=/tmp/evil node ${RV} ${repo} t 1`],
+  ["benign prefix now refused too",  `FOO=bar node ${RV} ${repo} t 1 --criterion 'npm test'`],
 ]) {
   check(`    ${label}`, blocked(cmd), `(exit ${run(cmd)})`);
 }
@@ -111,7 +121,6 @@ for (const [label, cmd] of [
   ["redirect inside quotes",    `node ${RV} ${repo} t 1 --criterion 'cmd > out.txt'`],
   ["ampersand inside quotes",   `node ${RV} ${repo} t 1 --criterion 'a && b'`],
   ["dollar in SINGLE quotes",   `node ${RV} ${repo} t 1 --criterion 'echo $NOT_EXPANDED'`],
-  ["env prefix then node",      `FOO=bar node ${RV} ${repo} t 1 --criterion 'npm test'`],
 ]) {
   check(`    ${label}`, allowed(cmd), `(exit ${run(cmd)})`);
 }
