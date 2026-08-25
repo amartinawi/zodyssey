@@ -114,7 +114,7 @@ the ORCHESTRATOR executes, not the sub-agent.
     ├── record-review.mjs            # OKAY gate (nonce + plan-sha + lint)
     ├── record-momus-artifact.mjs    # nonce-bound artifact writer
     ├── record-verify.mjs            # phase-5 per-criterion evidence
-    ├── record-final-wave.mjs        # phase-6 F1-F4 (F1 = machine-checked set-difference)
+    ├── record-final-wave.mjs        # phase-6 F1-F5 (F1 = machine-checked set-difference)
     ├── record-todo.mjs              # todo status + lock attribution + release
     ├── record-capability.mjs        # self-declared capability use
     ├── run-report.mjs               # efficiency scorecard (success from final.verdict)
