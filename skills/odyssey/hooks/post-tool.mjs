@@ -261,31 +261,53 @@ const RUN_STATE_DIR = _found.stateDir;
 const ledgerPath = join(RUN_STATE_DIR, `${state.slug}.inflight.json`);
 if (!existsSync(ledgerPath)) exit(0);
 
-let arr;
-try {
-  const parsed = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  arr = Array.isArray(parsed) ? parsed : [];
-} catch {
-  exit(0);
+// (audit F5, 2026-08-25) the drain was an unlocked read-splice-write — the twin of the pre-tool
+// push race. Two concurrent drains each splice their own id out of their own snapshot; the lost
+// completion leaks a slot for the full INFLIGHT_TTL_MS, and the G7 shift() fallbacks can drain an
+// entry belonging to a still-in-flight dispatch, freeing a slot early. Same O_EXCL + stale-reap
+// discipline as every other state writer. Contention fails OPEN here: a skipped drain only holds
+// a slot until the TTL expires, while failing the hook would punish finished work. No exit()
+// inside the lock's try — process.exit skips finally and would leak the lockfile.
+const ledgerLock = ledgerPath + ".lock";
+let lfd = null;
+try { lfd = openSync(ledgerLock, "wx"); } catch {
+  try {
+    if (Date.now() - statSync(ledgerLock).mtimeMs > 60 * 1000) {
+      try { unlinkSync(ledgerLock); } catch {}
+      try { lfd = openSync(ledgerLock, "wx"); } catch {}
+    }
+  } catch {}
 }
-
-const id = payload.tool_use_id || "";
-const before = arr.length;
-const now = Date.now();
-// First prune stale entries (orphans > TTL).
-arr = arr.filter((e) => typeof e.at === "number" && now - e.at < INFLIGHT_TTL_MS);
-// Then remove the matching entry by id.
-if (id) {
-  const idx = arr.findIndex((e) => e.id === id);
-  if (idx !== -1) arr.splice(idx, 1);
-  else arr.shift(); // G7: id didn't match (host didn't echo it) — drain the OLDEST so a slot frees
-} else if (arr.length > 0) {
-  arr.shift(); // G7: no id at all — drain oldest unconditionally so the ledger can't grow unbounded
+if (lfd !== null) {
+  try {
+    let arr;
+    try {
+      const parsed = JSON.parse(readFileSync(ledgerPath, "utf8"));
+      arr = Array.isArray(parsed) ? parsed : null;
+    } catch {
+      arr = null;
+    }
+    if (arr !== null) {
+      const id = payload.tool_use_id || "";
+      const before = arr.length;
+      const now = Date.now();
+      // First prune stale entries (orphans > TTL).
+      arr = arr.filter((e) => typeof e.at === "number" && now - e.at < INFLIGHT_TTL_MS);
+      // Then remove the matching entry by id.
+      if (id) {
+        const idx = arr.findIndex((e) => e.id === id);
+        if (idx !== -1) arr.splice(idx, 1);
+        else arr.shift(); // G7: id didn't match (host didn't echo it) — drain the OLDEST so a slot frees
+      } else if (arr.length > 0) {
+        arr.shift(); // G7: no id at all — drain oldest unconditionally so the ledger can't grow unbounded
+      }
+      if (arr.length !== before) {
+        // W5-minor: ACTUALLY atomic — same-dir temp + rename (the old mkdtempSync leaked a /tmp dir per call).
+        const tmp = ledgerPath + ".tmp." + process.pid;
+        writeFileSync(tmp, JSON.stringify(arr, null, 0));
+        try { renameSync(tmp, ledgerPath); } catch { try { unlinkSync(tmp); } catch {} }
+      }
+    }
+  } finally { try { closeSync(lfd); unlinkSync(ledgerLock); } catch {} }
 }
-if (arr.length === before) exit(0); // nothing to remove
-
-// W5-minor: ACTUALLY atomic — same-dir temp + rename (the old mkdtempSync leaked a /tmp dir per call).
-const tmp = ledgerPath + ".tmp." + process.pid;
-writeFileSync(tmp, JSON.stringify(arr, null, 0));
-try { renameSync(tmp, ledgerPath); } catch { try { unlinkSync(tmp); } catch {} }
 exit(0);
