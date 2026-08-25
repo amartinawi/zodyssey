@@ -165,10 +165,13 @@ const WRITE_PATTERNS = [
     const INTERP = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)$/;
     const VERSION_ONLY = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)\s+(?:--version|-V|--help|-h)$/;
     const WRAPPERS = new Set(["sudo", "nohup", "env", "exec", "command", "builtin", "nice", "stdbuf", "timeout", "xargs", "watch", "strace", "ltrace", "valgrind"]);
-    // Parens are split tokens too: `(node …)` must present `node` as a segment head, not
-    // `(node` as a non-matching token (the subshell-wrap regression the trusted-invoke suite
-    // caught on the first cut of this function).
-    for (const seg of String(cmd).split(/(?:^|[;&|()\n])+|\|\||&&/)) {
+    // Parens AND BACKTICKS are split tokens: `(node …)` must present `node` as a segment head,
+    // not `(node` as a non-matching token (the subshell regression the trusted-invoke suite
+    // caught on cut 1), and `` echo `node -e …` `` must present the SUBSTITUTION'S contents as
+    // their own segment — command substitution is execution, exactly like `$(…)` (consult round 1,
+    // CRITICAL: without the backtick separator, `echo`/`cat` stayed the segment head and the
+    // interpreter inside the substitution was invisible → classified read-only → exit(0)).
+    for (const seg of String(cmd).split(/(?:^|[;&|()`\n])+|\|\||&&/)) {
       const stripped = seg.trim().replace(/^(?:[A-Za-z_]\w*=\S+\s+)+/, "");
       if (!stripped) continue;
       const toks = stripped.split(/\s+/);
@@ -180,7 +183,12 @@ const WRITE_PATTERNS = [
           if (!toks[i].startsWith("-")) candidates.push(toks[i]);
         }
       }
-      if (candidates.some((h) => INTERP.test(h))) return true;
+      // Candidates test on the BASENAME as well as the whole token (consult round 1, CRITICAL):
+      // INTERP is anchored, so `sudo /usr/bin/node evil.js` presented `/usr/bin/node` — which
+      // never matches `^node$` — and the wrapper descent lost the gate the old lookbehind (which
+      // permitted `/` before the token) used to give. Non-wrapper path heads are still gated by
+      // the direct-path-head rule, so this adds no new false positives.
+      if (candidates.some((h) => INTERP.test(h) || INTERP.test(h.split("/").pop()))) return true;
     }
     return false;
   },

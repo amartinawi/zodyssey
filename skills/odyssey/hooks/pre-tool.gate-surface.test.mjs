@@ -158,6 +158,17 @@ console.log("\n  interpreter eval + redirection (audit-3):");
     "timeout 10 python x.py", "nice -n 19 node evil.js", "xargs sh", "echo hi | python f.py",
   ]) check(`    F4 wrapper descent still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
 
+  // Consult round 1 (REJECT, CRITICAL ×2): the first cut of the head-position test REOPENED the
+  // very class it fixed. (a) the segment splitter omitted the BACKTICK — `echo`/`cat` stayed the
+  // segment head and the interpreter inside the substitution was invisible → read-only → exit(0).
+  // (b) INTERP is anchored, so a wrapper descent carrying a PATH (`sudo /usr/bin/node`) never
+  // matched. Both fixed; these rows pin them shut.
+  for (const cmd of [
+    "echo `node evil.js`", "cat `sh evil.sh`", "x=`bash -c id`",
+    "sudo /usr/bin/node evil.js", "env /usr/bin/python3 x.py", "nohup /bin/sh evil.sh",
+    "timeout 5 /usr/bin/node evil.js",
+  ]) check(`    consult-r1 substitution/path wrapper still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
   // G-class (audit-4): DIRECT EXECUTION OF A PATH. No interpreter token exists in these, so no
   // list of binaries reaches them — what identifies them is that the command HEAD is a path.
   for (const cmd of ["./deploy.sh", "/tmp/evil", "src/foo.js", "~/bin/evil", "exec /tmp/evil"])
