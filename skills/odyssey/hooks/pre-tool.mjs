@@ -165,6 +165,12 @@ const WRITE_PATTERNS = [
     const INTERP = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)$/;
     const VERSION_ONLY = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)\s+(?:--version|-V|--help|-h)$/;
     const WRAPPERS = new Set(["sudo", "nohup", "env", "exec", "command", "builtin", "nice", "stdbuf", "timeout", "xargs", "watch", "strace", "ltrace", "valgrind"]);
+    // (consult round 2, CRITICAL) Shell reserved words and transparent prefixes are NOT command
+    // heads — `time node x`, `eval node x`, `! node x`, `{ node x; }`, `if/then/do node x` all
+    // put a keyword where the head test looked, freeing the interpreter behind it. Skip them
+    // (looped: `if …; then node` reaches `node` after segment-splitting on `;`) before
+    // selecting candidates. `find`'s -exec family is handled by its own WRITE_PATTERNS entry.
+    const PREFIXES = new Set(["if", "then", "else", "elif", "do", "done", "while", "until", "for", "in", "case", "esac", "{", "}", "!", "time", "eval", "coproc", "let"]);
     // Parens AND BACKTICKS are split tokens: `(node …)` must present `node` as a segment head,
     // not `(node` as a non-matching token (the subshell regression the trusted-invoke suite
     // caught on cut 1), and `` echo `node -e …` `` must present the SUBSTITUTION'S contents as
@@ -177,10 +183,18 @@ const WRITE_PATTERNS = [
       const toks = stripped.split(/\s+/);
       if (!toks.length) continue;
       if (VERSION_ONLY.test(stripped)) continue; // bare version/help query — not an invocation
-      const candidates = [toks[0]];
-      if (WRAPPERS.has(toks[0])) {
-        for (let i = 1; i < toks.length && i < 8; i++) {
-          if (!toks[i].startsWith("-")) candidates.push(toks[i]);
+      let start = 0;
+      while (start < toks.length && PREFIXES.has(toks[start])) start++;
+      if (start >= toks.length) continue;
+      // A single leading backslash or surrounding quotes on the head (`\node`, `'node'`) is
+      // shell quoting of the SAME command — strip it, or the anchored test misses the token
+      // (consult round 2: `\node evil.js` was freed this way).
+      const unquote = (t) => t.replace(/^\\/, "").replace(/^['"]|['"]$/g, "");
+      const head = unquote(toks[start]);
+      const candidates = [head];
+      if (WRAPPERS.has(head)) {
+        for (let i = start + 1; i < toks.length && i < start + 8; i++) {
+          if (!toks[i].startsWith("-")) candidates.push(unquote(toks[i]));
         }
       }
       // Candidates test on the BASENAME as well as the whole token (consult round 1, CRITICAL):
