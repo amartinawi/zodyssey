@@ -546,7 +546,11 @@ function migrateV030Hooks() {
     // If the only hooks were zodyssey's, leave hooks.enabled alone (harmless) but drop the empty shell.
     delete config.hooks.events;
   }
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+  // (deep audit 2026-08-25, finding 2) route through saveConfig: the FIRST config write in the
+  // process takes the pre-install backup. This raw write bypassed it, so the migration's sweep
+  // (which can over-match any hook arg containing skills/odyssey/hooks/) destroyed entries
+  // BEFORE the backup existed — the documented recovery artifact did not contain them.
+  saveConfig(config);
   log(`${_migratedHooks === 0 ? "no orphaned hooks found" : `removed ${_migratedHooks} orphaned hook(s)`} (hooks are now manifest-driven)`);
 }
 
@@ -691,7 +695,9 @@ function unregisterMCPs() {
     }
   }
   if (Object.keys(config.mcp.servers).length === 0) delete config.mcp.servers;
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+  // (deep audit 2026-08-25, finding 2) same discipline as migrateV030Hooks: --uninstall is a
+  // destructive config write and must land in a process whose first write took the backup.
+  saveConfig(config);
   log(`  removed ${removed} MCP(s)`);
 }
 
