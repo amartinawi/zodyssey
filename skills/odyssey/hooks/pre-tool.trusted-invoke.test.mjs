@@ -83,6 +83,28 @@ for (const [label, cmd] of [
   ["carriage-return second cmd", `node ${RV} ${repo} t 1\rsed -i s/a/b/ src/a.js`],
   ["tab then second command",   `node ${RV} ${repo} t 1\tsed -i s/a/b/ src/a.js`],
   ["leading newline before node", `\nnode ${RV} ${repo} t 1`],
+  // audit F1 (2026-08-25): an env-assignment prefix passes the quote scan, gets STRIPPED so the
+  // command-word scan sees `node`, and the operand still resolves inside SCRIPTS_DIR — so node
+  // loads attacker JS (NODE_OPTIONS --require/--import, LD_*/DYLD_* preloads, interpreter-path
+  // hijacks) BEFORE the trusted script runs, under the hook's unconditional exit(0). The payload
+  // file is placeable for free: .zcode/staging/ is bookkeeping, writable in every phase.
+  ["NODE_OPTIONS --require preload", `NODE_OPTIONS=--require=.zcode/staging/evil.js node ${RV} ${repo} t 1`],
+  ["NODE_OPTIONS --import preload",  `NODE_OPTIONS=--import=./evil.mjs node ${RV} ${repo} t 1`],
+  ["NODE_PATH module hijack",        `NODE_PATH=/tmp/evil node ${RV} ${repo} t 1`],
+  ["LD_PRELOAD injection",           `LD_PRELOAD=/tmp/x.so node ${RV} ${repo} t 1`],
+  ["DYLD_INSERT_LIBRARIES",          `DYLD_INSERT_LIBRARIES=/tmp/x.dylib node ${RV} ${repo} t 1`],
+  ["PYTHONPATH hijack",              `PYTHONPATH=/tmp/evil node ${RV} ${repo} t 1`],
+  ["BASH_ENV on spawned shells",     `BASH_ENV=/tmp/evil.sh node ${RV} ${repo} t 1`],
+  // Consult round 2 (CRITICAL): the key denylist above was defeated by PATH alone — a poisoned
+  // PATH redirects the very resolution of `node`, so `PATH=/tmp/evil node <script>` runs the
+  // attacker's binary under the hook's unconditional exit(0). LD_AUDIT, PERL5LIB and RUBYLIB
+  // were missing for the same reason. The rule is now TOTAL refusal of env prefixes; even the
+  // benign FOO=bar shape is refused (nothing legitimate loses — the scripts read process.env).
+  ["PATH-poisoned node resolution",  `PATH=/tmp/evil node ${RV} ${repo} t 1`],
+  ["LD_AUDIT injection",             `LD_AUDIT=/tmp/x.so node ${RV} ${repo} t 1`],
+  ["PERL5LIB hijack",                `PERL5LIB=/tmp/evil node ${RV} ${repo} t 1`],
+  ["RUBYLIB hijack",                 `RUBYLIB=/tmp/evil node ${RV} ${repo} t 1`],
+  ["benign prefix now refused too",  `FOO=bar node ${RV} ${repo} t 1 --criterion 'npm test'`],
 ]) {
   check(`    ${label}`, blocked(cmd), `(exit ${run(cmd)})`);
 }
@@ -99,7 +121,6 @@ for (const [label, cmd] of [
   ["redirect inside quotes",    `node ${RV} ${repo} t 1 --criterion 'cmd > out.txt'`],
   ["ampersand inside quotes",   `node ${RV} ${repo} t 1 --criterion 'a && b'`],
   ["dollar in SINGLE quotes",   `node ${RV} ${repo} t 1 --criterion 'echo $NOT_EXPANDED'`],
-  ["env prefix then node",      `FOO=bar node ${RV} ${repo} t 1 --criterion 'npm test'`],
 ]) {
   check(`    ${label}`, allowed(cmd), `(exit ${run(cmd)})`);
 }
