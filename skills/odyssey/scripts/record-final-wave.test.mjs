@@ -281,6 +281,41 @@ console.log("record-final-wave.mjs — the final wave judges content, not ceremo
     r.state?.final?.results?.F1?.passed === false);
 }
 
+// --- (audit H3+M2, 2026-08-25) --skip F1 was dead; --skip F3 was silent ---------------
+{
+  // A NON-git repo: F1 fails closed (SEC-H1) — and used to wedge PERMANENTLY, because F1's own
+  // error message recommended a --skip F1 flag that no code consulted.
+  const repo = mkdtempSync(join(tmpdir(), "zod-fw-ng-"));
+  cleanup.push(repo);
+  mkdirSync(join(repo, ".zcode", "state"), { recursive: true });
+  mkdirSync(join(repo, ".zcode", "plans"), { recursive: true });
+  const planPath = join(repo, ".zcode", "plans", "t.md");
+  writeFileSync(planPath, "# t\n\n## Todos\n\n- [ ] 1. x\n  Files: [`src/foo.js`]\n");
+  writeFileSync(join(repo, ".zcode", "state", "t.json"), JSON.stringify({
+    slug: "t", phase: "final", updated_at: new Date().toISOString(), plan_path: planPath,
+    review: { verdict: "OKAY", round: 1, max_rounds: 3 },
+  }, null, 2));
+  const noSkip = run(repo, ["--skip", "F2,F3,F4,F5", "--skip-reason", "fixture"]);
+  check("non-git F1 still FAILS CLOSED without --skip F1", noSkip.code !== 0, `(exit ${noSkip.code})`);
+  const r = run(repo, ["--skip", "F1,F2,F3,F4,F5", "--skip-reason", "fixture: non-git repo, no diff is possible"]);
+  check("--skip F1 un-wedges a non-git run", r.code === 0, `(exit ${r.code}: ${r.out.slice(0, 140)})`);
+  check("the F1 waiver is recorded in state.final.waived",
+    Array.isArray(r.state?.final?.waived) && r.state.final.waived.includes("F1"),
+    JSON.stringify(r.state?.final?.waived));
+}
+{
+  // --skip F3 used to pass silently (no reason required, never in waived — invisible to done).
+  const { repo } = mk({});
+  writeFileSync(join(repo, "src", "foo.js"), "// changed\n");
+  const bare = run(repo, ["--skip", "F3"]);
+  check("--skip F3 without a reason is REFUSED", bare.code === 2, `(exit ${bare.code})`);
+  check("the refusal names F3", /F3/.test(bare.out), bare.out.slice(0, 120));
+  const r = run(repo, ["--skip", "F3,F2,F4,F5", "--skip-reason", "fixture: checklist waived"]);
+  check("--skip F3 with a reason is recorded in waived",
+    Array.isArray(r.state?.final?.waived) && r.state.final.waived.includes("F3") && r.state.final.waived_reason === "fixture: checklist waived",
+    JSON.stringify(r.state?.final?.waived));
+}
+
 for (const d of cleanup) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
