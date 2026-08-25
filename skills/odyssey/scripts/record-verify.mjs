@@ -36,6 +36,7 @@ import { argv, exit } from "node:process";
 import { spawnSync, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { resolvePlanPath } from "./lib/plan-path.mjs";
+import { makeCriterionMatcher } from "./lib/criterion-match.mjs";
 
 const [repo, slug, todoId, ...rest] = argv.slice(2);
 if (!repo || !slug || !todoId) {
@@ -161,7 +162,31 @@ function worktreeFingerprint(repoDir) {
 
 const fingerprint = worktreeFingerprint(repoAbs);
 const statePathEarly = join(repoAbs, ".zcode", "state", `${slug}.json`);
-if (fingerprint && existsSync(statePathEarly) && !noStallCheck) {
+// (audit C1, 2026-08-25) the state-existence gate used to sit AFTER runOnce executed the
+// criterion — a stateless `--criterion '<anything>'` invoke ran arbitrary shell (spawnSync with
+// shell:true) before any run validation happened. The criterion must never execute without a
+// live run to record into; exit 3 now fires before the spawn. statePathEarly below is the same
+// path every later lane uses (the former duplicate check at the write site is gone).
+if (!existsSync(statePathEarly)) { console.error("no state file: " + statePathEarly); exit(3); }
+
+// State lock, defined EARLY so the stall-detector's evidence write can share it (audit L1:
+// it used to be an unlocked read-modify-rename named lockedWrite — the last-writer-wins shape
+// T2-1 purged from every other writer).
+const LOCK_STALE_MS = 60 * 1000;
+const lockPath = statePathEarly + ".lock";
+function acquireLock() {
+  try { return openSync(lockPath, "wx"); } catch {
+    try {
+      if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) {
+        unlinkSync(lockPath);
+        try { return openSync(lockPath, "wx"); } catch { return null; }
+      }
+    } catch {}
+    return null;
+  }
+}
+
+if (fingerprint && !noStallCheck) {
   try {
     const stEarly = JSON.parse(readFileSync(statePathEarly, "utf8"));
     const prior = ((stEarly.verify && stEarly.verify.history) || [])
@@ -170,22 +195,25 @@ if (fingerprint && existsSync(statePathEarly) && !noStallCheck) {
     if (prior && prior.worktree === fingerprint) {
       const attempts = (prior.stall_attempts || 0) + 1;
       // Record the refusal as evidence and advance the attempt counter, so the run still converges
-      // on its cap instead of spinning silently.
-      const lockedWrite = (mut) => {
-        const st = JSON.parse(readFileSync(statePathEarly, "utf8"));
-        mut(st);
-        st.updated_at = new Date().toISOString();
-        const tmp = statePathEarly + ".tmp." + process.pid;
-        writeFileSync(tmp, JSON.stringify(st, null, 2) + "\n");
-        renameSync(tmp, statePathEarly);
-      };
-      try {
-        lockedWrite((st) => {
-          const rec = (st.verify.history || []).find((h) =>
+      // on its cap instead of spinning silently. (audit L1) Now under the same O_EXCL lock every
+      // other state writer takes — was an unlocked read-modify-rename that silently lost a
+      // concurrent writer's update.
+      const stallFd = acquireLock();
+      if (stallFd === null) {
+        console.error("record-verify.mjs: state lock busy — stall-attempt evidence not written (the refusal below still stands).");
+      } else {
+        try {
+          const st = JSON.parse(readFileSync(statePathEarly, "utf8"));
+          const rec = (st.verify && st.verify.history || []).find((h) =>
             String(h.todo_id) === String(todoId) && h.criterion_index === idx && !h.passed);
           if (rec) { rec.stall_attempts = attempts; rec.last_stall_at = new Date().toISOString(); }
-        });
-      } catch { /* evidence write is best-effort; the refusal below still stands */ }
+          st.updated_at = new Date().toISOString();
+          const tmp = statePathEarly + ".tmp." + process.pid;
+          writeFileSync(tmp, JSON.stringify(st, null, 2) + "\n");
+          renameSync(tmp, statePathEarly);
+        } catch { /* evidence write is best-effort; the refusal below still stands */ }
+        finally { try { closeSync(stallFd); unlinkSync(lockPath); } catch {} }
+      }
       console.error(
         `NOT RERUN: the workspace is unchanged since this criterion last failed.\n` +
         `  todo ${todoId}, criterion #${idx}: ${criterion.slice(0, 120)}\n` +
@@ -237,8 +265,7 @@ if (flakeCheck) {
 }
 if (outputFile && !runOutput) { try { runOutput = readFileSync(outputFile, "utf8").slice(0, 50000); } catch {} }
 
-const statePath = join(repoAbs, ".zcode", "state", `${slug}.json`);
-if (!existsSync(statePath)) { console.error("no state file: " + statePath); exit(3); }
+const statePath = statePathEarly; // existence verified before the criterion executed (audit C1)
 
 // Write the per-criterion evidence artifact under .zcode/verify/ (gated dir — not bookkeeping,
 // so it's evidence the agent cannot forge via direct Write).
@@ -265,19 +292,7 @@ writeFileSync(tmp, JSON.stringify(evidence, null, 2) + "\n");
 try { renameSync(tmp, artifactPath); } catch { try { unlinkSync(tmp); } catch {} }
 
 // Update state.verify lane atomically (pass/fail counts + history).
-const LOCK_STALE_MS = 60 * 1000;
-const lockPath = statePath + ".lock";
-function acquireLock() {
-  try { return openSync(lockPath, "wx"); } catch {
-    try {
-      if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) {
-        unlinkSync(lockPath);
-        try { return openSync(lockPath, "wx"); } catch { return null; }
-      }
-    } catch {}
-    return null;
-  }
-}
+// (lockPath/acquireLock are defined before the stall detector — audit L1.)
 function apply(st) {
   st.verify = st.verify || { total: 0, passed: 0, failed: 0, flaky: 0, history: [] };
   // re-count from history to stay accurate across retries of the same criterion
@@ -350,19 +365,17 @@ function apply(st) {
   //
   // Undeclared criteria are still RECORDED (they may be legitimate ad-hoc checks, and hiding them
   // would be worse) but they no longer COUNT toward covering the plan. A fabricated criterion
-  // therefore cannot substitute for a declared one. Matching is containment-based in both
-  // directions: the plan stores `\`cmd\` exits 0` while callers pass `cmd`, so neither side is a
-  // prefix of the other in general.
-  const normCrit = (s) => String(s || "").toLowerCase().replace(/`/g, "").replace(/\s+/g, " ").trim();
-  const isDeclared = (cmd) => {
-    if (!Array.isArray(declaredCriteria) || declaredCriteria.length === 0) return true; // unknown → don't punish
-    const c = normCrit(cmd);
-    if (!c) return false;
-    return declaredCriteria.some((d) => {
-      const n = normCrit(d);
-      return n === c || n.includes(c) || c.includes(n);
-    });
-  };
+  // therefore cannot substitute for a declared one.
+  //
+  // (audit H1, 2026-08-25) matching was bidirectional SUBSTRING (`n.includes(c) || c.includes(n)`)
+  // here and INDEX-only in record-todo — a fabricated fragment ("node", "curl", any one-char
+  // text) counted as a DECLARED criterion and, with --trust-argv --exit-code 0, produced full
+  // coverage with zero execution. Both call sites now share lib/criterion-match.mjs: equality
+  // after normalization, with the documented outcome-annotation tails stripped from the DECLARED
+  // side only (plans write `` `cmd` exits 0 `` while the sanctioned invocation is the bare
+  // command — the criterion-annotation strip forms). A proper fragment of a declared criterion
+  // no longer counts, at either call site.
+  const isDeclared = makeCriterionMatcher(declaredCriteria);
   const countable = allForTodo.filter((h) => isDeclared(h.criterion));
   const undeclaredCount = allForTodo.length - countable.length;
 

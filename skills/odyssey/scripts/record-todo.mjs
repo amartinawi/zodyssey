@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { argv, exit } from "node:process";
 import { execFileSync } from "node:child_process";
 import { resolvePlanPath } from "./lib/plan-path.mjs";
+import { makeCriterionMatcher } from "./lib/criterion-match.mjs";
 
 const [repo, slug, id, status, ...rest] = argv.slice(2);
 if (!repo || !slug || !id || !status) {
@@ -96,7 +97,12 @@ function verifyEvidenceFor(st, todoId) {
     const todo = (parsed.todos || []).find((t) => String(t.id) === String(todoId));
     const declared = todo && Array.isArray(todo.acceptance) ? todo.acceptance.length : null;
     if (declared !== null) {
-      const distinct = new Set(mine.map((h) => h.criterion_index)).size;
+      // (audit H1, 2026-08-25) this count was INDEX-only: any passed history entry advanced it,
+      // including fabricated fragments record-verify recorded as passed behind --trust-argv.
+      // Count only entries whose criterion text the plan actually declares (shared matcher:
+      // equality after tail-strip, same rule as record-verify's acceptance lane).
+      const isDeclared = makeCriterionMatcher(todo.acceptance);
+      const distinct = new Set(mine.filter((h) => isDeclared(h.criterion)).map((h) => h.criterion_index)).size;
       if (distinct < declared) {
         return { ok: false, reason: `only ${distinct} of ${declared} declared acceptance criteria have been verified — run the rest through record-verify.mjs first` };
       }
