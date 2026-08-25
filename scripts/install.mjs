@@ -654,6 +654,17 @@ function commandOnPath(cmd) {
   }
 }
 
+// (deep audit 2026-08-25, finding 3) Canonical JSON (recursively sorted keys) so an MCP entry can
+// be compared to the spec we ship regardless of key order — the ownership test for register/
+// unregister. Byte-equal to OUR spec = we wrote it (safe to replace or remove); different = the
+// user owns it (INSTALL.md:39 promises hand-customized values win).
+function canonicalJson(v) {
+  if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
+  if (Array.isArray(v)) return "[" + v.map(canonicalJson).join(",") + "]";
+  return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canonicalJson(v[k])).join(",") + "}";
+}
+const jsonEq = (a, b) => canonicalJson(a) === canonicalJson(b);
+
 function registerMCPs() {
   log(`\n=== Step 4: register pipeline MCPs in ${CONFIG_PATH} ===\n`);
   if (DRY) {
@@ -671,13 +682,25 @@ function registerMCPs() {
       skipped++;
       continue;
     }
-    const isNew = !config.mcp.servers[spec.name];
-    config.mcp.servers[spec.name] = spec.config;
-    logDim(`${isNew ? "added" : "updated"} ${spec.name}`);
-    if (isNew) added++;
+    // (deep audit 2026-08-25, finding 3) the old unconditional `servers[spec.name] = spec.config`
+    // silently REPLACED same-named user servers on every re-run (INSTALL.md:211 frames re-running
+    // as the refresh path, INSTALL.md:39 promises hand values win — `memory` is the canonical
+    // name of the standard memory server, so a user already running it got their whole block —
+    // command, args, env — repointed). Ownership rule now: add when absent; refresh only what is
+    // byte-equal (order-insensitive) to a spec we wrote; never touch anything else.
+    const existing = config.mcp.servers[spec.name];
+    if (existing === undefined) {
+      config.mcp.servers[spec.name] = spec.config;
+      added++;
+      logDim(`added ${spec.name}`);
+    } else if (jsonEq(existing, spec.config)) {
+      logDim(`${spec.name} already current`);
+    } else {
+      logDim(`kept existing ${spec.name} (differs from the ZOdyssey spec — hand-customized entries win; delete the entry to adopt ours)`);
+    }
   }
   saveConfig(config);
-  log(`  MCPs: ${added} added, ${MCP_SPECS.length - added - skipped} updated, ${skipped} skipped (backends missing)`);
+  log(`  MCPs: ${added} added, ${skipped} skipped (backends missing), rest current or user-owned`);
 }
 
 function unregisterMCPs() {
@@ -689,9 +712,15 @@ function unregisterMCPs() {
   if (!config.mcp || !config.mcp.servers) { log("  (no mcp.servers — nothing to remove)"); return; }
   let removed = 0;
   for (const spec of MCP_SPECS) {
-    if (config.mcp.servers[spec.name]) {
+    const existing = config.mcp.servers[spec.name];
+    if (existing === undefined) continue;
+    // (deep audit 2026-08-25, finding 3) delete only what is byte-equal (order-insensitive) to a
+    // spec we wrote — a pre-existing user server with the same canonical name survives uninstall.
+    if (jsonEq(existing, spec.config)) {
       delete config.mcp.servers[spec.name];
       removed++;
+    } else {
+      logDim(`kept ${spec.name} (not the ZOdyssey spec — looks user-owned; remove it by hand if intended)`);
     }
   }
   if (Object.keys(config.mcp.servers).length === 0) delete config.mcp.servers;
