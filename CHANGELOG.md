@@ -11,6 +11,38 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
   (a concurrent session can legally commit mid-window). Closes candidate C6
   (delegate-skills adaptation study, docs/DELEGATE-REVIEW.md D-read-only-tripwire).
 
+### Fixed — deep-audit wave (2026-08-25, PRs #15–#27; external consult ACCEPT at round 5)
+- **consult.mjs** withheld secret-bearing untracked file bodies from the external auditor
+  (the judge.mjs audit-M2 fix, never ported; the shared redactor now also splits/recognizes
+  `+++ new file:` hunks).
+- **Trusted-script lane** refuses env-assignment prefixes outright — `NODE_OPTIONS=--require`
+  preloads and `PATH=` re-directions hijack the node process before the script runs (a key
+  denylist lost to PATH in one consult round; refusal is now total).
+- **record-verify** gates on a live run BEFORE executing `--criterion`; declared-criterion
+  coverage is equality-after-tail-strip at BOTH call sites (record-verify + record-todo) via a
+  shared `lib/criterion-match.mjs` — bidirectional substring matching let `--trust-argv
+  --exit-code 0 --criterion <fragment>` forge full acceptance; the stall write now takes the
+  O_EXCL lock.
+- **WRITE_PATTERNS**: npx / npm i|add / go run / find -delete / unlink / rmdir / git
+  diff|log|show --output / find -exec / su -c / awk system() gated (T1-1 class).
+- **Interpreter patterns** match command heads (with keyword-prefix skip, wrapper descent,
+  backtick substitution split, quoting-normalization and variable-head gating) instead of
+  firing on any mention — `grep node package.json` is read-only again.
+- **record-final-wave**: `--skip F1` was a dead flag that wedged non-git runs permanently;
+  F1/F3 waivers now require `--skip-reason` and are recorded in `state.final.waived`
+  (still non-done-blocking; set-phase filters F2/F4).
+- **Parallel-cap ledger** (`.inflight.json`) under the same O_EXCL lock discipline as every
+  other state writer (push fails closed, drain fails open).
+- **dashboard** no longer scores judge refusals (`overall: null`) as 0.0 losses (GAP-1).
+- **Installer**: the config backup now precedes the first destructive write (migration +
+  uninstall route through saveConfig); MCP registration is ownership-gated — hand-customized
+  same-named servers survive install AND uninstall.
+- **Version pins** 0.7.2 → 0.7.3 (the marketplace served the old version while CHANGELOG and
+  the launch announced 0.7.3); version-consistency now fails when the CHANGELOG's newest
+  entry runs ahead of the pins.
+- **Docs**: references/scripts.md's stale "you must run --check yourself" (false since
+  v0.6.17) rewritten to the machine invocation; the installer's AGENTS_BLOCK says F1-F5.
+
 ## [0.7.2] — 2026-08-22
 
 ### Fixed — trend records identify the plugin version that emitted them (candidate C3)
