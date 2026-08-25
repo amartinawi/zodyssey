@@ -113,6 +113,10 @@ console.log("post-tool.mjs — session-stamp arm (first witness, only-if-absent,
   const drained = existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, "utf8")) : null;
   check("(vi) inflight ledger drained by the LATER arm (pass-through intact)",
     Array.isArray(drained) && drained.length === 0, `ledger=${JSON.stringify(drained)}`);
+  // (audit F5, 2026-08-25) the drain now runs under an O_EXCL lockfile — it must never be left
+  // behind (a leaked lock would make the NEXT drain wait out the 60s stale window).
+  check("(vi) drain lock released (no .inflight.json.lock left behind)",
+    !existsSync(ledgerPath + ".lock"));
   check("(vi) no crash output", !(res.stderr || "").includes("Error"), `stderr=${(res.stderr || "").slice(0, 200)}`);
 }
 
