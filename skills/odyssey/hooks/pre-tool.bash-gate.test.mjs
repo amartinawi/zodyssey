@@ -114,6 +114,10 @@ console.log("pre-tool.mjs — Bash write-gate regression suite\n");
     "rmdir build",
     "git diff --output=/tmp/x HEAD",
     "git log --output=/tmp/x --oneline",
+    // consult round 2: -exec runs an arbitrary command per match; the -delete family alone
+    // left this execution shape to the (rewritten) interpreter patterns, which freed it.
+    "find . -name x -exec node evil.js \\;",
+    "find . -type f -okdir rm {} \\;",
   ]) {
     const { code } = runHook(repo, { command: cmd });
     check(`pre-OKAY BLOCKS: ${cmd.slice(0, 38)}`, code === 2, `(exit ${code}, expected 2)`);
