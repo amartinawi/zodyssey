@@ -68,6 +68,18 @@ if (pluginJson && packageJson && marketplaceJson) {
   check(`CHANGELOG has an entry for ${pluginV}`,
     new RegExp(`^## \\[${String(pluginV).replace(/\./g, "\\.")}\\]`, "m").test(changelog),
     "add `## [x.y.z] — YYYY-MM-DD` before tagging");
+
+  // (deep audit 2026-08-25, finding 1) the check above is one-directional: it only asserts the
+  // PINS' version has an entry — a CHANGELOG section AHEAD of the pins passes silently. That is
+  // exactly how v0.7.3 shipped: CHANGELOG documented 0.7.3 (code present, README announced the
+  // 0.7.3 launch) while all three pins and the marketplace still said 0.7.2, so Update installed
+  // the old version and run-report stamped 0.7.3-era records as 0.7.2. Inverse check: the NEWEST
+  // CHANGELOG version heading must equal the pins — a section may only run ahead of the pins
+  // while it is titled "Unreleased".
+  const newest = (changelog.match(/^## \[(\d+\.\d+\.\d+)\]/m) || [])[1];
+  check(`CHANGELOG's newest version entry (${newest || "none"}) matches the pins (${pluginV})`,
+    newest === pluginV,
+    "either bump all three manifests to the CHANGELOG's newest version, or retitle the section `## [Unreleased]`");
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
