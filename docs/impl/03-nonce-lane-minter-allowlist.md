@@ -306,7 +306,7 @@ nonce"), each checked against the 2026-08-16 tree:
 - `docs/DESIGN.md:264` — §6 hook table, "Nonce minting" row: extend to state minting is restricted
   to the exact declared minter types per lane (`zodyssey:momus`; `code-reviewer` /
   `feature-dev:code-reviewer`; `zodyssey:oracle`) and that lookalike namespaces mint nothing.
-- `README.md:127` — comparison-table row "Review verdicts are read, not assumed": extend the
+- `README.md:135` — comparison-table row "Review verdicts are read, not assumed": extend the
   ZOdyssey cell to state the nonce is minted only for the exact declared minter type, never for a
   lookalike namespace.
 - `skills/odyssey/SKILL.md:393-399` — the review-gate chain description: the sentence "the nonce

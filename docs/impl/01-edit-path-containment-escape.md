@@ -262,9 +262,9 @@ Every doc that states the claim this change alters ("an executor may only edit d
 
 - `CHANGELOG.md:534` — move the v0.5.1 *Known, not fixed* bullet into the new version's **Fixed**
   (shape below).
-- `README.md:122` — comparison-table row "Executor stays in declared scope … blocks edits outside
+- `README.md:130` — comparison-table row "Executor stays in declared scope … blocks edits outside
   it. **Fails closed** on unreadable/empty plan": extend to state that containment covers targets
-  outside the repo entirely, converged with the Bash write-gate. The mermaid at `README.md:95-96`
+  outside the repo entirely, converged with the Bash write-gate. The mermaid at `README.md:103-104`
   already implies it — verify, don't rewrite.
 - `docs/DESIGN.md:259` (§6 hook table, scope-boundary row): same extension — "outside it"
   includes outside-`PROJECT_DIR`/run-repo targets. Adjacent drift in the SAME row: it still reads

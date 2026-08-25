@@ -14,7 +14,7 @@ them has a single code caller**. Census re-measured 2026-08-16 (this run, not an
 number): grep for each script's name across `skills/`, `scripts/`, `agents/`, `commands/`
 (`*.mjs`, `*.bash`), excluding the script itself and its `.test.mjs` → **zero hits for all three**.
 Every remaining reference is doc prose: `check-imports` at
-`skills/odyssey/references/scripts.md:47`, `docs/MEASUREMENT.md:85`, `README.md:133`;
+`skills/odyssey/references/scripts.md:47`, `docs/MEASUREMENT.md:85`, `README.md:141`;
 `resolve-capabilities` at `skills/odyssey/SKILL.md:395`,
 `skills/odyssey/references/capabilities.md:106`,
 `skills/odyssey/references/scripts.md:50`, `docs/RESUME.md:124`, `docs/RESUME.md:210`,
@@ -335,7 +335,7 @@ checked against the 2026-08-16 tree:
 - `docs/MEASUREMENT.md:74-78` — the "Honest status" block: the `check-imports.mjs` clause now
   carries its enforcement clause ("invoked at verify entry, enforced at `done`, inert without a
   manifest") matching the regression-gate clause's form.
-- `README.md:132-133` — comparison-table rows: "Imports resolve" (`:133`) can now name the
+- `README.md:140-141` — comparison-table rows: "Imports resolve" (`:141`) can now name the
   invoking transition; the pass-to-pass row (`:128`) states "green→red blocks `done`" — that claim
   depends on the conventionally-invoked `--check` (see *Known, not fixed*); leave the row's text
   or add the caveat per the release's judgment, but do not silently let it outrun mechanism.

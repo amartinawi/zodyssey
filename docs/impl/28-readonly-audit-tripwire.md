@@ -30,7 +30,7 @@ Every external-auditor spawn window carries a tri-state `readOnlyViolation` in i
 - `skills/odyssey/scripts/consult.mjs` — helper + 3 site wraps + history field + injectable post-done spawn
 - `skills/odyssey/scripts/consult.tripwire.test.mjs` — NEW hermetic suite (the repo norm: one test file per mechanism, RED-first)
 - `skills/odyssey/references/scripts.md` — consult.mjs section: document the field + tri-state semantics
-- `README.md` — one row in the primitives table (appended AFTER the last row — appending shifts nothing above; impl/11's `README.md:283` pin must survive byte-identical)
+- `README.md` — one row in the primitives table (appended AFTER the last row — appending shifts nothing above; impl/11's `README.md:291` pin must survive byte-identical)
 - `CHANGELOG.md` — v0.7.3 entry (shape below)
 - `scripts/anchors.lock.json` — mechanical re-baseline for new citations (fixed order: write → check → fix-at-source → `--update`)
 - `docs/impl/00-INDEX.md` — row 28 outcome fill-in at run close only (not mid-run)
@@ -59,7 +59,7 @@ Hermetic double-run of the tripwire against a scratch git repo: (1) with a stubb
 
 ## What it breaks
 
-Nothing for honest auditors — additive history field, additive stderr warning. The post-done spawn signature gains an optional `spawn` param (default `spawnSync`): any external caller of that internal path (none exist in-tree; consult.mjs is invoked as a CLI) is unaffected. README gains a table row below the last — the run must verify `README.md:283`'s pin hash is unchanged after the append (the F2 `:283` lesson: verify content, not arithmetic).
+Nothing for honest auditors — additive history field, additive stderr warning. The post-done spawn signature gains an optional `spawn` param (default `spawnSync`): any external caller of that internal path (none exist in-tree; consult.mjs is invoked as a CLI) is unaffected. README gains a table row below the last — the run must verify `README.md:291`'s pin hash is unchanged after the append (the F2 `:291` lesson: verify content, not arithmetic).
 
 ## The class it closes
 
@@ -87,7 +87,7 @@ Nothing for honest auditors — additive history field, additive stderr warning.
 
 ## Anchor-drift reconciliation
 
-Fixed order (the repo's, `docs/impl/00-INDEX.md:63-66`): write docs → `node scripts/check-anchors.mjs` → fix each new citation at the source → `node scripts/check-anchors.mjs --update` → suite. The README row append must land AFTER the last table row; verify the `README.md:283` pin hash is byte-identical post-append. No `:line` citations on external repos (grammar rule, `docs/DELEGATE-REVIEW.md` header).
+Fixed order (the repo's, `docs/impl/00-INDEX.md:63-66`): write docs → `node scripts/check-anchors.mjs` → fix each new citation at the source → `node scripts/check-anchors.mjs --update` → suite. The README row append must land AFTER the last table row; verify the `README.md:291` pin hash is byte-identical post-append. No `:line` citations on external repos (grammar rule, `docs/DELEGATE-REVIEW.md` header).
 
 ## Capability routing
 
