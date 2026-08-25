@@ -168,7 +168,12 @@ const WRITE_PATTERNS = [
     // su, docker/podman exec, setsid, gdb --args, script -c, unshare/chroot/nsenter — a head of
     // any of these with an interpreter/path behind it is an invocation the old anywhere-rule
     // gated and head-position alone would free.
-    const WRAPPERS = new Set(["sudo", "nohup", "env", "exec", "command", "builtin", "nice", "stdbuf", "timeout", "xargs", "watch", "strace", "ltrace", "valgrind", "su", "ssh", "docker", "podman", "setsid", "gdb", "script", "unshare", "chroot", "nsenter"]);
+    // (consult round 4) …and the ordinary prefix LAUNCHERS — exact siblings of nice/stdbuf/
+    // timeout that were somehow never listed: flock/taskset/ionice/chrt/setpriv/runuser/doas/
+    // busybox/proxychains/torsocks/bwrap/firejail/systemd-run — plus `time` AS A BINARY (takes
+    // a command; the keyword form is in PREFIXES below, and the quoted-keyword shape
+    // `'time' node x` resolves to this binary too).
+    const WRAPPERS = new Set(["sudo", "nohup", "env", "exec", "command", "builtin", "nice", "stdbuf", "timeout", "xargs", "watch", "strace", "ltrace", "valgrind", "su", "ssh", "docker", "podman", "setsid", "gdb", "script", "unshare", "chroot", "nsenter", "time", "flock", "taskset", "ionice", "chrt", "setpriv", "runuser", "doas", "busybox", "proxychains", "proxychains4", "torsocks", "bwrap", "firejail", "systemd-run"]);
     // (consult round 2, CRITICAL) Shell reserved words and transparent prefixes are NOT command
     // heads — `time node x`, `eval node x`, `! node x`, `{ node x; }`, `if/then/do node x` all
     // put a keyword where the head test looked, freeing the interpreter behind it. Skip them
@@ -189,14 +194,17 @@ const WRITE_PATTERNS = [
       const toks = stripped.split(/\s+/);
       if (!toks.length) continue;
       if (VERSION_ONLY.test(stripped)) continue; // bare version/help query — not an invocation
-      let start = 0;
-      while (start < toks.length && PREFIXES.has(toks[start])) start++;
-      if (start >= toks.length) continue;
       // (consult round 3, CRITICAL) strip ALL quoting/backslash characters from a candidate
       // token, not one layer — `''node` yielded `'node` and failed the anchored test. This only
       // affects match SENSITIVITY (a filename that normalizes to `node` gets gated — an
       // acceptable over-block); it never opens a gate.
       const unquote = (t) => t.replace(/[\\'"]/g, "");
+      // (consult round 4) the PREFIXES skip tests the UNQUOTED token — `\time node x` and
+      // `'time' node x` quote past the keyword (reaching /usr/bin/time, which takes a command),
+      // so the raw-token test stranded head="time" in neither set.
+      let start = 0;
+      while (start < toks.length && PREFIXES.has(unquote(toks[start]))) start++;
+      if (start >= toks.length) continue;
       const head = unquote(toks[start]);
       // A VARIABLE head (`$x evil.js`, after `x=node`) executes whatever the expansion holds —
       // unresolvable at classification time, so it gates (the pre-wave anywhere-rule caught this
