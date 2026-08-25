@@ -99,11 +99,19 @@ const acc = (seed, arm, success) => {
   if (success) r.won++;
 };
 for (const r of results) acc(seedFromSlug(r.slug), armFromSlug(r.slug), r.success);
+let unscoredJudged = 0;
 for (const j of judged) {
   // judged records carry overall + criterion met flags; map to success via overall ≥ 0.7
   // (judge.mjs uses 0.7 as the pass bar). Include them only if not already counted from results.
   const k = `${j.seed_id}|${armFromSlug(j.slug)}`;
-  if (!seedArmRuns.has(k)) acc(j.seed_id, armFromSlug(j.slug), (j.overall ?? 0) >= 0.7);
+  if (seedArmRuns.has(k)) continue;
+  // (deep audit 2026-08-25, eval finding 3) `overall: null` is a judge REFUSAL, and the GAP-1
+  // contract (judge.mjs) is explicit: unscored records are "never scored as 0.0". The old
+  // `(j.overall ?? 0) >= 0.7` laundered them into measured LOSSES here — the common case for the
+  // baseline arm (judged-only seeds take this fallback branch), so the headline win-rate was
+  // biased against whichever arm had the refusals, while the mean section below did it right.
+  if (typeof j.overall !== "number" || !Number.isFinite(j.overall)) { unscoredJudged++; continue; }
+  acc(j.seed_id, armFromSlug(j.slug), j.overall >= 0.7);
 }
 const seeds = [...new Set([...seedArmRuns.values()].map((r) => r.seed))].sort();
 push("| seed | arm | wins | runs | win-rate |");
@@ -114,6 +122,9 @@ for (const seed of seeds) {
     if (!r || r.total === 0) continue;
     push(`| ${seed} | ${arm} | ${r.won} | ${r.total} | ${pct(r.won, r.total)} |`);
   }
+}
+if (unscoredJudged > 0) {
+  push(`_(${unscoredJudged} judged record(s) with a non-numeric overall — judge refusals — excluded from win-rate, per the GAP-1 rule: unscored is data, never a score.)_`);
 }
 push("");
 
