@@ -214,6 +214,18 @@ const WRITE_PATTERNS = [
   /\bdd\b/,                                        // (already covered by the `dd …of=` rule above)
   /\btruncate\b/,                                  // (already covered by the mv|cp|rm|… rule above)
   /\bxargs\b/,                                     // xargs can drive a writer the operand scan misses
+  // Deep audit 2026-08-25 (F2, the T1-1 class reopened): another family of write/execute
+  // primitives contained none of the enumerated tokens, so they classified as READ-ONLY and ran
+  // pre-OKAY in any phase. Every entry below was verified absent from this list before being
+  // added. Notable: `npx <pkg>` downloads and EXECUTES an arbitrary package (postinstall/bin) —
+  // full RCE with no other primitive needed — and `git diff|log|show` are safe-verb allowlisted
+  // while `--output=<path>` writes an arbitrary file.
+  /(?<![\w.-])npx\b/,                              // executes an arbitrary fetched package
+  /\b(?:npm|pnpm|yarn)\s+(?:i|add|ci|update|install)\b/, // installs (aliases; bare `install` was only incidentally caught)
+  /\bgo\s+run\b/,                                  // compiles AND executes (go build|install are gated; run was not)
+  /\bfind\b[^&;\n]*\s(?:-delete|-fprint\w*|-fls|-fprintf)\b/, // find's writing/deleting actions
+  /(?<![\w.-])(?:unlink|rmdir)\b/,                 // deletion primitives the rm|shred|wipe list never named
+  /\bgit\s+(?:diff|log|show)\b[^;&|\n]*--output/,  // safe-verb subcommands with a file-writing flag
 ];
 
 // Heuristic: does this Bash command ONLY read? If so, allow it even pre-review.

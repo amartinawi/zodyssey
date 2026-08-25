@@ -101,6 +101,19 @@ console.log("pre-tool.mjs — Bash write-gate regression suite\n");
     "git apply /tmp/p.patch",
     "tee src/foo.js < /dev/null",
     "python -c \"open('src/foo.js','w').write('x')\"",
+    // deep audit 2026-08-25 (F2): write/execute primitives that contained no enumerated token
+    // and classified READ-ONLY pre-OKAY. Each must stay BLOCKED.
+    "npx some-package",
+    "npm i some-package",
+    "npm add some-package",
+    "yarn add some-package",
+    "go run ./cmd/evil.go",
+    "find src -name '*.ts' -delete",
+    "find . -name '*.log' -fprintf /tmp/manifest '%p\\n'",
+    "unlink src/foo.js",
+    "rmdir build",
+    "git diff --output=/tmp/x HEAD",
+    "git log --output=/tmp/x --oneline",
   ]) {
     const { code } = runHook(repo, { command: cmd });
     check(`pre-OKAY BLOCKS: ${cmd.slice(0, 38)}`, code === 2, `(exit ${code}, expected 2)`);
@@ -111,7 +124,7 @@ console.log("pre-tool.mjs — Bash write-gate regression suite\n");
 // A gate that blocks `ls` would be abandoned within a day. This is what keeps it usable.
 {
   const { repo } = repoFor({ verdict: "REJECT" });
-  for (const cmd of ["ls -la", "cat src/foo.js", "grep -rn TODO src/", "git status", "npm test"]) {
+  for (const cmd of ["ls -la", "cat src/foo.js", "grep -rn TODO src/", "git status", "npm test", "git diff HEAD", "find src -name '*.ts'"]) {
     const { code } = runHook(repo, { command: cmd });
     check(`read-only ALLOWED pre-OKAY: ${cmd}`, code === 0, `(exit ${code}, expected 0)`);
   }
