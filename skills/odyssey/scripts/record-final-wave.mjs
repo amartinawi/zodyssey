@@ -12,7 +12,7 @@
 // All four must pass; the run's state.final lane records the verdict. `done` is unreachable without it.
 //
 // Usage:
-//   record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5 --skip-reason "why"]
+//   record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F1,F2,F3,F4,F5 --skip-reason "why"]
 //   exit: 0 ok (all pass) · 2 bad args · 3 no state · 6 an F-item failed · 9 plan_path isolation violation
 //
 // Atomic write under O_EXCL lockfile with stale-lock reaping.
@@ -28,7 +28,7 @@ import { resolvePlanPath } from "./lib/plan-path.mjs";
 
 const [repo, slug, ...rest] = argv.slice(2);
 if (!repo || !slug) {
-  console.error("usage: record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F2,F4,F5 --skip-reason <why>]");
+  console.error("usage: record-final-wave.mjs <repo> <slug> [--f2-artifact P --f2-nonce N] [--f3-checklist P] [--f4-artifact P --f4-nonce N] [--skip F1,F2,F3,F4,F5 --skip-reason <why>]");
   exit(2);
 }
 let f2Artifact, f2Nonce, f3Checklist, f4Artifact, f4Nonce, skipStr, skipReason, allowUntouched = false;
@@ -58,19 +58,25 @@ const skip = new Set((skipStr || "").split(",").map((s) => s.trim()).filter(Bool
 //   · skipping a security item requires a stated reason;
 //   · the waiver is recorded in state.final.waived, naming each item and its reason;
 //   · `set-phase done` refuses on a waived F2/F4 unless separately acknowledged.
-// Two explicit, separately-recorded actions instead of one flag. F1/F3 are unchanged — F1 has its
-// own machine check and F3 is a human checklist.
-const SECURITY_ITEMS = ["F2", "F4", "F5"];
+// Two explicit, separately-recorded actions instead of one flag.
+// (audit H3+M2, 2026-08-25) F1 and F3 joined the set: a waived F1 was unreachable (dead flag,
+// see the F1 block) and a waived F3 was silent — `--skip F3` passed with no reason and no
+// state.final.waived entry, which set-phase done never sees. F1/F3/F5 waivers are recorded and
+// reasoned but NOT done-blocking; only F2/F4 require --accept-waivers at done (set-phase.mjs
+// filters on exactly those two).
+const SECURITY_ITEMS = ["F1", "F2", "F3", "F4", "F5"];
+const ITEM_LABELS = {
+  F1: "the plan-compliance diff", F2: "code review", F3: "the manual-QA checklist",
+  F4: "scope-fidelity review", F5: "the routing check",
+};
 const waivedItems = SECURITY_ITEMS.filter((i) => skip.has(i));
 if (waivedItems.length && !skipReason) {
   console.error(
     `record-final-wave.mjs: --skip ${waivedItems.join(",")} requires --skip-reason "<why>". ` +
-    `Skipping ${waivedItems.join("/")} waives ${waivedItems.includes("F2") ? "code review" : ""}` +
-    `${waivedItems.includes("F2") && waivedItems.includes("F4") ? " and " : ""}` +
-    `${waivedItems.includes("F4") ? "scope-fidelity review" : ""}` +
-    `${waivedItems.includes("F5") ? (waivedItems.length > 1 ? " and the routing check" : "the routing check") : ""}` +
-    ` — the reason is recorded in state.final.waived and \`set-phase done\` will require it to be ` +
-    `acknowledged. Re-run without --skip if the reviewers simply have not been dispatched yet.`
+    `Skipping ${waivedItems.join("/")} waives ${waivedItems.map((i) => ITEM_LABELS[i]).join(", ")} ` +
+    `— the reason is recorded in state.final.waived` +
+    `${waivedItems.some((i) => i === "F2" || i === "F4") ? ", and a waived F2/F4 additionally requires --accept-waivers at set-phase done" : ""}. ` +
+    `Re-run without --skip if the reviewers simply have not been dispatched yet.`
   );
   exit(2);
 }
@@ -139,6 +145,15 @@ const SKIP_MARKER = /\b(?:it|test|describe|context)\s*\.\s*(?:skip|todo|only)\b|
 // the named reason before a single plan byte is read.
 const { planPath, violation } = resolvePlanPath(st, repoAbs);
 if (violation) { console.error(`record-final-wave.mjs: ${violation} (state: ${statePath})`); exit(9); }
+// (audit H3, 2026-08-25) --skip F1 was a DEAD FLAG: the skip set was parsed but the F1 block had
+// no skip branch, so a non-git run failed closed (SEC-H1, correct) and then wedged PERMANENTLY —
+// while F1's own error message told the operator to use the flag that did nothing. The skip now
+// exists and is a SECURITY_ITEM: it requires --skip-reason and is recorded in state.final.waived.
+// It stays non-done-blocking in set-phase (only F2/F4 waivers require --accept-waivers) — F1 has
+// its own machine check when not skipped.
+if (skip.has("F1")) {
+  results.F1 = { passed: true, skipped: true };
+} else
 try {
   const planText = readFileSync(planPath, "utf8");
   // SEC-4 (external audit 2026-08-04): the plan is agent-writable, so F1 must refuse to pass if the
