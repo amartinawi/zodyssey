@@ -16,7 +16,7 @@ That is the core idea. Most multi-agent orchestrators (including the excellent [
 
 ## Why code-enforced orchestration
 
-ZOdyssey is a code-enforced orchestration pipeline for AI coding agents: the review gate, executor scope isolation, and parallel dispatch caps are enforced by hooks, not prompt conventions. The pipeline shape — prime → triage → consult → plan → review → execute → verify → final-wave — is the shape multi-agent orchestrators already share; the delta is that the load-bearing invariants are checked by code instead of trusted to the LLM's good behavior.
+ZOdyssey is a code-enforced orchestration pipeline for ZCode (for now — the pattern is harness-portable): the review gate, executor scope isolation, and parallel dispatch caps are enforced by hooks, not prompt conventions. The pipeline shape — prime → triage → consult → plan → review → execute → verify → final-wave — is the shape multi-agent orchestrators already share; the delta is that the load-bearing invariants are checked by code instead of trusted to the LLM's good behavior, from plan-review onward.
 
 Most frameworks tell their AI agents what not to do: don't edit before the plan passes review, don't touch files outside the declared scope, don't fan out past the concurrency budget. A prompt convention is a suggestion to an LLM under pressure. ZOdyssey's enforcement hook reads the run state, the plan's declared file list, and the in-flight dispatch count, and blocks the tool call when an invariant would break — so the developer tools and repos behind the pipeline keep their guarantees even when an agent is confused or lazy.
 
