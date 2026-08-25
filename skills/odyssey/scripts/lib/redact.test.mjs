@@ -73,6 +73,37 @@ test("redactSecrets leaves a non-secret hunk untouched", () => {
   assert.ok(redactSecrets(diff).includes("const a = 1;"), "normal code must pass through");
 });
 
+// --- `+++ new file:` sections (untracked bodies consult/judge append) -----------
+// 2026-08-25 audit: consult.mjs appended secret untracked bodies under this header shape, and the
+// old split/regex only recognized `diff --git`/`+++ b/` — the section sailed through untouched.
+test("redactSecrets withholds a secret untracked `+++ new file:` section", () => {
+  const diff = [
+    "diff --git a/src/a.js b/src/a.js",
+    "@@ -1 +1 @@",
+    "+const a = 1;",
+    "",
+    "+++ new file: prod.env (untracked)",
+    "API_KEY=sk-super-secret",
+  ].join("\n");
+  const out = redactSecrets(diff);
+  assert.ok(!out.includes("sk-super-secret"), "untracked secret body must be withheld");
+  assert.ok(!out.includes("API_KEY"), "no line of the secret body may survive");
+  assert.ok(out.includes("prod.env"), "path must stay visible");
+  assert.ok(out.includes("const a = 1;"), "the preceding non-secret hunk must pass through");
+});
+
+test("redactSecrets withholds a secret `+++ new file:` section without the (untracked) marker", () => {
+  const diff = ["+++ new file: backend/.env", "DB_PASSWORD=hunter2"].join("\n");
+  const out = redactSecrets(diff);
+  assert.ok(!out.includes("hunter2"), "secret body must be withheld");
+  assert.ok(out.includes("backend/.env"), "path must stay visible");
+});
+
+test("redactSecrets leaves a non-secret `+++ new file:` section untouched", () => {
+  const diff = ["+++ new file: src/new-file.js (untracked)", "export const x = 2;"].join("\n");
+  assert.ok(redactSecrets(diff).includes("export const x = 2;"), "normal new-file body must pass through");
+});
+
 if (failures) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);
