@@ -169,6 +169,16 @@ console.log("\n  interpreter eval + redirection (audit-3):");
     "timeout 5 /usr/bin/node evil.js",
   ]) check(`    consult-r1 substitution/path wrapper still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
 
+  // Consult round 2 (REJECT, CRITICAL): shell reserved words and transparent prefixes are not
+  // command heads — every shape below put a keyword where the head test looked and FREED the
+  // interpreter behind it (all were gated by the pre-wave lookbehind). The matcher now skips
+  // PREFIX tokens (looped), and strips one leading backslash / surrounding quotes off the head.
+  for (const cmd of [
+    "time node evil.js", "eval node evil.js", "eval 'node evil.js'", "! node evil.js",
+    "{ node evil.js; }", "if node evil.js", "then node evil.js", "do node evil.js",
+    "for f in *; do node $f; done", "until node x; do :; done", "\\node evil.js",
+  ]) check(`    consult-r2 keyword-prefix head still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
   // G-class (audit-4): DIRECT EXECUTION OF A PATH. No interpreter token exists in these, so no
   // list of binaries reaches them — what identifies them is that the command HEAD is a path.
   for (const cmd of ["./deploy.sh", "/tmp/evil", "src/foo.js", "~/bin/evil", "exec /tmp/evil"])
