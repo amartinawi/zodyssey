@@ -118,6 +118,10 @@ console.log("pre-tool.mjs — Bash write-gate regression suite\n");
     // left this execution shape to the (rewritten) interpreter patterns, which freed it.
     "find . -name x -exec node evil.js \\;",
     "find . -type f -okdir rm {} \\;",
+    // consult round 3 same-class: tools whose ARGUMENT is an arbitrary command string — the
+    // anywhere-lookbehind gated these implicitly via the interpreter token inside the payload.
+    "su -c 'node evil.js'",
+    "awk 'system(\"rm -rf /tmp/x\")' data.txt",
   ]) {
     const { code } = runHook(repo, { command: cmd });
     check(`pre-OKAY BLOCKS: ${cmd.slice(0, 38)}`, code === 2, `(exit ${code}, expected 2)`);
@@ -128,6 +132,13 @@ console.log("pre-tool.mjs — Bash write-gate regression suite\n");
 // A gate that blocks `ls` would be abandoned within a day. This is what keeps it usable.
 {
   const { repo } = repoFor({ verdict: "REJECT" });
+  // (consult round 3 advisory) PINNED DELIBERATE OVER-BLOCKS: the new plain-token entries
+  // (npx/unlink/rmdir/go run) match at any position, so grep-ing FOR those words gates too —
+  // the same accepted convention as rm/dd/truncate/xargs. Documented intent, not an oversight.
+  for (const cmd of ["grep -rn unlink src/", "ls | grep 'go run'"]) {
+    const { code } = runHook(repo, { command: cmd });
+    check(`deliberate over-block (documented): ${cmd}`, code === 2, `(exit ${code}, expected 2)`);
+  }
   for (const cmd of ["ls -la", "cat src/foo.js", "grep -rn TODO src/", "git status", "npm test", "git diff HEAD", "find src -name '*.ts'"]) {
     const { code } = runHook(repo, { command: cmd });
     check(`read-only ALLOWED pre-OKAY: ${cmd}`, code === 0, `(exit ${code}, expected 0)`);
