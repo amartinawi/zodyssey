@@ -989,6 +989,15 @@ try {
       for (let raw of untracked.split("\n")) {
         const p = sanitizePath(raw);
         if (p && scopeList.includes(p)) {
+          // audit M2 port (2026-08-25): judge.mjs withholds secret-bearing untracked bodies; this
+          // loop never got the twin fix — isSecretPath was imported and never called here, so an
+          // untracked .env/prod.env declared in Files: shipped verbatim to the external auditor
+          // (redactSecrets alone cannot catch it: it only recognized `diff --git`/`+++ b/` headers,
+          // never the `+++ new file:` header this loop writes).
+          if (isSecretPath(p)) {
+            diff += `\n\n+++ new file: ${p}\n[REDACTED — secret-bearing file; content withheld from external auditor]`;
+            continue;
+          }
           try {
             const content = readFileSync(join(repoAbs, p), "utf8");
             diff += `\n\n+++ new file: ${p} (untracked)\n${content.slice(0, 50000)}`;

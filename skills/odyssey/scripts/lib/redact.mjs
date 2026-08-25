@@ -26,20 +26,26 @@ export function isSecretPath(p) {
 // body lines while keeping a visible marker.
 export function redactSecrets(diffText) {
   if (!diffText) return diffText;
-  const files = diffText.split(/^(?=diff --git )/m);
+  // `+++ new file: <path>` sections (untracked bodies consult/judge append after the tracked diff)
+  // are split as their own hunks — otherwise they hide inside the preceding diff's segment and the
+  // per-hunk path capture below never sees them.
+  const files = diffText.split(/^(?=diff --git |\+\+\+ new file: )/m);
   return files
     .map((hunk) => {
-      // Space-tolerant path capture: `diff --git a/<path> b/<path>` (path may contain spaces) or
-      // a bare `+++ b/<path>` header. Non-greedy up to ` b/` so multi-word paths are captured.
-      const pathMatch = hunk.match(/^diff --git a\/(.+?) b\/.+$|^\+\+\+ b\/(.+)$/m);
-      const p = pathMatch ? (pathMatch[1] || pathMatch[2] || "") : "";
+      // Space-tolerant path capture: `diff --git a/<path> b/<path>` (path may contain spaces), a
+      // bare `+++ b/<path>` header, or a `+++ new file: <path>` header (consult/judge untracked
+      // append; the trailing `(untracked)` marker is optional). Non-greedy up to ` b/` so
+      // multi-word paths are captured.
+      const pathMatch = hunk.match(
+        /^diff --git a\/(.+?) b\/.+$|^\+\+\+ b\/(.+)$|^\+\+\+ new file: (.+?)(?: \(untracked\))?$/m
+      );
+      const p = pathMatch ? (pathMatch[1] || pathMatch[2] || pathMatch[3] || "") : "";
       if (p && SECRET_PATH_RE.test(p)) {
-        return (
-          hunk
-            .replace(/(^|\n)([-+@ ].*)/g, () => "")
-            .slice(0, 200) +
-          `\n[REDACTED — secret-bearing file ${p}; content withheld from external auditor]\n`
-        );
+        const isNewFileHeader = pathMatch[3] !== undefined;
+        const head = isNewFileHeader
+          ? hunk.slice(0, hunk.indexOf("\n") === -1 ? 200 : hunk.indexOf("\n"))
+          : hunk.replace(/(^|\n)([-+@ ].*)/g, () => "").slice(0, 200);
+        return head + `\n[REDACTED — secret-bearing file ${p}; content withheld from external auditor]\n`;
       }
       return hunk;
     })
