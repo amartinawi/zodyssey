@@ -33,6 +33,12 @@ test("bare command counts when the declared text carries a tail annotation", () 
   const isDeclared = makeCriterionMatcher(DECLARED);
   assert.equal(isDeclared("grep -c TODO src/a.js"), true, "dash+prints tail must strip");
   assert.equal(isDeclared("curl -s localhost:3000/healthz"), true, "returns-N tail must strip");
+  // (consult round 1 advisory) the `passes` annotation family — substring matching used to
+  // cover it for free; equality-after-strip must cover it explicitly or record-todo refuses
+  // done on legitimately-annotated criteria.
+  assert.equal(makeCriterionMatcher(["`npm test` passes"] )("npm test"), true, "bare `passes` tail");
+  assert.equal(makeCriterionMatcher(["`npm test` passes ok"] )("npm test"), true, "`passes ok` tail");
+  assert.equal(makeCriterionMatcher(["`npm test` passes"] )("npm test -- --grep x"), false, "altered command still refused");
 });
 
 test("backticks and case and whitespace collapse are normalized on both sides", () => {
