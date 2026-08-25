@@ -149,10 +149,41 @@ const WRITE_PATTERNS = [
   // the token may follow start-of-string, a separator, or `/` (so `/usr/bin/python3` works), but
   // never a word character, `.` or `-`. `deploy.sh` and `run-node.js` are filenames; `sh script`,
   // `; sh evil` and `xargs sh` are invocations.
-  /(?<![\w.-])(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell)\b(?!\s+(?:--version|-V|--help|-h)\s*$)/,
-  // Shell interpreters, same rule: `bash -c`, `sh script.sh` and bare `bash` are gated;
-  // `bash --version` is not, and a `.sh` filename in a read-only command is not a shell.
-  /(?<![\w.-])(?:bash|sh|zsh|ksh|dash|fish)\b(?!\s+(?:--version|-V|--help|-h)\s*$)/,
+  //
+  // F4 (deep audit 2026-08-25): the lookbehind still matched an interpreter word in ARGUMENT
+  // position — `grep node package.json`, `pgrep -f bash`, `cat error.log | grep ruby` — and the
+  // post-OKAY fail-closed no-targets branch then hard-blocked those pure reads in EVERY phase
+  // (the "allowed one step later by isTrustedScriptInvoke" escape only exists for node). The two
+  // regexes became this head-position test: an interpreter gates when it IS the segment's command
+  // head, or a candidate head behind a wrapper descent (sudo/env/nice/timeout/xargs/… — every
+  // non-dash token after the wrapper is a candidate, so `sudo -u x node y`, `timeout 10 python`
+  // and `xargs sh` stay gated even though option-value skipping is ambiguous). An interpreter
+  // word that is a plain ARGUMENT of a non-wrapper head (`grep node package.json`) is data, and
+  // the command returns to read-only. Version/help carve-out unchanged: `interp --version` as
+  // the whole segment is a query.
+  (cmd) => {
+    const INTERP = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)$/;
+    const VERSION_ONLY = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)\s+(?:--version|-V|--help|-h)$/;
+    const WRAPPERS = new Set(["sudo", "nohup", "env", "exec", "command", "builtin", "nice", "stdbuf", "timeout", "xargs", "watch", "strace", "ltrace", "valgrind"]);
+    // Parens are split tokens too: `(node …)` must present `node` as a segment head, not
+    // `(node` as a non-matching token (the subshell-wrap regression the trusted-invoke suite
+    // caught on the first cut of this function).
+    for (const seg of String(cmd).split(/(?:^|[;&|()\n])+|\|\||&&/)) {
+      const stripped = seg.trim().replace(/^(?:[A-Za-z_]\w*=\S+\s+)+/, "");
+      if (!stripped) continue;
+      const toks = stripped.split(/\s+/);
+      if (!toks.length) continue;
+      if (VERSION_ONLY.test(stripped)) continue; // bare version/help query — not an invocation
+      const candidates = [toks[0]];
+      if (WRAPPERS.has(toks[0])) {
+        for (let i = 1; i < toks.length && i < 8; i++) {
+          if (!toks[i].startsWith("-")) candidates.push(toks[i]);
+        }
+      }
+      if (candidates.some((h) => INTERP.test(h))) return true;
+    }
+    return false;
+  },
   /\bcurl\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
   /\bwget\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
   // R3 (audit-3 verification): these passed as read-only on BOTH builds. `source`/`.` execute a
