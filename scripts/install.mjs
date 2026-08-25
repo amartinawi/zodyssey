@@ -830,7 +830,7 @@ function verify() {
   //
   // The per-hook sha check above missed 4 drifted scripts on 2026-08-12 (consult.mjs,
   // scaffold.mjs and two test files) and reported green. record-todo.mjs holds the verify
-  // transition guard, record-final-wave.mjs holds F1-F4, record-verify.mjs executes the criteria
+  // transition guard, record-final-wave.mjs holds F1-F5, record-verify.mjs executes the criteria
   // — a stale script runs OLD enforcement exactly as silently as a stale hook.
   if (installPathOk) {
     // T4-4 (audit 2026-08-14): drift detection covered 3 code surfaces while --sync-cache deploys
@@ -965,7 +965,7 @@ normal requests are handled directly. Use it only when the user invokes \`/orche
 ## The pipeline (load the \`zodyssey:odyssey\` skill to run it)
 Phases: -1 Prime -> 0 Triage -> 1 Consult (\`zodyssey:metis\`) -> 2 Plan (\`zodyssey:prometheus\`) ->
 3 Review gate (\`zodyssey:momus\`) -> 4 Execute (\`zodyssey:sisyphus-junior\`, parallel-by-default) ->
-5 Verify -> 6 Final wave (F1-F4).
+5 Verify -> 6 Final wave (F1-F5).
 
 ## Enforcement (hooks — hard blocks, not advisory)
 When an orchestration run is active, the PreToolUse hook blocks:
