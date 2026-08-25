@@ -149,10 +149,85 @@ const WRITE_PATTERNS = [
   // the token may follow start-of-string, a separator, or `/` (so `/usr/bin/python3` works), but
   // never a word character, `.` or `-`. `deploy.sh` and `run-node.js` are filenames; `sh script`,
   // `; sh evil` and `xargs sh` are invocations.
-  /(?<![\w.-])(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell)\b(?!\s+(?:--version|-V|--help|-h)\s*$)/,
-  // Shell interpreters, same rule: `bash -c`, `sh script.sh` and bare `bash` are gated;
-  // `bash --version` is not, and a `.sh` filename in a read-only command is not a shell.
-  /(?<![\w.-])(?:bash|sh|zsh|ksh|dash|fish)\b(?!\s+(?:--version|-V|--help|-h)\s*$)/,
+  //
+  // F4 (deep audit 2026-08-25): the lookbehind still matched an interpreter word in ARGUMENT
+  // position — `grep node package.json`, `pgrep -f bash`, `cat error.log | grep ruby` — and the
+  // post-OKAY fail-closed no-targets branch then hard-blocked those pure reads in EVERY phase
+  // (the "allowed one step later by isTrustedScriptInvoke" escape only exists for node). The two
+  // regexes became this head-position test: an interpreter gates when it IS the segment's command
+  // head, or a candidate head behind a wrapper descent (sudo/env/nice/timeout/xargs/… — every
+  // non-dash token after the wrapper is a candidate, so `sudo -u x node y`, `timeout 10 python`
+  // and `xargs sh` stay gated even though option-value skipping is ambiguous). An interpreter
+  // word that is a plain ARGUMENT of a non-wrapper head (`grep node package.json`) is data, and
+  // the command returns to read-only. Version/help carve-out unchanged: `interp --version` as
+  // the whole segment is a query.
+  (cmd) => {
+    const INTERP = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)$/;
+    const VERSION_ONLY = /^(?:python[\d.]*|node|nodejs|deno|bun|ruby|perl|php|Rscript|osascript|lua|tclsh|pwsh|powershell|bash|sh|zsh|ksh|dash|fish)\s+(?:--version|-V|--help|-h)$/;
+    // (consult round 3) WRAPPERS grew the execution-reachable remote/sandbox fronts: ssh/host,
+    // su, docker/podman exec, setsid, gdb --args, script -c, unshare/chroot/nsenter — a head of
+    // any of these with an interpreter/path behind it is an invocation the old anywhere-rule
+    // gated and head-position alone would free.
+    // (consult round 4) …and the ordinary prefix LAUNCHERS — exact siblings of nice/stdbuf/
+    // timeout that were somehow never listed: flock/taskset/ionice/chrt/setpriv/runuser/doas/
+    // busybox/proxychains/torsocks/bwrap/firejail/systemd-run — plus `time` AS A BINARY (takes
+    // a command; the keyword form is in PREFIXES below, and the quoted-keyword shape
+    // `'time' node x` resolves to this binary too).
+    const WRAPPERS = new Set(["sudo", "nohup", "env", "exec", "command", "builtin", "nice", "stdbuf", "timeout", "xargs", "watch", "strace", "ltrace", "valgrind", "su", "ssh", "docker", "podman", "setsid", "gdb", "script", "unshare", "chroot", "nsenter", "time", "flock", "taskset", "ionice", "chrt", "setpriv", "runuser", "doas", "busybox", "proxychains", "proxychains4", "torsocks", "bwrap", "firejail", "systemd-run"]);
+    // (consult round 2, CRITICAL) Shell reserved words and transparent prefixes are NOT command
+    // heads — `time node x`, `eval node x`, `! node x`, `{ node x; }`, `if/then/do node x` all
+    // put a keyword where the head test looked, freeing the interpreter behind it. Skip them
+    // (looped: `if …; then node` reaches `node` after segment-splitting on `;`) before
+    // selecting candidates. `find`'s -exec family is handled by its own WRITE_PATTERNS entry.
+    const PREFIXES = new Set(["if", "then", "else", "elif", "do", "done", "while", "until", "for", "in", "case", "esac", "{", "}", "!", "time", "eval", "coproc", "let"]);
+    // Parens AND BACKTICKS are split tokens: `(node …)` must present `node` as a segment head,
+    // not `(node` as a non-matching token (the subshell regression the trusted-invoke suite
+    // caught on cut 1), and `` echo `node -e …` `` must present the SUBSTITUTION'S contents as
+    // their own segment — command substitution is execution, exactly like `$(…)` (consult round 1,
+    // CRITICAL: without the backtick separator, `echo`/`cat` stayed the segment head and the
+    // interpreter inside the substitution was invisible → classified read-only → exit(0)).
+    for (const seg of String(cmd).split(/(?:^|[;&|()`\n])+|\|\||&&/)) {
+      // (consult round 3, CRITICAL) `\S+` required a NON-EMPTY assignment value, so `FOO= node x`
+      // left `FOO=` as the head and freed the interpreter. `\S*` strips empty values too.
+      const stripped = seg.trim().replace(/^(?:[A-Za-z_]\w*=\S*\s+)+/, "");
+      if (!stripped) continue;
+      const toks = stripped.split(/\s+/);
+      if (!toks.length) continue;
+      if (VERSION_ONLY.test(stripped)) continue; // bare version/help query — not an invocation
+      // (consult round 3, CRITICAL) strip ALL quoting/backslash characters from a candidate
+      // token, not one layer — `''node` yielded `'node` and failed the anchored test. This only
+      // affects match SENSITIVITY (a filename that normalizes to `node` gets gated — an
+      // acceptable over-block); it never opens a gate.
+      const unquote = (t) => t.replace(/[\\'"]/g, "");
+      // (consult round 4) the PREFIXES skip tests the UNQUOTED token — `\time node x` and
+      // `'time' node x` quote past the keyword (reaching /usr/bin/time, which takes a command),
+      // so the raw-token test stranded head="time" in neither set.
+      let start = 0;
+      while (start < toks.length && PREFIXES.has(unquote(toks[start]))) start++;
+      if (start >= toks.length) continue;
+      const head = unquote(toks[start]);
+      // A VARIABLE head (`$x evil.js`, after `x=node`) executes whatever the expansion holds —
+      // unresolvable at classification time, so it gates (the pre-wave anywhere-rule caught this
+      // by accident via the assignment's interpreter token).
+      if (head.startsWith("$")) return true;
+      const candidates = [head];
+      if (WRAPPERS.has(head)) {
+        // (consult round 3, CRITICAL) no token-count bound: `sudo -u a -g b -H -E -P -n -k node x`
+        // put the interpreter at token 10, past the old i < start+8 cutoff. Commands are short;
+        // scanning to the end is free.
+        for (let i = start + 1; i < toks.length; i++) {
+          if (!toks[i].startsWith("-")) candidates.push(unquote(toks[i]));
+        }
+      }
+      // Candidates test on the BASENAME as well as the whole token (consult round 1, CRITICAL):
+      // INTERP is anchored, so `sudo /usr/bin/node evil.js` presented `/usr/bin/node` — which
+      // never matches `^node$` — and the wrapper descent lost the gate the old lookbehind (which
+      // permitted `/` before the token) used to give. Non-wrapper path heads are still gated by
+      // the direct-path-head rule, so this adds no new false positives.
+      if (candidates.some((h) => INTERP.test(h) || INTERP.test(h.split("/").pop()))) return true;
+    }
+    return false;
+  },
   /\bcurl\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
   /\bwget\b[^&;\n]*\|\s*(?:sh|bash|zsh)\b/,
   // R3 (audit-3 verification): these passed as read-only on BOTH builds. `source`/`.` execute a

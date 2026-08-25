@@ -141,6 +141,65 @@ console.log("\n  interpreter eval + redirection (audit-3):");
   for (const cmd of ["sh deploy.sh", "bash -c 'echo x > f'", "; sh evil", "zsh script.zsh"])
     check(`    CONTROL still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
 
+  // F4 (deep audit 2026-08-25): an interpreter word in ARGUMENT position is data, not an
+  // invocation — `grep node package.json` was hard-blocked in EVERY phase by the position-less
+  // lookbehind plus the fail-closed no-targets branch, with no workaround (the trusted-invoke
+  // escape only exists for node). Head-position matching fixes the reads...
+  for (const cmd of [
+    "grep node package.json", "pgrep -f bash", "grep -r python3 .",
+    "cat error.log | grep ruby", "grep 'node' package.json", "grep -q sh notes.txt",
+  ]) check(`    F4 argument-position interpreter allowed: ${cmd}`, bash(repo, cmd) === 0, `(exit ${bash(repo, cmd)})`);
+
+  // ...while wrapper descents that land on an interpreter stay gated (sudo/env/nice/timeout/
+  // xargs — every non-dash token after the wrapper is a candidate head, so option-value
+  // ambiguity can never hide the interpreter).
+  for (const cmd of [
+    "sudo node evil.js", "sudo -u deploy python3 x.py", "env node evil.js",
+    "timeout 10 python x.py", "nice -n 19 node evil.js", "xargs sh", "echo hi | python f.py",
+  ]) check(`    F4 wrapper descent still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
+  // Consult round 1 (REJECT, CRITICAL ×2): the first cut of the head-position test REOPENED the
+  // very class it fixed. (a) the segment splitter omitted the BACKTICK — `echo`/`cat` stayed the
+  // segment head and the interpreter inside the substitution was invisible → read-only → exit(0).
+  // (b) INTERP is anchored, so a wrapper descent carrying a PATH (`sudo /usr/bin/node`) never
+  // matched. Both fixed; these rows pin them shut.
+  for (const cmd of [
+    "echo `node evil.js`", "cat `sh evil.sh`", "x=`bash -c id`",
+    "sudo /usr/bin/node evil.js", "env /usr/bin/python3 x.py", "nohup /bin/sh evil.sh",
+    "timeout 5 /usr/bin/node evil.js",
+  ]) check(`    consult-r1 substitution/path wrapper still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
+  // Consult round 2 (REJECT, CRITICAL): shell reserved words and transparent prefixes are not
+  // command heads — every shape below put a keyword where the head test looked and FREED the
+  // interpreter behind it (all were gated by the pre-wave lookbehind). The matcher now skips
+  // PREFIX tokens (looped), and strips one leading backslash / surrounding quotes off the head.
+  for (const cmd of [
+    "time node evil.js", "eval node evil.js", "eval 'node evil.js'", "! node evil.js",
+    "{ node evil.js; }", "if node evil.js", "then node evil.js", "do node evil.js",
+    "for f in *; do node $f; done", "until node x; do :; done", "\\node evil.js",
+  ]) check(`    consult-r2 keyword-prefix head still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
+  // Consult round 3 (REJECT, CRITICAL — three trivial shapes) + the same-class shapes found by
+  // replaying the auditor's methodology before round 4 could: empty-value env prefixes
+  // (`FOO=` left as head), wrapper option padding past the old 8-token cutoff, multi-layer
+  // quoting (`''node`), variable heads (`x=node; $x`), and the execution-reachable wrapper
+  // fronts the old anywhere-rule gated implicitly (su -c, ssh, docker exec, setsid).
+  for (const cmd of [
+    "FOO= node evil.js", "A=1 B= node evil.js", "FOO= sh evil.sh", "FOO= python3 x.py",
+    "sudo -u a -g b -H -E -P -n -k node evil.js", "''node evil.js",
+    "x=node; $x evil.js", "$RUN_CMD evil.js",
+    "su -c 'node evil.js'", "ssh host node evil.js", "docker exec ctr node evil.js", "setsid node evil.js",
+  ]) check(`    consult-r3 bypass family still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
+  // Consult round 4 (REJECT, major): the ordinary prefix LAUNCHERS — siblings of nice/stdbuf/
+  // timeout — were never listed, so `taskset -c 0 node x` freed the interpreter; and the
+  // PREFIXES skip tested the RAW token, so quoting past the keyword (`'time' node x` reaches
+  // /usr/bin/time, which takes a command) stranded head="time" in neither set.
+  for (const cmd of [
+    "taskset -c 0 node evil.js", "ionice -c3 node evil.js", "flock /tmp/l node evil.js",
+    "doas node evil.js", "busybox node evil.js", "\\time node evil.js", "'time' node evil.js",
+  ]) check(`    consult-r4 launcher/quoted-keyword still blocked: ${cmd}`, bash(repo, cmd) === 2, `(exit ${bash(repo, cmd)})`);
+
   // G-class (audit-4): DIRECT EXECUTION OF A PATH. No interpreter token exists in these, so no
   // list of binaries reaches them — what identifies them is that the command HEAD is a path.
   for (const cmd of ["./deploy.sh", "/tmp/evil", "src/foo.js", "~/bin/evil", "exec /tmp/evil"])
