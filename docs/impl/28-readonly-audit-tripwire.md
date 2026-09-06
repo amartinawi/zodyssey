@@ -87,7 +87,7 @@ Nothing for honest auditors — additive history field, additive stderr warning.
 
 ## Anchor-drift reconciliation
 
-Fixed order (the repo's, `docs/impl/00-INDEX.md:63-66`): write docs → `node scripts/check-anchors.mjs` → fix each new citation at the source → `node scripts/check-anchors.mjs --update` → suite. The README row append must land AFTER the last table row; verify the `README.md:291` pin hash is byte-identical post-append. No `:line` citations on external repos (grammar rule, `docs/DELEGATE-REVIEW.md` header).
+Fixed order (the repo's, `docs/impl/00-INDEX.md:64-67`): write docs → `node scripts/check-anchors.mjs` → fix each new citation at the source → `node scripts/check-anchors.mjs --update` → suite. The README row append must land AFTER the last table row; verify the `README.md:291` pin hash is byte-identical post-append. No `:line` citations on external repos (grammar rule, `docs/DELEGATE-REVIEW.md` header).
 
 ## Capability routing
 
