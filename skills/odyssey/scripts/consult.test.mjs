@@ -437,5 +437,319 @@ console.log("consult.mjs --multi-auditor mode tests\n");
   }
 }
 
+// ===========================================================================
+// (r) POST-DONE GAP-REFUTE FILTER (run `consult-refute-adaptation`, todo 3).
+// Written RED-FIRST against the unmodified consult.mjs: the refute pass, its history
+// field, and the confidence routing do not exist yet, so these checks fail at RED for
+// the right reason (single spawn consumed, no `refute` field, unpartitioned gaps) —
+// never a crash (every history/spawn read below is `|| {}`-guarded).
+//
+// Contract under test (metis D3/D4 + the plan's insertion contract):
+//   - DEFAULT-ON for post-done REJECT rounds only: the refuter consumes the SECOND
+//     stub response of a spawn sequence; `--no-refute` and ACCEPT rounds spawn exactly
+//     once (byte-today); plan-audit / multi-auditor are pinned by their existing cases
+//     above staying green, unedited.
+//   - Fail-closed verdict semantics: the verdict VALUE is never recomputed — an
+//     all-refuted REJECT stays REJECT (empty last_gaps + "[refuted] …" string
+//     advisories + the optional history `refute` report field).
+//   - Refuter failure (non-zero status, unparseable output, spawn throw) = ONE stderr
+//     warn naming the failure + "zero gaps refuted", gaps intact, NO refute field, no
+//     new exit code.
+//   - The refute spawn inherits the full item-28 pattern: argv identical to the audit
+//     spawn, bin CLAUDE_CLI_2 || CLAUDE_CLI, 10-min timeout, 200MB maxBuffer, and the
+//     DATA-framed prompt over gaps JSON + plan + the frozen redacted diff.
+// ===========================================================================
+console.log("consult.mjs post-done gap-refute filter tests\n");
+
+// The post-done entry point (appended import — the destructure at the top of this file
+// predates the filter and stays untouched; the isMain guard keeps the import side-effect free).
+const { runPostDoneConsult } = await import(pathToFileURL(CONSULT).href);
+
+// stderr capture for the refuter-failure warns (they write via process.stderr.write).
+// Same patch discipline as the tripwire suite: stays installed until the awaited call settles.
+async function captureStderr(fn) {
+  const chunks = [];
+  const origWrite = process.stderr.write;
+  const origErr = console.error;
+  process.stderr.write = (s) => { chunks.push(String(s)); return true; };
+  console.error = (...a) => { chunks.push(a.map(String).join(" ") + "\n"); };
+  try {
+    const result = await fn();
+    return { result, stderr: chunks.join("") };
+  } finally {
+    process.stderr.write = origWrite;
+    console.error = origErr;
+  }
+}
+
+// A spawn stub that records every call (bin/args/opts) and delegates to `inner`.
+function recordingSpawn(inner) {
+  const calls = [];
+  const fn = (bin, args, opts) => { calls.push({ bin, args, opts }); return inner(bin, args, opts); };
+  fn.calls = calls;
+  return fn;
+}
+
+// --- (r1) stub-sequence REJECT: the refute pass consumes the 2nd stub response ---
+{
+  const repo = makeRepo();
+  try {
+    const gapKept = { severity: "major", issue: "widget lock missing", fix: "wrap the widget write in the state lock" };
+    const gapLowConf = { severity: "minor", issue: "typo in header comment", fix: "fix the header typo", confidence: 0.1 };
+    const gapRefuted = { severity: "critical", issue: "no exit code for lock failure", fix: "exit 6 when the state lock cannot be acquired" };
+    const refuteReason = 'The frozen diff already contains "exit 6 when the state lock cannot be acquired" — the gap is stale.';
+    const spawnStub = recordingSpawn(stubSpawnSequence([
+      { verdict: "REJECT", gaps: [gapKept, gapLowConf, gapRefuted], advisories: ["consider splitting the module"], summary: "three findings" },
+      { refutations: [{ index: 1, reason: refuteReason }] },
+    ]));
+    const out = await runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] });
+
+    check("(r1) exactly TWO spawns ran (audit + refute)", spawnStub.calls.length === 2,
+      `(got ${spawnStub.calls.length})`);
+    check("(r1) verdict stays REJECT (never recomputed)", out.verdict === "REJECT", `(got ${JSON.stringify(out.verdict)})`);
+    check("(r1) returned gaps = the kept gap only (low-confidence routed, one refuted)",
+      JSON.stringify(out.gaps) === JSON.stringify([gapKept]), `(got ${JSON.stringify(out.gaps)})`);
+    check("(r1) advisories = auditor's + routed low-confidence + [refuted], in order",
+      Array.isArray(out.advisories) && out.advisories.length === 3 &&
+        out.advisories[0] === "consider splitting the module" &&
+        out.advisories[1] === "[low-confidence] typo in header comment" &&
+        out.advisories[2] === `[refuted] no exit code for lock failure — ${refuteReason}`,
+      `(got ${JSON.stringify(out.advisories)})`);
+    const st = readState(repo);
+    check("(r1) state.consult.verdict is REJECT", !!(st.consult && st.consult.verdict === "REJECT"));
+    check("(r1) state.consult.last_gaps = the kept gap only",
+      JSON.stringify((st.consult || {}).last_gaps) === JSON.stringify([gapKept]),
+      `(got ${JSON.stringify((st.consult || {}).last_gaps)})`);
+    const entry = ((st.consult || {}).history || [])[0] || {};
+    const rf = entry.refute || {};
+    check("(r1) history entry carries the optional refute field (attempted/refuted/kept/report)",
+      rf.attempted === true && rf.refuted === 1 && rf.kept === 1 && !!(rf.report && typeof rf.report === "object"),
+      `(got ${JSON.stringify(entry.refute)})`);
+    check("(r1) refute.report lists the refuted gap (issue+reason) with the convergence-trap note",
+      Array.isArray(rf.report && rf.report.refuted) && rf.report.refuted.length === 1 &&
+        rf.report.refuted[0].issue === "no exit code for lock failure" &&
+        rf.report.refuted[0].reason === refuteReason &&
+        /re-judged fresh/.test(String((rf.report || {}).note || "")),
+      `(got ${JSON.stringify(rf.report)})`);
+    const c2 = spawnStub.calls[1] || { args: [], opts: {} };
+    check("(r1) refute spawn argv is identical to the audit spawn argv (read-only flags)",
+      JSON.stringify(c2.args) === JSON.stringify((spawnStub.calls[0] || {}).args) &&
+        JSON.stringify(c2.args) === JSON.stringify(["-p", "--output-format", "json", "--permission-mode", "plan", "--allowedTools", ""]),
+      `(got ${JSON.stringify(c2.args)})`);
+    check("(r1) refute spawn timeout=10min, maxBuffer=200MB (the audit-spawn envelope)",
+      c2.opts.timeout === 10 * 60 * 1000 && c2.opts.maxBuffer === 200 * 1024 * 1024,
+      `(timeout=${c2.opts.timeout}, maxBuffer=${c2.opts.maxBuffer})`);
+    check("(r1) refute prompt is the DATA-framed refute prompt over the KEPT gaps + frozen diff",
+      String(c2.opts.input || "").includes("Refute Prompt") &&
+        String(c2.opts.input || "").includes(gapKept.issue) &&
+        String(c2.opts.input || "").includes(gapRefuted.issue) &&
+        !String(c2.opts.input || "").includes(gapLowConf.issue) &&
+        String(c2.opts.input || "").includes("THE FROZEN DIFF"),
+      `(input head: ${JSON.stringify(String(c2.opts.input || "").slice(0, 120))})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (r2) ALL gaps refuted → REJECT stays REJECT (never auto-ACCEPT), empty last_gaps ---
+{
+  const repo = makeRepo();
+  try {
+    const gapA = { severity: "major", issue: "alpha gap unfixed", fix: "apply the alpha remediation patch now" };
+    const gapB = { severity: "minor", issue: "beta gap unfixed", fix: "apply the beta remediation patch now" };
+    const reasonA = 'Already done: "apply the alpha remediation patch now".';
+    const reasonB = 'Already done: "apply the beta remediation patch now".';
+    const spawnStub = recordingSpawn(stubSpawnSequence([
+      { verdict: "REJECT", gaps: [gapA, gapB], summary: "two findings" },
+      { refutations: [{ index: 0, reason: reasonA }, { index: 1, reason: reasonB }] },
+    ]));
+    const out = await runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] });
+
+    check("(r2) invariant: an all-refuted REJECT STAYS REJECT (the verdict is NEVER recomputed)",
+      out.verdict === "REJECT", `(got ${JSON.stringify(out.verdict)})`);
+    check("(r2) returned gaps are EMPTY (nothing left to remediate)",
+      Array.isArray(out.gaps) && out.gaps.length === 0, `(got ${JSON.stringify(out.gaps)})`);
+    check("(r2) refuted gaps arrive as STRING advisories ('[refuted] <issue> — <reason>')",
+      Array.isArray(out.advisories) && out.advisories.length === 2 &&
+        out.advisories[0] === `[refuted] alpha gap unfixed — ${reasonA}` &&
+        out.advisories[1] === `[refuted] beta gap unfixed — ${reasonB}`,
+      `(got ${JSON.stringify(out.advisories)})`);
+    const st = readState(repo);
+    check("(r2) state.consult: verdict REJECT + EMPTY last_gaps (the empty-last_gaps surface rule's input)",
+      !!(st.consult && st.consult.verdict === "REJECT" && Array.isArray(st.consult.last_gaps) && st.consult.last_gaps.length === 0),
+      `(verdict=${st.consult && st.consult.verdict}, last_gaps=${JSON.stringify(st.consult && st.consult.last_gaps)})`);
+    const entry = ((st.consult || {}).history || [])[0] || {};
+    const rf = entry.refute || {};
+    check("(r2) history refute field reports 2 refuted / 0 kept with the full report",
+      rf.refuted === 2 && rf.kept === 0 &&
+        Array.isArray(rf.report && rf.report.refuted) && rf.report.refuted.length === 2,
+      `(got ${JSON.stringify(entry.refute)})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (r3) refuter FAILS (non-zero status) → zero refuted + ONE warn + gaps intact ---
+{
+  const repo = makeRepo();
+  try {
+    const gaps = [
+      { severity: "major", issue: "gap one stands", fix: "fix one with a long enough fix text" },
+      { severity: "minor", issue: "gap two stands", fix: "fix two with a long enough fix text" },
+    ];
+    let call = 0;
+    const spawnStub = recordingSpawn(() => {
+      call += 1;
+      if (call === 1) {
+        return { status: 0, stdout: JSON.stringify({ result: JSON.stringify({ verdict: "REJECT", gaps, summary: "two findings" }) }), stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "stub refuter exploded" };
+    });
+    const { result: out, stderr } = await captureStderr(() =>
+      runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] }));
+
+    check("(r3) both gaps stand (zero refuted — fail-closed no-op)",
+      JSON.stringify(out.gaps) === JSON.stringify(gaps), `(got ${JSON.stringify(out.gaps)})`);
+    check("(r3) ONE stderr warn names the failure AND states zero gaps refuted",
+      /refuter failed \(exit 1\)[\s\S]*stub refuter exploded[\s\S]*zero gaps refuted/.test(stderr) &&
+        (stderr.match(/zero gaps refuted/g) || []).length === 1,
+      `(stderr tail: ${JSON.stringify(stderr.slice(-400))})`);
+    check("(r3) verdict REJECT and the call RETURNED (no new exit code on refuter failure)",
+      out.verdict === "REJECT");
+    const st = readState(repo);
+    const entry = ((st.consult || {}).history || [])[0] || {};
+    check("(r3) NO refute field on the history entry (today's entry shape on failure)",
+      !("refute" in entry), `(entry keys: ${Object.keys(entry).join(",")})`);
+    check("(r3) no [refuted] advisories",
+      JSON.stringify(out.advisories) === JSON.stringify([]), `(got ${JSON.stringify(out.advisories)})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (r3b) refuter returns UNPARSEABLE output → the same degradation ---
+{
+  const repo = makeRepo();
+  try {
+    const gap = { severity: "major", issue: "gap stands after garbage", fix: "a fix line long enough to quote verbatim" };
+    let call = 0;
+    const spawnStub = recordingSpawn(() => {
+      call += 1;
+      if (call === 1) {
+        return { status: 0, stdout: JSON.stringify({ result: JSON.stringify({ verdict: "REJECT", gaps: [gap], summary: "one finding" }) }), stderr: "" };
+      }
+      return { status: 0, stdout: "<html>502 Bad Gateway</html>", stderr: "" };
+    });
+    const { result: out, stderr } = await captureStderr(() =>
+      runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] }));
+
+    check("(r3b) the gap stands (zero refuted from garbage output)",
+      JSON.stringify(out.gaps) === JSON.stringify([gap]), `(got ${JSON.stringify(out.gaps)})`);
+    check("(r3b) the warn names 'unparseable' and states zero gaps refuted",
+      /refuter response unparseable[\s\S]*zero gaps refuted/.test(stderr),
+      `(stderr tail: ${JSON.stringify(stderr.slice(-300))})`);
+    check("(r3b) verdict REJECT, gaps intact in last_gaps, no refute field",
+      out.verdict === "REJECT" &&
+        JSON.stringify((readState(repo).consult || {}).last_gaps) === JSON.stringify([gap]) &&
+        !("refute" in (((readState(repo).consult || {}).history || [])[0] || {})),
+      `(state: ${JSON.stringify(readState(repo).consult)})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (r4) --no-refute → EXACTLY one spawn, byte-today (no refute, no routing) ---
+{
+  const repo = makeRepo();
+  try {
+    const gaps = [
+      { severity: "major", issue: "kept gap one", fix: "fix one with a long enough fix text" },
+      // confidence 0.1 WOULD route to an advisory if the filter were on — with --no-refute
+      // it must stay a gap (byte-today means no routing either, not just no refute spawn).
+      { severity: "minor", issue: "low-confidence gap stays a gap", fix: "fix two with a long enough fix text", confidence: 0.1 },
+    ];
+    const spawnStub = recordingSpawn(stubSpawnSequence([
+      { verdict: "REJECT", gaps, advisories: ["auditor advisory"], summary: "two findings" },
+    ]));
+    const out = await runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: ["--no-refute"] });
+
+    check("(r4) exactly ONE spawn (byte-today single-spawn behavior)",
+      spawnStub.calls.length === 1, `(got ${spawnStub.calls.length})`);
+    check("(r4) gaps pass through UNROUTED (the confidence-0.1 gap stays a gap)",
+      JSON.stringify(out.gaps) === JSON.stringify(gaps), `(got ${JSON.stringify(out.gaps)})`);
+    check("(r4) advisories are the auditor's alone",
+      JSON.stringify(out.advisories) === JSON.stringify(["auditor advisory"]), `(got ${JSON.stringify(out.advisories)})`);
+    const st = readState(repo);
+    const entry = ((st.consult || {}).history || [])[0] || {};
+    check("(r4) no refute field on the history entry",
+      !("refute" in entry), `(entry keys: ${Object.keys(entry).join(",")})`);
+    check("(r4) last_gaps = the full gap list",
+      JSON.stringify((st.consult || {}).last_gaps) === JSON.stringify(gaps),
+      `(got ${JSON.stringify((st.consult || {}).last_gaps)})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (r5) ACCEPT round → single spawn (no refute on ACCEPT) ---
+{
+  const repo = makeRepo();
+  try {
+    const spawnStub = recordingSpawn(stubSpawnSequence([
+      { verdict: "ACCEPT", gaps: [], summary: "clean" },
+    ]));
+    const out = await runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] });
+
+    check("(r5) ACCEPT round spawns exactly once (no refute pass)",
+      spawnStub.calls.length === 1 && out.verdict === "ACCEPT",
+      `(spawns=${spawnStub.calls.length}, verdict=${JSON.stringify(out.verdict)})`);
+    const entry = (((readState(repo).consult || {}).history || [])[0]) || {};
+    check("(r5) no refute field on an ACCEPT history entry", !("refute" in entry),
+      `(entry keys: ${Object.keys(entry).join(",")})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (r6) refute bin = CLAUDE_CLI_2 || CLAUDE_CLI; a valid EMPTY refutations array is SUCCESS ---
+{
+  const repo = makeRepo();
+  const origCli = process.env.CLAUDE_CLI;
+  const origCli2 = process.env.CLAUDE_CLI_2;
+  process.env.CLAUDE_CLI = "stub-audit-cli";
+  process.env.CLAUDE_CLI_2 = "stub-refute-cli";
+  try {
+    const gap = { severity: "major", issue: "single gap stands", fix: "the single fix text is long enough" };
+    let call = 0;
+    const spawnStub = recordingSpawn(() => {
+      call += 1;
+      if (call === 1) {
+        return { status: 0, stdout: JSON.stringify({ result: JSON.stringify({ verdict: "REJECT", gaps: [gap], summary: "one finding" }) }), stderr: "" };
+      }
+      return { status: 0, stdout: JSON.stringify({ result: JSON.stringify({ refutations: [] }) }), stderr: "" };
+    });
+    const { result: out, stderr } = await captureStderr(() =>
+      runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] }));
+
+    check("(r6) audit spawn uses CLAUDE_CLI; the refute spawn prefers CLAUDE_CLI_2",
+      spawnStub.calls.length === 2 && (spawnStub.calls[0] || {}).bin === "stub-audit-cli" &&
+        (spawnStub.calls[1] || {}).bin === "stub-refute-cli",
+      `(bins: ${JSON.stringify(spawnStub.calls.map((c) => c.bin))})`);
+    check("(r6) a valid EMPTY refutations array is SUCCESS (no warn, gap stands)",
+      !/zero gaps refuted/.test(stderr) && out.verdict === "REJECT" &&
+        JSON.stringify(out.gaps) === JSON.stringify([gap]),
+      `(stderr tail: ${JSON.stringify(stderr.slice(-200))}, gaps: ${JSON.stringify(out.gaps)})`);
+    const entry = (((readState(repo).consult || {}).history || [])[0]) || {};
+    const rf = entry.refute || {};
+    check("(r6) refute field: attempted=true, refuted=0, kept=1",
+      rf.attempted === true && rf.refuted === 0 && rf.kept === 1,
+      `(got ${JSON.stringify(entry.refute)})`);
+  } finally {
+    if (origCli === undefined) delete process.env.CLAUDE_CLI; else process.env.CLAUDE_CLI = origCli;
+    if (origCli2 === undefined) delete process.env.CLAUDE_CLI_2; else process.env.CLAUDE_CLI_2 = origCli2;
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
 console.log(`\n${pass}/${pass + fail} passed`);
 process.exit(fail === 0 ? 0 : 1);

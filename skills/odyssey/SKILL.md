@@ -283,13 +283,26 @@ because the auditor cannot inherit the run's assumptions.
 3. **On ACCEPT:** mark `phase: "audited"`, summarize, STOP.
    (A retroactive-audit vehicle parked at `abandoned` — a run opened only to carry an external audit of already-shipped work — rides the same edge: `abandoned → audited`, behind the same consult ACCEPT gate; `--force` still cannot reach `audited`.)
 4. **On REJECT:** remediation loop:
-   - read `consult.last_gaps` — each gap is `{category, severity, issue, fix}`
+   - **the refute pass has already run** — `consult.mjs` (default-on; `--no-refute` restores the
+     pre-filter behavior) runs ONE extra external refute pass over the auditor's listed gaps before
+     the round reaches you: a separate CLI (`CLAUDE_CLI_2` if set, else `CLAUDE_CLI`; post-done REJECT
+     rounds ONLY — `--plan-audit`/`--multi-auditor` untouched) re-examines each listed gap against the
+     same frozen evidence. A refuted gap arrives as a string advisory (`[refuted] <issue> — <reason>`)
+     plus a structured `refute` report on the `consult.history` entry (read it `|| {}`) — NEVER
+     remediation work. Refutation NEVER flips the verdict (an all-refuted REJECT stays REJECT); refuter
+     failure degrades to zero refutations (one stderr warn — today's behavior).
+   - read `consult.last_gaps` — the KEPT gaps; each is `{category, severity, issue, fix}`
    - dispatch `zodyssey:sisyphus-junior` per gap (parallel where independent — but see the limitation note
      below: hooks are DISARMED in `done`/`audited`, so the cap does NOT apply during remediation
      unless you set `phase: "remediate"` first), each carrying the gap's `issue` + `fix`
    - re-verify, then re-run `consult.mjs`
    - **loop until ACCEPT — no hard cap.** Soft safety rail: every 5 rounds, AskUserQuestion to
      confirm the user wants to continue (prevents unattended infinite loops; honors "no hard cap").
+   - **empty last_gaps surface rule (key on observable state, not on what emptied it):** a REJECT
+     round whose `consult.last_gaps` is empty after routing/refutation surfaces to the operator —
+     nothing to dispatch; do NOT blind-loop and do NOT fabricate an ACCEPT (the refute report states
+     refuted gaps are refuted-not-remediated and will be re-judged fresh by the next audit round).
+     Verdict-level disagreement remains a human decision.
 
 **Discipline:** the auditor's verdict is the independent truth. You remediate gaps; you never edit,
 negotiate, or override the verdict. You never fabricate an ACCEPT. The remediation loop converges

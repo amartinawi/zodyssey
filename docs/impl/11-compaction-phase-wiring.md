@@ -340,9 +340,9 @@ its own"), each checked against the 2026-08-16 tree:
 - `skills/odyssey/SKILL.md:228` — the "load-bearing working memory" paragraph: "optional
   `_compact-brief.md`" becomes "auto-derived at final entry above the size threshold (additive —
   sources never modified)".
-- `skills/odyssey/SKILL.md:403-407` region — the env-var list gains
+- `skills/odyssey/SKILL.md:416-420` region — the env-var list gains
   `ZODYSSEY_NO_AUTO_COMPACT` (set to 1 to skip auto-compaction at final entry; default unset =
-  enabled), phrased like the `ZODYSSEY_REGRESSION_TIMEOUT_MS` entry at `:406`.
+  enabled), phrased like the `ZODYSSEY_REGRESSION_TIMEOUT_MS` entry at `:420`.
 - `skills/odyssey/references/scripts.md:17` — the `compact.mjs` entry: invoked automatically by
   `set-phase.mjs` on entering `final` above `AUTO_COMPACT_MIN_LINES`; direct two-arg invocation
   unchanged; `--min-lines` documented; the additive invariant stated as tested, not promised.

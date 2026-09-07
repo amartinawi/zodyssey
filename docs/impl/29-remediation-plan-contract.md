@@ -14,7 +14,7 @@ The REJECT verdict is tuned for judge precision, but the remediation loop consum
 convergence — and each half optimizes against the other. Three mechanisms multiply rounds:
 
 1. **The prompt caps and parks the rejection surface.** The auditor is told to "Keep `gaps` to the
-   most important issues (typically ≤5). Don't pad" (`skills/odyssey/references/auditor-prompt.md:80`)
+   most important issues (typically ≤5). Don't pad" (`skills/odyssey/references/auditor-prompt.md:81`)
    and to park borderline items as advisories under the approval bias (`:40-42`). On ACCEPT that is
    correct discipline. On REJECT it is a scheduled future round: every re-audit is a FRESH judge —
    the post-done prompt is built from auditor-prompt.md + original task + plan + diff ONLY
@@ -23,13 +23,13 @@ convergence — and each half optimizes against the other. Three mechanisms mult
    new REJECT in round N+1. This exact escalation is on record inside this repo's own runs (the
    audit-wave loop needed 5 rounds).
 2. **`fix` is a one-liner with no proof.** Each gap's `fix` is one instruction line
-   (`auditor-prompt.md:69`); nothing requires a runnable proof that the fix landed. The loop's
-   re-verify step — "run any affected acceptance commands" (`commands/orchestrate-consult.md:28`,
-   mirrored `skills/odyssey/SKILL.md:290`) — is discretionary and unbound from the auditor's words,
+   (`auditor-prompt.md:70`); nothing requires a runnable proof that the fix landed. The loop's
+   re-verify step — "run any affected acceptance commands" (`commands/orchestrate-consult.md:30`,
+   mirrored `skills/odyssey/SKILL.md:298`) — is discretionary and unbound from the auditor's words,
    so an incomplete remediation is discovered only by spending a full external audit round, the most
    expensive possible check.
 3. **Nothing plan-shaped survives the round.** `consult.last_gaps`
-   (`consult.mjs:1241-1244`, history push `:1245-1255`) is the only remediation surface that
+   (`consult.mjs:1337-1340`, history push `:1341-1352`) is the only remediation surface that
    persists; ordering or collision hazards ("these two gaps touch the same file") are lost, and
    `normalizeConsultVerdict` whitelists its output (`skills/odyssey/scripts/lib/verdict-schema.mjs:98-104`),
    so a new auditor-emitted `remediation_plan` field would survive only buried in `.raw` — never
@@ -152,7 +152,7 @@ cap). The anchor surface moves in two declared places: consult.mjs edits (the `:
 mirror, the `:745+` winner merge, the `:1241+` persist) shift every consult.mjs pin below `:265` —
 the INDEX C6 block's pins and `skills/odyssey/scripts/consult.mjs:584-587` (pinned from
 `docs/DELEGATE-REVIEW.md:213`) — and the SKILL.md consult-box edit shifts
-`skills/odyssey/SKILL.md:338-346` and `:348-352` (pinned from `docs/DELEGATE-REVIEW.md:71`); both
+`skills/odyssey/SKILL.md:351-359` and `:361-365` (pinned from `docs/DELEGATE-REVIEW.md:71`); both
 are inside the one mechanical re-baseline below. auditor-prompt.md needs NO re-baseline — placement
 keeps every pin `≤:57` intact, and the head-57 diff criterion proves it.
 

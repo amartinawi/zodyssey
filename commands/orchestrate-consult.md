@@ -23,7 +23,9 @@ Follow the **Consult workflow** section of the zodyssey:odyssey skill exactly. S
    - **REJECT** → enter remediation (below).
 
 ## Remediation (on REJECT)
-1. Read `consult.last_gaps` from state.json — each gap has `{category, severity, issue, fix}`.
+**Refute pass first (inside `consult.mjs`, default-on; `--no-refute` to disable):** before a REJECT round reaches you, the script has already run ONE extra external refute pass over the auditor's listed gaps — a separate CLI (`CLAUDE_CLI_2` if set, else `CLAUDE_CLI`; post-done REJECT rounds only — `--plan-audit`/`--multi-auditor` untouched). Refuted gaps arrive as string advisories (`[refuted] <issue> — <reason>`) plus a structured `refute` report on the `consult.history` entry (read it `|| {}`), and are NOT dispatched as remediation. Refutation NEVER flips the verdict (an all-refuted REJECT stays REJECT); refuter failure degrades to zero refutations (one stderr warn — today's behavior).
+
+1. Read `consult.last_gaps` from state.json — the KEPT gaps; each has `{category, severity, issue, fix}`. **Empty-gaps surface rule:** a REJECT round with empty last_gaps — `consult.last_gaps` empty after routing/refutation — surfaces to the operator: nothing to dispatch, do NOT blind-loop, do NOT fabricate an ACCEPT (refuted gaps are refuted-not-remediated and will be re-judged fresh by the next audit round; verdict-level disagreement stays a human decision). Key on this observable state, not on what emptied it.
 2. Dispatch remediation work to `zodyssey:sisyphus-junior` — one dispatch per gap (parallel where independent), each carrying the gap's `issue` + `fix` as the task. Use the same dispatch discipline as phase 4 (parallel-by-default). In `done`/`audited` the enforcement hooks are **disarmed**, so the parallel cap does **not** apply during remediation — if you want it enforced during gap-fixes, first `set-phase <repo> <slug> remediate`, then restore `done`/`audited` after re-consult.
 3. After all gap-fixes return, re-verify (run any affected acceptance commands), then re-run the audit (`consult.mjs` again).
 4. Loop. There is **no hard cap** — you loop until ACCEPT.
@@ -38,4 +40,4 @@ Every **5 rounds** without convergence, pause and ask the user (via AskUserQuest
 - Do NOT fabricate an ACCEPT. Only the external auditor's parsed verdict counts.
 
 ## Reporting
-When ACCEPT (or user pauses), summarize: rounds run, gaps found and fixed per round, final advisories. The full history is in `state.json` → `consult.history`.
+When ACCEPT (or user pauses), summarize: rounds run, gaps found and fixed per round, final advisories, and — where a round ran the refute pass — the refuted-gap counts from that round's `refute` report (read `|| {}`). The full history is in `state.json` → `consult.history`.

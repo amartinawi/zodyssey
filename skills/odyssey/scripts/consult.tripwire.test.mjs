@@ -492,6 +492,65 @@ if (hasPostDone) {
 }
 
 // ===========================================================================
+console.log("\nsite-level: post-done REFUTE pass (gap-refute filter — run `consult-refute-adaptation` todo 3)\n");
+
+// --- (b-rf)/(a-rf) the refute spawn inherits the full item-28 window ---------------
+// The gap-refute filter adds a SECOND external spawn on the post-done REJECT path
+// (audit → refute); its window must tripwire exactly like the audit's, and the history
+// entry's readOnlyViolation becomes the fail-closed MERGE of both windows. Written
+// RED-FIRST: against the unmodified consult.mjs the second stub response is never
+// consumed (no refute pass exists), so the mutation armed for call 2 never runs and the
+// recorded tri-state stays the audit window's alone.
+if (hasPostDone) {
+  // (b-rf) the 2nd (refute) spawn's action mutates a WORK file mid-window.
+  {
+    const repo = makeTripwireRepo();
+    try {
+      const gap = { severity: "major", issue: "refute-window gap", fix: "a fix line long enough to quote verbatim here" };
+      let call = 0;
+      const stub = () => {
+        call += 1;
+        if (call === 1) return envelope({ verdict: "REJECT", gaps: [gap], summary: "one finding" });
+        mutateWorkFile(repo)(); // the refuter "runs" mid-window and dirties work.txt
+        return envelope({ refutations: [] });
+      };
+      const { stderr } = await captureStderr(() =>
+        consult.runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: stub }));
+      const entry = lastHistoryEntry(readState(repo));
+      check("(b-rf) TWO spawns ran (audit + refute) — the mutation armed for call 2 fired",
+        call === 2, `(spawn calls: ${call})`);
+      check("(b-rf) work-file mutation during the REFUTE window → readOnlyViolation === true (merged; the audit window was clean)",
+        !!entry && entry.readOnlyViolation === true, `(entry: ${JSON.stringify(entry)})`);
+      check("(b-rf) the refute-window violation warns (both causes named verbatim)",
+        warnsViolation(stderr), `(stderr tail: ${JSON.stringify(stderr.slice(-300))})`);
+      check("(b-rf) verdict REJECT + the refute report field recorded beside the violation",
+        !!entry && entry.verdict === "REJECT" && !!(entry.refute && entry.refute.attempted === true),
+        `(entry: ${JSON.stringify(entry)})`);
+    } finally { rmSync(repo, { recursive: true, force: true }); }
+  }
+
+  // (a-rf) control: a CLEAN refute window leaves the recorded tri-state at today's value.
+  {
+    const repo = makeTripwireRepo();
+    try {
+      const gap = { severity: "major", issue: "refute-window clean gap", fix: "another fix line long enough to quote" };
+      let call = 0;
+      const stub = () => {
+        call += 1;
+        if (call === 1) return envelope({ verdict: "REJECT", gaps: [gap], summary: "one finding" });
+        return envelope({ refutations: [] });
+      };
+      const { stderr } = await captureStderr(() =>
+        consult.runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: stub }));
+      const entry = lastHistoryEntry(readState(repo));
+      check("(a-rf) clean audit + clean refute windows → readOnlyViolation === false (the merge preserves today's value)",
+        !!entry && entry.readOnlyViolation === false, `(entry: ${JSON.stringify(entry)})`);
+      check("(a-rf) no violation warning", !warnsViolation(stderr));
+    } finally { rmSync(repo, { recursive: true, force: true }); }
+  }
+}
+
+// ===========================================================================
 console.log(`\n${pass}/${pass + fail} passed`);
 summaryPrinted = true;
 process.exit(fail === 0 ? 0 : 1);

@@ -1237,21 +1237,118 @@ try {
   }
 } catch {}
 
+// --- gap-refute filter (run `consult-refute-adaptation` todo 3 / metis D2+D4) ---
+// DEFAULT-ON for post-done REJECT rounds ONLY. `--no-refute` in `rest` restores the
+// pre-filter single-spawn behavior byte-for-byte; --plan-audit and --multi-auditor never
+// reach this function. Both steps use the PURE post-normalization helpers from
+// ./lib/gap-refute.mjs (imported at the bottom of this file beside pathToFileURL — ESM
+// hoists, and keeping the import off the top shifts no pin above this zone):
+//   1. routeGapsByConfidence — a gap carrying a numeric `confidence` < 0.5 becomes a
+//      "[low-confidence] <issue>" advisory string; a gap MISSING `confidence` stays a
+//      gap (fail-closed — never guess a number the auditor did not commit to).
+//   2. one external refute pass over the REMAINING gaps: a grounded refutation moves
+//      its gap to a "[refuted] <issue> — <reason>" advisory string; kept gaps stay in
+//      last_gaps as the mandatory-fix list.
+// The VERDICT IS NEVER RECOMPUTED: an all-refuted REJECT stays REJECT with EMPTY
+// last_gaps (the conductor surfaces that to the operator — refuted gaps are refuted,
+// not remediated, and are re-judged fresh by the next round). A refuter failure (fatal
+// spawn error, non-zero status, unparseable output) degrades to ONE stderr warn + zero
+// gaps refuted, then today's write — NO new exit code, verdict untouched.
+let finalGaps = normalized.gaps;
+let finalAdvisories = normalized.advisories;
+let violationToRecord = readOnlyViolation; // the audit window's tri-state; the refute window merges in below
+let refuteField; // undefined ⇒ no refuter spawn ran (--no-refute | ACCEPT | nothing left after routing | refuter failed)
+if (!rest.includes("--no-refute") && normalized.verdict === "REJECT") {
+  const routed = routeGapsByConfidence(normalized.gaps);
+  finalGaps = routed.gaps;
+  finalAdvisories = [...(normalized.advisories || []), ...routed.advisoryStrings];
+  if (finalGaps.length > 0) {
+    // Item-28 pattern, full fidelity: the refuter is an external read-only pass over the
+    // SAME frozen, already-redacted evidence. bin prefers CLAUDE_CLI_2 (a second,
+    // independent CLI) and falls back to the auditor's; args identical to the audit spawn.
+    const refuteBin = env.CLAUDE_CLI_2 || env.CLAUDE_CLI;
+    const refuteTripwireBefore = workTreeSnapshot(repoAbs);
+    let refuteRes = null;
+    let refuteFailure = null; // names the failure for the warn below; null ⇒ the refuter answered
+    try {
+      refuteRes = (spawn || ((bin, a, opts) => spawnSync(bin, a, opts)))(refuteBin, args, {
+        encoding: "utf8",
+        input: buildRefutePrompt(finalGaps, plan, diffRedacted), // gaps JSON + plan + the FROZEN redacted diff
+        maxBuffer: 200 * 1024 * 1024,
+        timeout: 10 * 60 * 1000, // 10 min hard cap, same as the audit spawn
+      });
+      if (isFatalSpawnError(refuteRes)) {
+        refuteFailure = "refuter process error: " + (refuteRes.error ? refuteRes.error.message : "killed by signal " + refuteRes.signal);
+      } else if (refuteRes.status !== 0 || !refuteRes.stdout) {
+        refuteFailure = "refuter failed (exit " + refuteRes.status + "): " + String(refuteRes.stderr || "").slice(0, 300);
+      }
+    } catch (e) {
+      // e.g. spawnSync with no CLI configured (undefined bin) throws synchronously — the
+      // refuter is an enhancement, never a hard dependency: warn and keep today's gaps.
+      refuteFailure = "refuter process error: " + (e && e.message ? e.message : String(e));
+    }
+    const refuteViolation = compareWorkTree(refuteTripwireBefore, workTreeSnapshot(repoAbs));
+    if (refuteViolation === true) warnReadOnlyViolation();
+    violationToRecord = mergeReadOnlyViolation(readOnlyViolation, refuteViolation);
+    if (refuteFailure) {
+      process.stderr.write(`consult.mjs: WARNING — ${refuteFailure} — zero gaps refuted; the listed gaps stand as written (verdict and exit code are NOT changed).\n`);
+    } else {
+      // parseRefuteResponse is fail-closed (ANY unusable output → []), which is
+      // indistinguishable from a legitimate zero-refutation answer — but the warn
+      // contract needs exactly that distinction. Probe for the contracted shape with
+      // the same envelope/brace tolerance the audit parse above uses; the refutation
+      // SET still comes solely from parseRefuteResponse (the probe only decides
+      // warn-vs-silent, never produces data).
+      const refutations = parseRefuteResponse(refuteRes.stdout);
+      let refuteBody = refuteRes.stdout;
+      try {
+        const env_ = JSON.parse(refuteRes.stdout);
+        refuteBody = env_.result || env_.text || env_.content || refuteRes.stdout;
+      } catch {
+        refuteBody = refuteRes.stdout; // older/flat output
+      }
+      let refuteParsed = null;
+      if (refuteBody && typeof refuteBody === "object" && !Array.isArray(refuteBody)) {
+        refuteParsed = refuteBody; // an envelope field that is already the parsed object
+      } else {
+        const span = String(refuteBody).match(/\{[\s\S]*\}/);
+        if (span) { try { refuteParsed = JSON.parse(span[0]); } catch {} }
+      }
+      if (!refuteParsed || !Array.isArray(refuteParsed.refutations)) {
+        process.stderr.write("consult.mjs: WARNING — refuter response unparseable — zero gaps refuted; the listed gaps stand as written (verdict and exit code are NOT changed).\n");
+      } else {
+        // diffRedacted as the 3rd arg: refutation reasons ground against the frozen diff
+        // too, not just the gap's own issue/fix (the admissibility gate).
+        const applied = applyRefutations(finalGaps, refutations, diffRedacted);
+        finalGaps = applied.gaps;
+        finalAdvisories = [...finalAdvisories, ...applied.refutedAdvisories];
+        refuteField = {
+          attempted: true,
+          refuted: applied.report.refuted.length,
+          kept: applied.report.kept,
+          report: applied.report, // { refuted: [{index, issue, reason}], kept, note } — readers: || {} / || []
+        };
+      }
+    }
+  }
+}
+
 // --- write to state.json consult lane ---
 state.consult = state.consult || { rounds: 0, verdict: null, history: [], last_gaps: [] };
 state.consult.rounds = (state.consult.rounds || 0) + 1;
 state.consult.verdict = normalized.verdict;
-state.consult.last_gaps = normalized.gaps;
+state.consult.last_gaps = finalGaps; // post-routing, post-refute mandatory-fix list (the verdict value is never touched)
 state.consult.history.push({
   round: state.consult.rounds,
   at: new Date().toISOString(),
   verdict: normalized.verdict,
   summary: normalized.summary,
-  gaps: normalized.gaps,
-  advisories: normalized.advisories,
+  gaps: finalGaps,
+  advisories: finalAdvisories, // auditor's + routed low-confidence strings + "[refuted] …" strings
   run_start_sha: startSha || null,
   audit_head: headSha || null,
-  readOnlyViolation, // item 28 tripwire: false | true | null (fail-closed), never adjudicated
+  readOnlyViolation: violationToRecord, // item 28 tripwire: false | true | null (fail-closed), never adjudicated; the refute window merges in when refute ran
+  refute: refuteField, // optional (gap-refute filter): present only when the refuter spawn ran; readers use || {} / || []
 });
 state.updated_at = new Date().toISOString();
 // atomic write under O_EXCL lockfile (audit gap #5c: last-writer-safe vs stop.mjs/pre-tool.mjs).
@@ -1283,7 +1380,7 @@ state.updated_at = new Date().toISOString();
   if (lockFd === null) {
     console.error("consult.mjs: could not acquire state lock after retries — consult verdict NOT recorded. Re-run consult.mjs; do NOT write state non-atomically.");
     // emit the verdict to stdout so the operator sees it even though it wasn't persisted
-    console.log(JSON.stringify({ verdict: normalized.verdict, gaps: normalized.gaps, round: state.consult.rounds, not_recorded: true }, null, 2));
+    console.log(JSON.stringify({ verdict: normalized.verdict, gaps: finalGaps, round: state.consult.rounds, not_recorded: true }, null, 2));
     throw new ConsultExit(6);
   }
   try {
@@ -1302,7 +1399,9 @@ state.updated_at = new Date().toISOString();
 // Item 28: runPostDoneConsult RETURNS the normalized verdict — the CLI dispatcher (the isMain
 // block) prints it and owns the exit code. In-process callers (the hermetic suite) read the
 // return value; any violation was already warned + recorded above.
-return normalized;
+// Gap-refute filter: same shape, partitioned CONTENT — gaps/advisories reflect the routing
+// and refute pass when they ran; the verdict value is the normalizer's, never recomputed.
+return { ...normalized, gaps: finalGaps, advisories: finalAdvisories };
 } // end runPostDoneConsult
 
 // ===========================================================================
@@ -1312,6 +1411,10 @@ return normalized;
 // exported pure/testable functions are reachable — no CLI is spawned.
 // ===========================================================================
 import { pathToFileURL } from "node:url";
+// Gap-refute filter (run `consult-refute-adaptation`): the PURE post-normalization routing
+// and refute helpers used inside runPostDoneConsult. ESM imports hoist, so this bottom
+// placement (the pathToFileURL precedent just above) shifts no pin higher in the file.
+import { routeGapsByConfidence, buildRefutePrompt, parseRefuteResponse, applyRefutations } from "./lib/gap-refute.mjs";
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
   const [repoRoot, slug, ...rest] = argv.slice(2);
   if (!repoRoot || !slug) {
