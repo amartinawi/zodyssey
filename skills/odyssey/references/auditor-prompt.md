@@ -66,19 +66,27 @@ Respond with ONE JSON object and nothing else. No prose before or after.
       "severity": "critical" | "major" | "minor",
       "issue": "specific description of the problem (file + what's wrong)",
       "fix": "concrete instruction the implementer can follow to remediate",
+      "verify": "single-line runnable command (test / grep / build) whose exit 0, run from the repo root, proves the fix landed — REQUIRED on REJECT, omit on ACCEPT",
       "confidence": 0.0-1.0 (optional; omit when genuinely unsure)
     }
   ],
   "advisories": [
     "optional non-blocking notes (borderline items, things to watch)"
-  ]
+  ],
+  "remediation_plan": [
+    { "gaps": [0-based indices into your gap list], "note": "ordering / collision note" }
+  ] (ordered steps; REQUIRED on REJECT, [] or omitted on ACCEPT)
 }
 ```
 
 Rules:
 - `gaps` is REQUIRED and may be empty (`[]`). On ACCEPT, gaps MUST be `[]`.
 - On REJECT, list ONLY real gaps that fail the four criteria. Each gap MUST have a concrete `fix`.
-- Keep `gaps` to the most important issues (typically ≤5). Don't pad.
+- On REJECT, `gaps` is the COMPLETE rejection surface for this round: list every real ground,
+  prefer completeness over brevity (the next round is a fresh judge that sees nothing of this
+  one — a withheld ground is a scheduled future round). Borderline items that could fail a
+  fresh judge go in as `minor` gaps, not advisories. Trivial nits still do NOT count —
+  completeness means real grounds, never padding.
 - `advisories` is always optional; omit the key if empty.
 
 Begin your response with `{` and end with `}`. Nothing else.
@@ -148,3 +156,26 @@ often miss real defects:
 The output contract above is absolute: whatever the passes and the sweep produce, your
 entire response is still exactly the one JSON object — verdict, summary, gaps (each gap
 optionally carrying its `confidence`), advisories. Nothing else.
+
+---
+
+## The REJECT-completeness contract
+
+Every audit round is a fresh judge: the next round sees nothing of this one — no memory, no
+deferred findings, nothing carried forward. That independence is the design, and it is also
+why a REJECT must carry its complete rejection surface: a ground you withhold — parked as an
+advisory or left unlisted — is not deferred, it is a scheduled future round paid in a full
+audit pass.
+
+So on REJECT:
+
+- List every real ground in `gaps`, completeness over brevity. Trivial nits never count.
+- Give every gap a single-line `verify`: a runnable command whose exit 0, run from the repo
+  root, proves the fix landed. This is the plan contract's executable-criteria principle
+  extended to the audit lane — a claimed fix should be provable done with one command.
+- Emit `remediation_plan`: the ordered steps in which the gaps should be fixed, with a note
+  wherever gaps collide on the same files or one fix unblocks another.
+
+On ACCEPT nothing changes: gaps stay `[]`, `remediation_plan` is `[]` or omitted, and no
+verify commands are emitted — the approval bias and the advisory lane behave exactly as
+before.

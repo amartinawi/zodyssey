@@ -291,11 +291,24 @@ because the auditor cannot inherit the run's assumptions.
      plus a structured `refute` report on the `consult.history` entry (read it `|| {}`) — NEVER
      remediation work. Refutation NEVER flips the verdict (an all-refuted REJECT stays REJECT); refuter
      failure degrades to zero refutations (one stderr warn — today's behavior).
-   - read `consult.last_gaps` — the KEPT gaps; each is `{category, severity, issue, fix}`
+   - read `consult.last_gaps` — the KEPT gaps; each is `{category, severity, issue, fix}` plus an
+     optional single-line `verify` (a runnable command proving the fix landed)
    - dispatch `zodyssey:sisyphus-junior` per gap (parallel where independent — but see the limitation note
      below: hooks are DISARMED in `done`/`audited`, so the cap does NOT apply during remediation
-     unless you set `phase: "remediate"` first), each carrying the gap's `issue` + `fix`
-   - re-verify, then re-run `consult.mjs`
+     unless you set `phase: "remediate"` first), each carrying the gap's `issue` + `fix`. Dispatch
+     follows `consult.last_remediation_plan` (read it `|| []`) — the auditor's ordered plan, indices
+     already remapped to the KEPT gaps: independent single-gap steps stay parallel-by-default, a
+     step's `note` governs collisions (e.g. two gaps editing the same file), and an absent plan
+     degrades to per-gap dispatch as today
+   - **pre-audit verify gate:** after gap-fixes return, run every kept gap's `verify` command as an
+     ordinary Bash call from the repo root BEFORE re-consult — any non-zero exit loops back to
+     remediation for that gap WITHOUT spending an audit round; a `verify` that is absent or not a
+     single usable line falls back to today's discretionary re-verify (old/foreign auditors degrade
+     gracefully). Verify execution is the conductor's permissioned Bash lane — scripts never execute
+     auditor strings. Then re-run `consult.mjs`.
+   - **Do NOT re-audit while a listed verify command still fails.**
+   - **filter-miss signal (round N+1):** a new-round gap matching a prior round's `[refuted]` advisory
+     surfaces to the operator as a filter-miss — never silently re-remediated.
    - **loop until ACCEPT — no hard cap.** Soft safety rail: every 5 rounds, AskUserQuestion to
      confirm the user wants to continue (prevents unattended infinite loops; honors "no hard cap").
    - **empty last_gaps surface rule (key on observable state, not on what emptied it):** a REJECT

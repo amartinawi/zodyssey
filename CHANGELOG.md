@@ -2,6 +2,26 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+### Added
+- Consult REJECTs now carry a complete, executable remediation surface: the auditor's gap list is
+  the round's complete rejection surface (borderline grounds become minor gaps, not advisories —
+  the next round is a fresh judge), every gap carries a runnable `verify` command, and an ordered
+  `remediation_plan` persists to `consult.last_remediation_plan` / the plan-audit lane. The
+  remediation loop dispatches in plan order and runs a pre-audit verify gate: a failing verify
+  loops back to remediation without spending an external audit round. Auditor independence is
+  unchanged — round N+1 still receives nothing from round N; verify execution stays in the
+  conductor's permissioned Bash lane (scripts never execute auditor strings).
+
+- Gap-refute filter, landed at 28a253f and previously unrecorded here: on post-done REJECT
+  rounds only, gaps carrying a numeric confidence below 0.5 route out to `[low-confidence]`
+  advisories before any refutation, and the kept gaps then pass through one external refute
+  pass whose refutations must quote at least 12 characters verbatim from the frozen redacted
+  diff or the gap's own issue/fix text (gap-refute.mjs `CONFIDENCE_ROUTE_THRESHOLD` /
+  `MIN_GROUNDING_CHARS`); refuted gaps become `[refuted]` advisories plus an optional history
+  `refute` report, `--no-refute` restores single-spawn behavior, and the recorded verdict is
+  never recomputed.
+
 ## [0.7.3] — 2026-08-24
 ### Added
 - Consult history now records `readOnlyViolation` (tri-state `false|true|null`) for every

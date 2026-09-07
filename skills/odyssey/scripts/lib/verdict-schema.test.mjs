@@ -401,6 +401,156 @@ test("non-object gap entries (strings/numbers/null) pass through UNTOUCHED — n
   assert.equal(applied.gaps[0], "string gap stands", "applyRefutations keeps a string gap a string");
 });
 
+// =============================================================================
+// remediation-plan extractor (row 29, todo 1) — RED-first.
+//
+// extractRemediationPlan does not exist in ./verdict-schema.mjs yet (todo 3 /
+// wave 2 appends it at EOF). The namespace read below follows the dynamic-import
+// precedent at the top of the gap-refute block above (:144-150): a MISSING named
+// export read off a module namespace is `undefined`, so each call site below
+// fails as an individual FAIL check ("not a function") while every pre-existing
+// case keeps running; a STATIC named import instead would be a link-time
+// SyntaxError that kills the whole file. The static import list at :6-13 stays
+// untouched. Every test name in this block carries "remediation" so the RED
+// output is identifiable line by line.
+// =============================================================================
+const vsm = await import("./verdict-schema.mjs");
+const { extractRemediationPlan } = vsm;
+
+// --- extractRemediationPlan: shape contract ------------------------------------
+test("remediation plan extractor: a valid plan array returns VERBATIM (the same reference, no copy)", () => {
+  const plan = [
+    { gaps: [0, 1], note: "fix the extractor before the callers" },
+    { gaps: [2], note: "independent single-gap step" },
+  ];
+  const raw = {
+    verdict: "REJECT",
+    gaps: [
+      { category: "bug", severity: "major", issue: "A", fix: "fA" },
+      { category: "bug", severity: "minor", issue: "B", fix: "fB" },
+      { category: "test", severity: "major", issue: "C", fix: "fC" },
+    ],
+    remediation_plan: plan,
+  };
+  const out = extractRemediationPlan(raw);
+  assert.equal(out, plan, "verbatim passthrough — the SAME array reference, never a copy");
+  assert.deepEqual(out, [
+    { gaps: [0, 1], note: "fix the extractor before the callers" },
+    { gaps: [2], note: "independent single-gap step" },
+  ]);
+});
+
+test("remediation plan extractor: a string plan → [] (fail-to-absence)", () => {
+  assert.deepEqual(
+    extractRemediationPlan({ verdict: "REJECT", gaps: [], remediation_plan: "fix everything" }),
+    [],
+  );
+});
+
+test("remediation plan extractor: a plain-object plan → [] (fail-to-absence)", () => {
+  assert.deepEqual(
+    extractRemediationPlan({ verdict: "REJECT", gaps: [], remediation_plan: { gaps: [0], note: "not an array" } }),
+    [],
+  );
+});
+
+test("remediation plan extractor: null plan → [] (fail-to-absence)", () => {
+  assert.deepEqual(
+    extractRemediationPlan({ verdict: "REJECT", gaps: [], remediation_plan: null }),
+    [],
+  );
+});
+
+test("remediation plan extractor: malformed plan values (number/boolean) → [] (fail-to-absence)", () => {
+  assert.deepEqual(extractRemediationPlan({ verdict: "REJECT", gaps: [], remediation_plan: 42 }), []);
+  assert.deepEqual(extractRemediationPlan({ verdict: "REJECT", gaps: [], remediation_plan: true }), []);
+});
+
+test("remediation plan extractor: absent plan (no key at all) → []", () => {
+  assert.deepEqual(extractRemediationPlan({ verdict: "REJECT", gaps: [] }), []);
+});
+
+test("remediation plan extractor: non-object raw (null/undefined/string) → []", () => {
+  assert.deepEqual(extractRemediationPlan(null), []);
+  assert.deepEqual(extractRemediationPlan(undefined), []);
+  assert.deepEqual(extractRemediationPlan("REJECT"), []);
+});
+
+test("remediation plan extractor: an ARRAY is valid regardless of entry shape — malformed STEPS ride verbatim", () => {
+  // Array-ness is the extractor's ONLY validation (todo 3 contract): step-level
+  // sanitization (integer indices, in-range clamping, dropped steps) is the
+  // caller's positional remap in consult.mjs, never the extractor's job.
+  const plan = [{ gaps: [0], note: "well-formed step" }, "garbage step", null, 42];
+  const out = extractRemediationPlan({
+    verdict: "REJECT",
+    gaps: [{ issue: "A", fix: "fA" }],
+    remediation_plan: plan,
+  });
+  assert.deepEqual(out, [{ gaps: [0], note: "well-formed step" }, "garbage step", null, 42]);
+});
+
+test("remediation plan extractor: ACCEPT with a stray plan → [] (fail-to-absence)", () => {
+  const raw = { verdict: "ACCEPT", gaps: [], remediation_plan: [{ gaps: [0], note: "stray" }] };
+  assert.deepEqual(
+    extractRemediationPlan(raw),
+    [],
+    "an ACCEPT never carries a remediation plan, even when one strays into the raw verdict",
+  );
+});
+
+test("remediation plan extractor: ACCEPT with a stray plan — the verdict stays ACCEPT (never a verdict change)", () => {
+  const raw = { verdict: "ACCEPT", gaps: [], remediation_plan: [{ gaps: [0], note: "stray" }] };
+  assert.deepEqual(extractRemediationPlan(raw), [], "extraction is fail-to-absence");
+  assert.equal(
+    normalizeConsultVerdict(raw).verdict,
+    "ACCEPT",
+    "a stray plan must never flip the verdict — the clean ACCEPT stays ACCEPT",
+  );
+});
+
+// --- per-gap verify rides the existing pass-through untouched -------------------
+test("remediation verify: per-gap verify strings ride gaps untouched through normalizeConsultVerdict", () => {
+  const raw = {
+    verdict: "REJECT",
+    gaps: [
+      {
+        category: "bug",
+        severity: "major",
+        issue: "extractor missing",
+        fix: "append extractRemediationPlan",
+        verify: "node --check skills/odyssey/scripts/consult.mjs",
+      },
+    ],
+  };
+  const out = normalizeConsultVerdict(raw);
+  assert.equal(out.verdict, "REJECT");
+  assert.equal(out.gaps.length, 1);
+  assert.equal(
+    out.gaps[0].verify,
+    "node --check skills/odyssey/scripts/consult.mjs",
+    "the verify string rides the gap untouched — the normalizer never strips gap fields",
+  );
+});
+
+test("remediation verify-tolerance: verify survives routeGapsByConfidence and applyRefutations shallow copies and reaches buildRefutePrompt", () => {
+  const verifyCmd = "node --check skills/odyssey/scripts/consult.mjs";
+  const gap = { issue: "gap with verify", fix: "fix it", verify: verifyCmd, confidence: 0.9 };
+  // (a) confidence 0.9 (>= the 0.5 threshold) survives routing — shallow-copied with verify intact
+  const routed = routeGapsByConfidence([gap]);
+  assert.equal(routed.gaps.length, 1, "confidence 0.9 stays a gap");
+  assert.equal(routed.gaps[0].verify, verifyCmd, "the routing shallow copy keeps verify");
+  // (b) a no-refutation applyRefutations pass shallow-copies it again — verify still intact
+  const applied = applyRefutations(routed.gaps, [], "(empty diff)");
+  assert.equal(applied.gaps.length, 1);
+  assert.equal(applied.gaps[0].verify, verifyCmd, "the application shallow copy keeps verify");
+  // (c) the refute prompt JSON-embeds the gaps — the verify string is IN the prompt
+  const prompt = buildRefutePrompt(applied.gaps, "PLAN-BODY", "DIFF-BODY");
+  assert.ok(
+    prompt.includes(verifyCmd),
+    "buildRefutePrompt output CONTAINS the verify string (the gaps JSON rides whole)",
+  );
+});
+
 // --- summary ------------------------------------------------------------------
 if (failures > 0) {
   console.error(`\n${failures} test(s) FAILED`);

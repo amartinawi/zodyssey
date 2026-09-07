@@ -271,11 +271,15 @@ Respond with ONE JSON object and nothing else. No prose before or after.
       "category": "completeness" | "criteria" | "scope" | "ordering",
       "severity": "critical" | "major" | "minor",
       "issue": "specific description of the plan defect (which section/todo + what's wrong)",
-      "fix": "concrete instruction the planner can follow to remediate"
+      "fix": "concrete instruction the planner can follow to remediate",
+      "verify": "single-line runnable command (test / grep / build) whose exit 0, run from the repo root, proves the fix landed — REQUIRED on REJECT, omit on ACCEPT"
     }
   ],
   "advisories": [
     "optional non-blocking notes (borderline items, things to watch during execute)"
+  ],
+  "remediation_plan": [
+    { "gaps": [0-based indices into your gap list], "note": "ordering / collision note" }
   ]
 }
 \`\`\`
@@ -283,7 +287,8 @@ Respond with ONE JSON object and nothing else. No prose before or after.
 Rules:
 - \`gaps\` is REQUIRED and may be empty (\`[]\`). On ACCEPT, gaps MUST be \`[]\`.
 - On REJECT, list ONLY real plan gaps that fail the four criteria. Each gap MUST have a concrete \`fix\`.
-- Keep \`gaps\` to the most important issues (typically <=5). Don't pad.
+- On REJECT, \`gaps\` is the COMPLETE rejection surface for this round: list every real plan gap, prefer completeness over brevity (the next round is a fresh judge that sees nothing of this one — a withheld ground is a scheduled future round). Borderline items that could fail a fresh judge go in as minor gaps, not advisories. Trivial nits still do not count. On ACCEPT, don't pad.
+- \`remediation_plan\` is REQUIRED on REJECT — the ordered array of which gaps to fix in which step (\`gaps\` holds 0-based indices into YOUR gap list above) plus ordering/collision notes. \`[]\` or omitted on ACCEPT.
 - \`advisories\` is always optional; omit the key if empty.
 
 Begin your response with \`{\` and end with \`}\`. Nothing else.
@@ -402,6 +407,10 @@ export async function runPlanAudit({ repoRoot, slug, spawn }) {
   const planAuditLane = {
     verdict: normalized.verdict,
     gaps: normalized.gaps,
+    // Row 29: the extracted remediation plan, VERBATIM — no routing/refute pass runs in the
+    // plan-audit lane, so no index remap is needed (indices already address these gaps).
+    // [] on ACCEPT/malformed/absent (extractRemediationPlan's fail-to-absence). Readers || [].
+    remediation_plan: extractRemediationPlan(verdict),
     at,
     auditor: claudeBin,
   };
@@ -742,7 +751,7 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
     }
     try {
       const fresh = JSON.parse(readFileSync(statePath, "utf8"));
-      fresh.consult = fresh.consult || { rounds: 0, verdict: null, history: [], last_gaps: [] };
+      fresh.consult = fresh.consult || { rounds: 0, verdict: null, history: [], last_gaps: [], last_remediation_plan: [] };
       // On consensus, record the agreed verdict as a consult round (so the post-done loop sees it).
       // On disagreement, record a DISAGREEMENT marker instead of a verdict (no auto-resolution).
       if (comparison.consensus) {
@@ -752,7 +761,32 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
           ...p1.normalized,
           gaps: [...(p1.normalized.gaps || []), ...(p2.normalized.gaps || [])],
         };
+        // Row 29: the winner carries PASS1's extracted remediation plan; pass2's plan is used
+        // only when pass1 emitted none, with every step's gap indices offset by pass1's gap
+        // count — pass2's gaps sit AFTER pass1's in the concatenated last_gaps above, so
+        // pass2's 0-based indices address finalGaps positions only after the +offset. Steps
+        // are rebuilt key-by-key so the auditor's key order survives JSON serialization.
+        // ACCEPT/malformed/absent plans extract to []. No routing/refute ran in this lane,
+        // so no survivor remap is needed. The verdict is never recomputed.
+        const p1GapCount = (p1.normalized.gaps || []).length;
+        const winnerPlan = (() => {
+          const fromP1 = extractRemediationPlan(p1.raw);
+          if (fromP1.length > 0) return fromP1;
+          return extractRemediationPlan(p2.raw).map((step) => {
+            if (!step || typeof step !== "object" || Array.isArray(step) || !Array.isArray(step.gaps)) {
+              return step; // unshapely step rides verbatim — offsetting it is meaningless
+            }
+            const offset = {};
+            for (const [k, v] of Object.entries(step)) {
+              offset[k] = k === "gaps"
+                ? v.map((idx) => (Number.isInteger(idx) && idx >= 0 ? idx + p1GapCount : idx))
+                : v;
+            }
+            return offset;
+          });
+        })();
         fresh.consult.last_gaps = winner.gaps;
+        fresh.consult.last_remediation_plan = winnerPlan;
         fresh.consult.history.push({
           round: fresh.consult.rounds,
           at,
@@ -760,6 +794,7 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
           summary: "multi-auditor consensus: " + comparison.reason,
           gaps: winner.gaps,
           advisories: winner.advisories,
+          remediation_plan: winnerPlan,
           multi_auditor: true,
           readOnlyViolation,
         });
@@ -1333,11 +1368,67 @@ if (!rest.includes("--no-refute") && normalized.verdict === "REJECT") {
   }
 }
 
+// --- REJECT remediation plan (row 29): extract + POSITIONAL remap onto finalGaps ---
+// The plan's step `gaps` indices address the AUDITOR's gap list (normalized.gaps). Identity
+// matching is DEAD: routeGapsByConfidence and applyRefutations shallow-copy every kept gap
+// (gap-refute.mjs:123/:322), so finalGaps holds NEW objects. The only faithful remap is to
+// REPLAY the two predicates that shrank the surface, positionally:
+//   1. ROUTING — ran iff the refute block's own guard held (the
+//      `!rest.includes("--no-refute") && normalized.verdict === "REJECT"` guard above). A gap
+//      left iff it is an object carrying a numeric finite `confidence`
+//      strictly below CONFIDENCE_ROUTE_THRESHOLD (the exact routeGapsByConfidence predicate,
+//      gap-refute.mjs:119-120 — the constant is IMPORTED so the replay can never drift from
+//      the routing it replays). Under --no-refute nothing routed, so the map is the identity.
+//   2. REFUTATION — ran iff the refuter actually answered (refuteField is set). A
+//      POST-ROUTING position listed in refuteField.report.refuted[].index left; those
+//      indices address exactly the array applyRefutations received (the post-routing order).
+// The survivors, in order, ARE finalGaps — each maps 1:1 onto its position there.
+// Per step {gaps, note}: keep only integer >= 0 indices that map; a step whose refs ALL
+// left the surface is DROPPED (a routed/refuted gap's verify must never gate re-audit);
+// out-of-range/non-integer/negative indices clamp out; a step without an array `gaps` can
+// reference nothing and drops too. Surviving steps are rebuilt key-by-key so the auditor's
+// key order (gaps, note) survives JSON serialization. ACCEPT/malformed/absent plans
+// extract to [] (fail-to-absence); the verdict is NEVER recomputed here.
+const routingRan = !rest.includes("--no-refute") && normalized.verdict === "REJECT";
+const refutedPostRouting = new Set(
+  ((((refuteField || {}).report || {}).refuted) || []).map((r) => (r || {}).index)
+);
+const auditorIndexToFinal = new Map(); // auditor gap index -> finalGaps position
+{
+  let postRoutingPos = 0; // position in the post-routing array applyRefutations received
+  let finalPos = 0;       // position in the persisted finalGaps
+  for (let i = 0; i < (normalized.gaps || []).length; i++) {
+    const gap = normalized.gaps[i];
+    if (routingRan) {
+      const c = gap && typeof gap === "object" ? gap.confidence : undefined;
+      if (typeof c === "number" && Number.isFinite(c) && c < CONFIDENCE_ROUTE_THRESHOLD) continue; // routed out
+    }
+    if (refutedPostRouting.has(postRoutingPos)) { postRoutingPos++; continue; } // refuted out
+    auditorIndexToFinal.set(i, finalPos);
+    postRoutingPos++;
+    finalPos++;
+  }
+}
+const remediationPlan = extractRemediationPlan(verdict).map((step) => {
+  if (!step || typeof step !== "object" || Array.isArray(step) || !Array.isArray(step.gaps)) {
+    return null; // unshapely step — no gap references, so it cannot survive the remap
+  }
+  const mapped = step.gaps
+    .filter((idx) => Number.isInteger(idx) && idx >= 0) // clamp out non-integer/negative
+    .map((idx) => auditorIndexToFinal.get(idx))
+    .filter((pos) => pos !== undefined); // clamp out out-of-range + routed/refuted refs
+  if (mapped.length === 0) return null; // every ref left the surface — DROP the step
+  const remapped = {};
+  for (const [k, v] of Object.entries(step)) remapped[k] = k === "gaps" ? mapped : v;
+  return remapped;
+}).filter((s) => s !== null);
+
 // --- write to state.json consult lane ---
-state.consult = state.consult || { rounds: 0, verdict: null, history: [], last_gaps: [] };
+state.consult = state.consult || { rounds: 0, verdict: null, history: [], last_gaps: [], last_remediation_plan: [] };
 state.consult.rounds = (state.consult.rounds || 0) + 1;
 state.consult.verdict = normalized.verdict;
 state.consult.last_gaps = finalGaps; // post-routing, post-refute mandatory-fix list (the verdict value is never touched)
+state.consult.last_remediation_plan = remediationPlan; // row 29: the plan remapped onto finalGaps positions; readers use || []
 state.consult.history.push({
   round: state.consult.rounds,
   at: new Date().toISOString(),
@@ -1349,6 +1440,7 @@ state.consult.history.push({
   audit_head: headSha || null,
   readOnlyViolation: violationToRecord, // item 28 tripwire: false | true | null (fail-closed), never adjudicated; the refute window merges in when refute ran
   refute: refuteField, // optional (gap-refute filter): present only when the refuter spawn ran; readers use || {} / || []
+  remediation_plan: remediationPlan, // row 29: the same remapped plan on this round's history entry
 });
 state.updated_at = new Date().toISOString();
 // atomic write under O_EXCL lockfile (audit gap #5c: last-writer-safe vs stop.mjs/pre-tool.mjs).
@@ -1414,7 +1506,11 @@ import { pathToFileURL } from "node:url";
 // Gap-refute filter (run `consult-refute-adaptation`): the PURE post-normalization routing
 // and refute helpers used inside runPostDoneConsult. ESM imports hoist, so this bottom
 // placement (the pathToFileURL precedent just above) shifts no pin higher in the file.
-import { routeGapsByConfidence, buildRefutePrompt, parseRefuteResponse, applyRefutations } from "./lib/gap-refute.mjs";
+import { routeGapsByConfidence, buildRefutePrompt, parseRefuteResponse, applyRefutations, CONFIDENCE_ROUTE_THRESHOLD } from "./lib/gap-refute.mjs";
+// Row 29 (brief 29): the REJECT remediation-plan extractor — pure, fail-to-absence, never
+// touches a verdict (the single-source-of-truth rule normalizeConsultVerdict sets above).
+// Same bottom-placement rationale: ESM hoists, no pin above this line shifts.
+import { extractRemediationPlan } from "./lib/verdict-schema.mjs";
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
   const [repoRoot, slug, ...rest] = argv.slice(2);
   if (!repoRoot || !slug) {

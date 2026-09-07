@@ -23,7 +23,7 @@ party independent of the model — never confirms them.** The chain, anchored:
   model-derived. The user's only touchpoints in the whole pipeline are: the ambiguity ritual at
   PRIME ("· ambiguities → ask the user (max 3, then commit)" at `skills/odyssey/SKILL.md:74`;
   "ask the user FIRST and WAIT" at `:85-86`), metis's user-questions at consult
-  (`skills/odyssey/SKILL.md:108`, `:387`), and the momus-loop safety rail (`:299`). **None of these
+  (`skills/odyssey/SKILL.md:108`, `:400`), and the momus-loop safety rail (`:312`). **None of these
   confirms the criteria themselves** — ambiguities are about what was asked, not about what will
   count as done.
 - The criteria that actually gate execution are authored later, by prometheus, into the plan the
@@ -86,7 +86,7 @@ qualitative, vague, or absent → **no round** — the trigger fails and the flo
 **2. Recording — a stamped state, not a memory.** The conductor passes the round's outcome to the
 scaffold when it creates the run: `scripts/scaffold.mjs <repo> <slug> <title> <intent> [task-brief]
 --criteria-state confirmed|adjusted|skipped` (the invocation the conductor already makes, at
-`skills/odyssey/SKILL.md:404`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
+`skills/odyssey/SKILL.md:417`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
 writes for the primed brief (`skills/odyssey/scripts/scaffold.mjs:239`, `:242`) — with a first
 line:
 
@@ -135,7 +135,7 @@ The declared editable set — this becomes the fix-run plan's `Files:` list, ver
 
 Nothing else. `agents/prometheus.md` stays untouched (the user's role is upstream by design —
 see Must NOT do). `skills/odyssey/scripts/consult.mjs` is untouched: it reads `<slug>.task.md` as
-THE ORIGINAL TASK (`consult.mjs:891`, `:889`) and the stamp is a first-line HTML comment in what is
+THE ORIGINAL TASK (`consult.mjs:926`, `:924`) and the stamp is a first-line HTML comment in what is
 otherwise prose context. Hooks are untouched — this is not a gate and must never become one.
 `docs/` belongs to the release pass, not the gated run.
 
@@ -318,7 +318,7 @@ The costs, stated exactly:
   `docs/OPPORTUNITY-MAP.md:267`) converted into the degradation clause; state it in the SKILL.md
   text itself so the opt-out is documented where the conductor reads it.
 - **Byte-exact consumers of `<slug>.task.md`.** `consult.mjs` reads the file as THE ORIGINAL TASK
-  for scope-fidelity judgment (`consult.mjs:891`, `:889`); a first-line HTML comment is additive to
+  for scope-fidelity judgment (`consult.mjs:926`, `:924`); a first-line HTML comment is additive to
   what is otherwise prose context — but re-verify consult's tolerance at build time before
   landing, and if any consumer ever byte-compares the file, the stamp is the thing to reconcile,
   never the brief body.

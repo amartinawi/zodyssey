@@ -293,6 +293,7 @@ ZOdyssey is a synthesis of published multi-agent systems research, not an invent
 | Bounded recursion (#4) | the SEC-1s dispatch guard in `hooks/pre-tool.mjs` — blocks a `Task()` whose payload embeds a serialized nested tool call |
 | Structured resume (#1) | `state.acceptance` + `state.notepad_pointers`, so a resumed run skips verified todos and re-enters with the right context |
 | Read-only audit tripwire | `consult.mjs` — tri-state `readOnlyViolation` in consult history |
+| REJECT remediation contract | auditor-prompt.md + consult.mjs — complete rejection surface, per-gap `verify`, ordered `remediation_plan`, pre-audit verify gate |
 
 **Deliberately not taken** — daemon-backed session survival, persistent goals, the three heartbeat surfaces, agent-to-agent messaging, and autonomous mode. Each needs a supervisor process that outlives the session. Adopting them would mean adding a runtime layer to gain features the enforcement model does not depend on, so they stay parked rather than half-built.
 

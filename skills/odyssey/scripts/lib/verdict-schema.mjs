@@ -152,3 +152,35 @@ export function blockersFromProse(text) {
   }
   return out.slice(0, 5);
 }
+
+// ---------------------------------------------------------------------------
+// Consult lane (row 29): the REJECT remediation-plan extractor.
+//
+// CONTRACT:
+//   · non-object raw → [];
+//   · the ACCEPT check is computed EXACTLY as normalizeConsultVerdict above
+//     computes it (exact "ACCEPT" string after trim+uppercase AND an empty
+//     gaps array) → [] — a plan on an ACCEPT is contradictory; extraction
+//     fails to absence, NEVER to a verdict change (raw is never mutated, so a
+//     stray plan cannot flip ACCEPT to REJECT downstream);
+//   · a valid ARRAY at raw.remediation_plan → returned VERBATIM (the same
+//     reference, no copy). Array-ness is the ONLY check here — step-level
+//     sanitization (integer indices, in-range clamping, dropping steps whose
+//     referenced gaps all left the surface) is the caller's positional remap
+//     in consult.mjs, never this extractor's;
+//   · anything else (absent, string, plain object, null, number, boolean) → [].
+//
+// Per-gap `verify` strings need no handling here: they ride inside `gaps`,
+// which normalizeConsultVerdict above passes through untouched.
+//
+// normalizeConsultVerdict above — and every line above this block — is
+// BYTE-IDENTICAL to its pre-append form: this block is a pure EOF append.
+// ---------------------------------------------------------------------------
+export function extractRemediationPlan(raw) {
+  const verdict = raw && typeof raw === "object" ? raw : {};
+  const v = String(verdict.verdict || "").trim().toUpperCase();
+  const gapsArr = Array.isArray(verdict.gaps) ? verdict.gaps : [];
+  const isAccept = v === "ACCEPT" && gapsArr.length === 0;
+  if (isAccept) return [];
+  return Array.isArray(verdict.remediation_plan) ? verdict.remediation_plan : [];
+}

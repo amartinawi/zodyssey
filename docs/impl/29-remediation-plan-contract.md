@@ -14,22 +14,22 @@ The REJECT verdict is tuned for judge precision, but the remediation loop consum
 convergence — and each half optimizes against the other. Three mechanisms multiply rounds:
 
 1. **The prompt caps and parks the rejection surface.** The auditor is told to "Keep `gaps` to the
-   most important issues (typically ≤5). Don't pad" (`skills/odyssey/references/auditor-prompt.md:81`)
+   most important issues (typically ≤5). Don't pad" (`skills/odyssey/references/auditor-prompt.md:85`)
    and to park borderline items as advisories under the approval bias (`:40-42`). On ACCEPT that is
    correct discipline. On REJECT it is a scheduled future round: every re-audit is a FRESH judge —
    the post-done prompt is built from auditor-prompt.md + original task + plan + diff ONLY
-   (`skills/odyssey/scripts/consult.mjs:1128-1162`); no `consult.history`, no prior gaps, no
+   (`skills/odyssey/scripts/consult.mjs:1163-1197`); no `consult.history`, no prior gaps, no
    remediation claims are ever passed — so a ground withheld as an advisory in round N arrives as a
    new REJECT in round N+1. This exact escalation is on record inside this repo's own runs (the
    audit-wave loop needed 5 rounds).
 2. **`fix` is a one-liner with no proof.** Each gap's `fix` is one instruction line
-   (`auditor-prompt.md:70`); nothing requires a runnable proof that the fix landed. The loop's
+   (`auditor-prompt.md:68`); nothing requires a runnable proof that the fix landed. The loop's
    re-verify step — "run any affected acceptance commands" (`commands/orchestrate-consult.md:30`,
-   mirrored `skills/odyssey/SKILL.md:298`) — is discretionary and unbound from the auditor's words,
+   mirrored `skills/odyssey/SKILL.md:303`) — is discretionary and unbound from the auditor's words,
    so an incomplete remediation is discovered only by spending a full external audit round, the most
    expensive possible check.
 3. **Nothing plan-shaped survives the round.** `consult.last_gaps`
-   (`consult.mjs:1337-1340`, history push `:1341-1352`) is the only remediation surface that
+   (`consult.mjs:1428-1431`, history push `:1432-1444`) is the only remediation surface that
    persists; ordering or collision hazards ("these two gaps touch the same file") are lost, and
    `normalizeConsultVerdict` whitelists its output (`skills/odyssey/scripts/lib/verdict-schema.mjs:98-104`),
    so a new auditor-emitted `remediation_plan` field would survive only buried in `.raw` — never
@@ -67,7 +67,7 @@ past a failing proof.
    byte-identical — the plan rides the `.raw` field it already preserves (`verdict-schema.mjs:103`).
 3. **consult.mjs — extract + persist.** Post-done: `consult.last_remediation_plan` beside
    `last_gaps`, and the field on the history entry, inside the existing SEC-M14 lock/merge.
-   Multi-auditor: the consensus winner (`consult.mjs:751-755`) carries pass1's extracted plan
+   Multi-auditor: the consensus winner (`consult.mjs:760-789`) carries pass1's extracted plan
    (pass2's if pass1 emitted none — deterministic). Plan-audit lane: `buildPlanAuditPrompt`
    (`:205-308`; its own `fix` field at `:274`, cap rule at `:286`) mirrors the same three contract
    points — same JSON fields, plan-flavored wording; the lane write (`:401-407`) gains
@@ -149,10 +149,10 @@ Nothing for honest old data: state readers fall back (`|| []`); old or foreign C
 `verify`/`remediation_plan` degrade to today's discretionary re-verify; the stdout JSON shape is
 unchanged so no CLI consumer breaks. The prompt grows ~12 lines (negligible against the 200KB diff
 cap). The anchor surface moves in two declared places: consult.mjs edits (the `:265+` plan-audit
-mirror, the `:745+` winner merge, the `:1241+` persist) shift every consult.mjs pin below `:265` —
-the INDEX C6 block's pins and `skills/odyssey/scripts/consult.mjs:584-587` (pinned from
+mirror, the `:745+` winner merge, the `:1430+` persist) shift every consult.mjs pin below `:265` —
+the INDEX C6 block's pins and `skills/odyssey/scripts/consult.mjs:593-596` (pinned from
 `docs/DELEGATE-REVIEW.md:213`) — and the SKILL.md consult-box edit shifts
-`skills/odyssey/SKILL.md:351-359` and `:361-365` (pinned from `docs/DELEGATE-REVIEW.md:71`); both
+`skills/odyssey/SKILL.md:364-372` and `:374-378` (pinned from `docs/DELEGATE-REVIEW.md:71`); both
 are inside the one mechanical re-baseline below. auditor-prompt.md needs NO re-baseline — placement
 keeps every pin `≤:57` intact, and the head-57 diff criterion proves it.
 

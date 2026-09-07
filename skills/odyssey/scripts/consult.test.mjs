@@ -751,5 +751,254 @@ function recordingSpawn(inner) {
   }
 }
 
+// ===========================================================================
+// (p) REJECT REMEDIATION-PLAN PERSISTENCE (row 29, brief 29 criterion :125).
+// Written RED-FIRST against the UNMODIFIED consult.mjs: `consult.last_remediation_plan`,
+// the history entry's `remediation_plan`, and `state.plan_audit.remediation_plan` do not
+// exist yet, so the new-field assertions below fail at RED for the right reason (field
+// absent ⇒ undefined), never a crash (every state read is `|| {}`/`|| []`-guarded).
+// The external CLI is NEVER spawned — stubs only, same as the (r)/(m) groups above.
+//
+// Contract under test (what wave-2 GREEN must implement):
+//   - (p1) post-done REJECT: the extracted plan lands VERBATIM at
+//     consult.last_remediation_plan AND on the history entry when nothing left the
+//     surface; each gap's `verify` rides `gaps` untouched into last_gaps
+//     (normalizeConsultVerdict passes the gaps array through — verdict-schema.mjs:91,101).
+//   - (p2) POSITIONAL remap: plan step `gaps` indices index the AUDITOR's gap list
+//     (normalized.gaps). Confidence routing (< 0.5, gap-refute.mjs:119-120) and grounded
+//     refutation remove gaps from the surface, and both helpers SHALLOW-COPY kept gaps
+//     (gap-refute.mjs:123/:322), so identity matching is dead — survivors must be
+//     remapped POSITIONALLY onto the persisted finalGaps. A step whose refs ALL left the
+//     surface is DROPPED (a refuted/routed-out gap's verify never gates re-audit);
+//     out-of-range/non-integer/negative indices clamp out of the surviving step.
+//   - (p3) fail-to-absence: a malformed plan (a string) records []; verdict never moves.
+//   - (p4) ACCEPT with a stray plan: verdict stays ACCEPT, recorded plan is [].
+//   - (p5)/(p6) multi-auditor consensus: the winner carries PASS1's extracted plan;
+//     pass2's is used only when pass1 emitted none, with indices offset by
+//     `+ p1.normalized.gaps.length` (pass2's gaps sit after pass1's in last_gaps).
+//   - (p7) plan-audit lane: state.plan_audit.remediation_plan records the extracted plan.
+// ===========================================================================
+console.log("consult.mjs remediation-plan persistence tests\n");
+
+// --- (p1) post-done REJECT with verify+plan → verbatim persistence ---
+{
+  const repo = makeRepo();
+  try {
+    const plan = [{ gaps: [0], note: "single-file fix" }];
+    const gap = {
+      category: "bug", severity: "major",
+      issue: "consult.mjs never persists the auditor's remediation plan",
+      fix: "extract and persist the remediation plan beside last_gaps",
+      verify: "node --check skills/odyssey/scripts/consult.mjs",
+    };
+    const spawnStub = recordingSpawn(stubSpawnSequence([
+      { verdict: "REJECT", gaps: [gap], remediation_plan: plan, summary: "one finding" },
+      { refutations: [] }, // the refute pass consumes the 2nd stub response; nothing refuted
+    ]));
+    await runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] });
+    const st = readState(repo);
+    check("(p1) consult.last_remediation_plan deep-equals the verbatim plan array",
+      JSON.stringify((st.consult || {}).last_remediation_plan) === JSON.stringify(plan),
+      `(got ${JSON.stringify((st.consult || {}).last_remediation_plan)})`);
+    const entry = (((st.consult || {}).history || [])[0]) || {};
+    check("(p1) the history entry carries the same remediation_plan",
+      JSON.stringify(entry.remediation_plan) === JSON.stringify(plan),
+      `(entry keys: ${Object.keys(entry).join(",")})`);
+    check("(p1) the gap's verify survives normalization into last_gaps",
+      JSON.stringify(((st.consult || {}).last_gaps || [])[0]) === JSON.stringify(gap),
+      `(got ${JSON.stringify((st.consult || {}).last_gaps)})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (p2) routing + refutation shrink the surface → steps drop / remap POSITIONALLY ---
+// Auditor gap indices: 0=low-confidence (routed out), 1=kept alpha, 2=refuted, 3=kept beta.
+// Post-routing array handed to applyRefutations: [alpha, refuted, beta] → refute index 1.
+// Persisted finalGaps: [alpha, beta] → alpha=position 0, beta=position 1.
+{
+  const repo = makeRepo();
+  try {
+    const gaps = [
+      { severity: "minor", issue: "low-confidence gap leaves the surface", fix: "fix the low-confidence item somewhere", confidence: 0.1 },
+      { severity: "major", issue: "kept gap alpha stands", fix: "apply the alpha remediation patch now" },
+      { severity: "critical", issue: "refuted gap is stale", fix: "exit 6 when the state lock cannot be acquired" },
+      { severity: "major", issue: "kept gap beta stands", fix: "apply the beta remediation patch now" },
+    ];
+    const reason = 'Already done: "exit 6 when the state lock cannot be acquired".'; // grounded in the gap's own fix text
+    const plan = [
+      { gaps: [0], note: "only the routed-out gap — step must DROP" },
+      { gaps: [2], note: "only the refuted gap — step must DROP" },
+      { gaps: [1], note: "kept alpha remaps to finalGaps position 0" },
+      { gaps: [1, 3], note: "both kept — remap to positions 0,1" },
+      { gaps: [3], note: "kept beta remaps to finalGaps position 1" },
+      { gaps: [99, "x", 1.5, -1, 3], note: "garbage indices clamp out, beta survives" },
+    ];
+    const spawnStub = recordingSpawn(stubSpawnSequence([
+      { verdict: "REJECT", gaps, remediation_plan: plan, summary: "four findings" },
+      { refutations: [{ index: 1, reason }] }, // index INTO the post-routing array
+    ]));
+    await runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] });
+    const st = readState(repo);
+    // Surface precondition (passes today): the remap indexes THIS finalGaps.
+    check("(p2) surface precondition: last_gaps = [alpha, beta] after routing + refutation",
+      JSON.stringify((st.consult || {}).last_gaps) === JSON.stringify([gaps[1], gaps[3]]),
+      `(got ${JSON.stringify((st.consult || {}).last_gaps)})`);
+    const rec = (st.consult || {}).last_remediation_plan;
+    const wantGaps = [[0], [0, 1], [1], [1]];
+    const wantNotes = [plan[2].note, plan[3].note, plan[4].note, plan[5].note];
+    check("(p2) routed-only/refuted-only steps DROP; survivors remap to finalGaps positions; garbage indices clamp out",
+      Array.isArray(rec) && rec.length === 4 &&
+        JSON.stringify(rec.map((s) => s && s.gaps)) === JSON.stringify(wantGaps) &&
+        rec.map((s) => (s || {}).note).join("\u0000") === wantNotes.join("\u0000"),
+      `(got ${JSON.stringify(rec)})`);
+    const entry = (((st.consult || {}).history || [])[0]) || {};
+    check("(p2) the history entry carries the remapped plan (same four steps)",
+      Array.isArray(entry.remediation_plan) && entry.remediation_plan.length === 4 &&
+        JSON.stringify(entry.remediation_plan.map((s) => s && s.gaps)) === JSON.stringify(wantGaps),
+      `(entry keys: ${Object.keys(entry).join(",")})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (p3) malformed plan (a string) → recorded []; verdict + verify untouched ---
+{
+  const repo = makeRepo();
+  try {
+    const gap = {
+      category: "bug", severity: "major",
+      issue: "gap arriving beside a malformed plan",
+      fix: "fix the thing the auditor named here",
+      verify: "node --check skills/odyssey/scripts/consult.mjs",
+    };
+    const spawnStub = recordingSpawn(stubSpawnSequence([
+      { verdict: "REJECT", gaps: [gap], remediation_plan: "fix everything", summary: "one finding" },
+      { refutations: [] },
+    ]));
+    const out = await runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] });
+    const st = readState(repo);
+    check("(p3) a STRING remediation_plan records [] (fail-to-absence)",
+      Array.isArray((st.consult || {}).last_remediation_plan) && ((st.consult || {}).last_remediation_plan).length === 0,
+      `(got ${JSON.stringify((st.consult || {}).last_remediation_plan)})`);
+    check("(p3) verdict still REJECT (plan extraction never moves the verdict)",
+      out.verdict === "REJECT" && (st.consult || {}).verdict === "REJECT",
+      `(out=${JSON.stringify(out.verdict)}, state=${JSON.stringify((st.consult || {}).verdict)})`);
+    check("(p3) the gap's verify still rides last_gaps untouched",
+      JSON.stringify(((st.consult || {}).last_gaps || [])[0]) === JSON.stringify(gap),
+      `(got ${JSON.stringify((st.consult || {}).last_gaps)})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (p4) ACCEPT with a stray plan → verdict ACCEPT, recorded plan [] ---
+{
+  const repo = makeRepo();
+  try {
+    const spawnStub = recordingSpawn(stubSpawnSequence([
+      { verdict: "ACCEPT", gaps: [], remediation_plan: [{ gaps: [0], note: "stray plan on an ACCEPT" }], summary: "clean" },
+    ]));
+    const out = await runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: spawnStub, rest: [] });
+    const st = readState(repo);
+    check("(p4) ACCEPT with a stray plan: verdict stays ACCEPT",
+      out.verdict === "ACCEPT" && (st.consult || {}).verdict === "ACCEPT",
+      `(out=${JSON.stringify(out.verdict)}, state=${JSON.stringify((st.consult || {}).verdict)})`);
+    check("(p4) an ACCEPT round records last_remediation_plan = [] (a plan on ACCEPT is contradictory)",
+      Array.isArray((st.consult || {}).last_remediation_plan) && ((st.consult || {}).last_remediation_plan).length === 0,
+      `(got ${JSON.stringify((st.consult || {}).last_remediation_plan)})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (p5) multi-auditor consensus (both REJECT, both with plans) → PASS1's plan wins ---
+{
+  const repo = makeRepo("# Plan\n\n## Scope\n- the work");
+  try {
+    const plan1 = [{ gaps: [0], note: "pass1 plan wins the consensus" }];
+    const plan2 = [{ gaps: [0], note: "pass2 plan must never win when pass1 emitted one" }];
+    const out = await runMultiAuditor({
+      repoRoot: repo,
+      slug: "test-slug",
+      spawn: stubSpawnSequence([
+        { verdict: "REJECT", gaps: [{ category: "bug", severity: "major", issue: "pass1 finding", fix: "fix the pass1 finding" }], remediation_plan: plan1, summary: "pass1 rejects" },
+        { verdict: "REJECT", gaps: [{ category: "quality", severity: "major", issue: "pass2 finding", fix: "fix the pass2 finding" }], remediation_plan: plan2, summary: "pass2 rejects" },
+      ]),
+    });
+    const st = readState(repo);
+    check("(p5) consensus precondition: both REJECT at equal score 0.75, consensus reached",
+      out.comparison.consensus === true && (st.consult || {}).verdict === "REJECT",
+      `(consensus=${out.comparison.consensus}, state verdict=${JSON.stringify((st.consult || {}).verdict)})`);
+    check("(p5) state.consult.last_remediation_plan deep-equals PASS1's plan (deterministic winner)",
+      JSON.stringify((st.consult || {}).last_remediation_plan) === JSON.stringify(plan1),
+      `(got ${JSON.stringify((st.consult || {}).last_remediation_plan)})`);
+    const entry = (((st.consult || {}).history || [])[0]) || {};
+    check("(p5) the multi-auditor history entry carries pass1's plan too",
+      JSON.stringify(entry.remediation_plan) === JSON.stringify(plan1),
+      `(entry keys: ${Object.keys(entry).join(",")})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (p6) pass1 emits no plan, pass2 does → winner carries pass2's plan, +pass1 gap-count offset ---
+// pass1: 1 major + 1 minor → score 0.65; pass2: 1 major → 0.75; delta 0.10 ≤ 0.15 → consensus.
+{
+  const repo = makeRepo("# Plan\n\n## Scope\n- the work");
+  try {
+    const plan2 = [{ gaps: [0], note: "pass2 fallback plan" }];
+    const out = await runMultiAuditor({
+      repoRoot: repo,
+      slug: "test-slug",
+      spawn: stubSpawnSequence([
+        { verdict: "REJECT", gaps: [
+          { category: "bug", severity: "major", issue: "pass1 finding one", fix: "fix pass1 finding one" },
+          { category: "quality", severity: "minor", issue: "pass1 finding two", fix: "fix pass1 finding two" },
+        ], summary: "pass1 rejects with no plan" },
+        { verdict: "REJECT", gaps: [{ category: "bug", severity: "major", issue: "pass2 finding", fix: "fix the pass2 finding" }], remediation_plan: plan2, summary: "pass2 rejects with a plan" },
+      ]),
+    });
+    const st = readState(repo);
+    check("(p6) consensus precondition (delta 0.10 <= threshold)",
+      out.comparison.consensus === true,
+      `(consensus=${out.comparison.consensus}, reason: ${out.comparison.reason})`);
+    check("(p6) pass1 emitted no plan → winner carries PASS2's plan with indices offset by pass1's gap count (+2)",
+      JSON.stringify((st.consult || {}).last_remediation_plan) === JSON.stringify([{ gaps: [2], note: "pass2 fallback plan" }]),
+      `(got ${JSON.stringify((st.consult || {}).last_remediation_plan)})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+// --- (p7) plan-audit stub with verify+plan → state.plan_audit.remediation_plan recorded ---
+{
+  const repo = makeRepo("# Plan\n\n## Scope\n- the work");
+  try {
+    const plan = [{ gaps: [0], note: "plan-audit lane step" }];
+    const gap = {
+      category: "criteria", severity: "major",
+      issue: "criterion is not executable",
+      fix: "give the criterion a runnable exit-0 proof",
+      verify: "node scripts/check-anchors.mjs",
+    };
+    await runPlanAudit({
+      repoRoot: repo,
+      slug: "test-slug",
+      spawn: stubSpawn({ verdict: "REJECT", gaps: [gap], remediation_plan: plan, summary: "criteria not runnable" }),
+    });
+    const st = readState(repo);
+    check("(p7) state.plan_audit.remediation_plan records the extracted plan",
+      JSON.stringify((st.plan_audit || {}).remediation_plan) === JSON.stringify(plan),
+      `(got ${JSON.stringify((st.plan_audit || {}).remediation_plan)})`);
+    check("(p7) verdict still REJECT and the gap's verify rides plan_audit.gaps untouched",
+      (st.plan_audit || {}).verdict === "REJECT" &&
+        JSON.stringify(((st.plan_audit || {}).gaps || [])[0]) === JSON.stringify(gap),
+      `(lane: ${JSON.stringify(st.plan_audit)})`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
 console.log(`\n${pass}/${pass + fail} passed`);
 process.exit(fail === 0 ? 0 : 1);

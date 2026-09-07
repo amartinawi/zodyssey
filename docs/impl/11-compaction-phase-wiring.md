@@ -16,7 +16,7 @@ Census re-measured 2026-08-16 (this run, not an ideation-doc number): grep for `
 run `scripts/compact.mjs <repo> <slug>`" — an instruction addressed to the conductor, inside the
 phase-6 OPTIONAL COMPACTION box at `:173-180`), `skills/odyssey/SKILL.md:228` ("the **optional**
 `_compact-brief.md`"), `skills/odyssey/references/scripts.md:17` ("OPTIONAL pre-final-wave
-notepad compactor"), `README.md:67`, `README.md:90`, `README.md:291`, `CHANGELOG.md:1018`. The
+notepad compactor"), `README.md:67`, `README.md:90`, `README.md:291`, `CHANGELOG.md:1038`. The
 script's own header admits it: `skills/odyssey/scripts/compact.mjs:20-21` — "OPT-IN: the
 orchestrator MAY call this before phase-6 dispatch. It is not mandatory and not wired into any
 phase transition or hook."
@@ -340,7 +340,7 @@ its own"), each checked against the 2026-08-16 tree:
 - `skills/odyssey/SKILL.md:228` — the "load-bearing working memory" paragraph: "optional
   `_compact-brief.md`" becomes "auto-derived at final entry above the size threshold (additive —
   sources never modified)".
-- `skills/odyssey/SKILL.md:416-420` region — the env-var list gains
+- `skills/odyssey/SKILL.md:429-433` region — the env-var list gains
   `ZODYSSEY_NO_AUTO_COMPACT` (set to 1 to skip auto-compaction at final entry; default unset =
   enabled), phrased like the `ZODYSSEY_REGRESSION_TIMEOUT_MS` entry at `:420`.
 - `skills/odyssey/references/scripts.md:17` — the `compact.mjs` entry: invoked automatically by
