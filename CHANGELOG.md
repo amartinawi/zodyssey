@@ -2,7 +2,7 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.7.4] — 2026-09-07
 ### Added
 - Consult REJECTs now carry a complete, executable remediation surface: the auditor's gap list is
   the round's complete rejection surface (borderline grounds become minor gaps, not advisories —
