@@ -27,9 +27,9 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
    rule IS a requirement not in the plan, so injecting rules without one legitimizing line
    in `auditor-prompt.md` makes them contractually ignorable. The prompt and the injection
    mechanism are one change, not two.
-3. **The F2 lane has the same blindness.** The F2 code-quality dispatch
-   (`skills/odyssey/SKILL.md:167-172`, detail at
-   `skills/odyssey/references/capabilities.md:100-101`) reviews with a static rubric too;
+3. **The F2 lane has the same blindness.** The F2 code-quality dispatch text
+   (`skills/odyssey/references/capabilities.md:101` — `Task: code-reviewer` + `skill:
+   merge-ready`) reviews with a static rubric too;
    the plan contract solved this shape for execution (executable criteria per repo);
    the audit lane never got the equivalent.
 
@@ -64,18 +64,18 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
    declared review criteria; treat a matched rule as a project requirement for the files
    it names, subject to the precision bar (`auditor-prompt.md:120-127` — trigger + wrong
    result, no matter who asked for the check).
-4. **F2 lane — a pointer, not a paste.** `SKILL.md:167-172` (F2 line) and
-   `capabilities.md:100-101` gain: when `.zcode-review-rules.json` exists at the repo
-   root, the conductor passes its path in the F2 `code-reviewer` dispatch prompt (pointer
-   + delta per the context-economy rule, `SKILL.md:374-378`) — the reviewer reads the file
-   itself; nothing is restated.
+4. **F2 lane — a pointer, not a paste.** `capabilities.md:101` (the F2 detail line) gains:
+   when `.zcode-review-rules.json` exists at the repo root, the conductor passes its path
+   in the F2 `code-reviewer` dispatch prompt (pointer + delta per the context-economy
+   rule, `SKILL.md:374-378`) — the reviewer reads the file itself; nothing is restated.
+   SKILL.md is deliberately not a seam here: its only F2 text is the fixed-width phase-6
+   ASCII diagram, which admits no prose clause.
 
 ## Files
 
 - `skills/odyssey/scripts/consult.mjs` — rules loader + matcher + the one injected section (post-done assembly only)
 - `skills/odyssey/references/auditor-prompt.md` — ONE appended legitimizing line (after `:90`; pins `≤:57` untouched)
-- `skills/odyssey/SKILL.md` — F2 line gains the rules-file pointer clause
-- `skills/odyssey/references/capabilities.md` — F2 detail (`:100-101`) gains the same clause
+- `skills/odyssey/references/capabilities.md` — F2 detail (`:101`) gains the same clause
 - `skills/odyssey/scripts/consult.test.mjs` — stub-spawn appends: present→injected, absent→byte-identical, malformed→warn+identical, caps enforced, glob cases
 - `skills/odyssey/references/scripts.md` — consult.mjs entry: the rules section + fail-open semantics
 - `README.md` — one primitives-table row, appended AFTER the last row
@@ -112,10 +112,10 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
 - `node skills/odyssey/scripts/consult.tripwire.test.mjs` — exit 0 (untouched; same file family — run anyway)
 - `node scripts/run-tests.mjs` — exit 0, suite 59 → 59 (appends only; no new suite file)
 - `grep -c "PROJECT REVIEW RULES" skills/odyssey/references/auditor-prompt.md` — ≥1
-- `grep -c "zcode-review-rules" skills/odyssey/SKILL.md` — ≥1
+- `grep -c "zcode-review-rules" skills/odyssey/references/capabilities.md` — ≥1
 - `diff <(git show <run_start_sha>:skills/odyssey/references/auditor-prompt.md | head -57) <(head -57 skills/odyssey/references/auditor-prompt.md)` — empty (pins `≤:57` byte-identical)
 - `node scripts/check-anchors.mjs` — exit 0 after the fixed-order reconciliation
-- `test -z "$(git diff --name-only <run_start_sha>..HEAD | grep -vE '^(skills/odyssey/scripts/consult\.mjs|skills/odyssey/references/auditor-prompt\.md|skills/odyssey/SKILL\.md|skills/odyssey/references/capabilities\.md|skills/odyssey/scripts/consult\.test\.mjs|skills/odyssey/references/scripts\.md|README\.md|CHANGELOG\.md|scripts/anchors\.lock\.json|docs/impl/00-INDEX\.md)$')"` — exit 0 (scope = exactly the declared Files plus the INDEX close-fill)
+- `test -z "$(git diff --name-only <run_start_sha>..HEAD | grep -vE '^(skills/odyssey/scripts/consult\.mjs|skills/odyssey/references/auditor-prompt\.md|skills/odyssey/references/capabilities\.md|skills/odyssey/scripts/consult\.test\.mjs|skills/odyssey/references/scripts\.md|README\.md|CHANGELOG\.md|scripts/anchors\.lock\.json|docs/impl/00-INDEX\.md)$')"` — exit 0 (scope = exactly the declared Files plus the INDEX close-fill)
 
 ## Paired probe
 
@@ -133,7 +133,7 @@ With the file: the auditor gains legitimate grounds, so a first run in a rules-c
 may surface more gaps — that is the feature. Anchor collateral, pre-declared as a class
 (the elastic-scope lesson): consult.mjs pins at or below the injection seam (~`:1177`) and
 everything below it shift — the INDEX C5/C6 blocks and any `docs/DELEGATE-REVIEW.md` pins
-into consult.mjs move together; SKILL.md pins `≥:167` shift; capabilities.md pins `≥:100`
+into consult.mjs move together; capabilities.md pins `≥:100`
 shift. All inside the one mechanical re-baseline, fixed order.
 `auditor-prompt.md` needs NO re-baseline of pins `≤:57` (append-only placement; the head-57
 diff criterion proves it).
@@ -174,9 +174,9 @@ Fixed order (the repo's, `docs/impl/29-remediation-plan-contract.md:192`): write
 `node scripts/check-anchors.mjs` → fix each shifted citation at the source (verify content,
 then repoint) → `node scripts/check-anchors.mjs --update` → suite. Declared exposure:
 consult.mjs pins at/after the injection seam (~`:1177`) — the INDEX C5/C6 blocks and
-DELEGATE-REVIEW pins move as one class; SKILL.md `≥:167`; capabilities.md `≥:100`;
+DELEGATE-REVIEW pins move as one class; capabilities.md `≥:100`;
 README near the appended row. Pre-declared citing-doc class: `docs/impl/00-INDEX.md` and
-`docs/DELEGATE-REVIEW.md` (consult.mjs/SKILL.md cits) — reconcile content-first, never a
+`docs/DELEGATE-REVIEW.md` (consult.mjs cits) — reconcile content-first, never a
 blanket sed of number pairs.
 
 ## Capability routing

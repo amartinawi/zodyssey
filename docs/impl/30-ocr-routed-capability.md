@@ -18,11 +18,11 @@ bin).
 ## What is broken
 
 ZOdyssey's promise is "always use the best available capability for the job"
-(`skills/odyssey/references/capabilities.md:1-2`), enforced as the default
+(`skills/odyssey/references/capabilities.md:3`), enforced as the default
 (`skills/odyssey/SKILL.md:46-57` — generic knowledge is the FALLBACK). For code review the
 table routes two in-session shapes — "Audit code" (`SKILL.md:36`) and "Review code
-(pre-merge)" (`capabilities.md:49`) — and F2 routes `Task: code-reviewer` + `claude-security`
-(`capabilities.md:100-101`). Missing: the activity "review a PR / changeset line-by-line in
+(pre-merge)" (`capabilities.md:49`) — and F2 routes `Task: code-reviewer`
+(`capabilities.md:101`). Missing: the activity "review a PR / changeset line-by-line in
 THIS repo with an external specialized reviewer". A user asking ZOdyssey exactly that gets a
 generic in-session review, the Task-B failure class the routing rule exists to prevent
 (an installed best capability bypassed). `ocr` clears the external-skill quality gate
