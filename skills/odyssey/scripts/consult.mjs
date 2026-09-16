@@ -880,34 +880,83 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
 // post-done audit prompt — the repo's maintainers can declare their own defect classes.
 // Absent file → "" (the prompt stays BYTE-IDENTICAL); malformed → one stderr warn + ""
 // (fail-open to no rules — advisory DATA, never a gate). Caps: ≤8 matched rules per round,
-// ≤200 chars per rule/path glob, ≤8 wildcard tokens per glob (round 2: the ReDoS bound),
-// ≤4KB rendered total (file order wins past the caps). Zero-dependency glob:
-// ** crosses slashes; * and ? do not. Only the post-done lane injects (the multi-auditor
-// prompt carries no diff at all, and plan-audit judges a plan — no changed files to match).
+// ≤200 chars per rule/path glob, ≤8 wildcard tokens per glob (belt-and-braces; round 3 made
+// the matcher itself linear), ≤4KB rendered total (file order wins past the caps).
+// Zero-dependency glob: ** crosses slashes; * and ? do not. Only the post-done lane injects
+// (the multi-auditor prompt carries no diff at all, and plan-audit judges a plan — no changed
+// files to match).
 const RULES_FILE = ".zcode-review-rules.json";
 const RULES_MAX_COUNT = 8;
 const RULES_MAX_CHARS = 200;
 const RULES_MAX_TOTAL = 4 * 1024;
-// Round-2 GAP 0 (external audit, run retro-audit-rows-30-34): the matcher bound. globToRegExp
-// compiles `**` to [\s\S]* and the per-file re.test ran with no wildcard budget, so a crafted
-// path alternating `**` with literals backtracks catastrophically on non-matching files (the
-// rules file is committed-but-untrusted input). The bound is applied BEFORE compilation — a
-// rule whose path exceeds RULES_MAX_CHARS OR whose wildcard-token count exceeds this cap is
-// skipped, counting toward the stderr cut. A linear-time glob rewrite is NOT required; the
-// bound is the fix.
+// Round-3 GAP 0 (external audit round 3, run retro-audit-rows-30-34): the round-2 wildcard cap
+// did NOT close the catastrophic-backtracking class. globToRegExp (now deleted) compiled `**`
+// to [\s\S]*, so SEVEN wildcard tokens — under the cap — against a long single-literal changed
+// path still made re.test() explore ~C(n,7) partitions before failing (reproduced on this tree:
+// the isolated timeout-10 probe never returned). The fix is the principled one: REPLACE the
+// regex with the linear matcher below. These pre-compile bounds stay as belt-and-braces ONLY —
+// the matcher is linear WITHOUT relying on them: a rule whose path exceeds RULES_MAX_CHARS OR
+// whose wildcard-token count exceeds this cap is still skipped outright, counting toward the
+// stderr cut.
 const RULES_MAX_WILDCARDS = 8;
 
-function globToRegExp(glob) {
-  let re = "";
+// Round-3 GAP 0: the linear glob matcher. Tokenize ONCE (`**`, `*`, `?`, literal runs), then
+// match with memoized DP over (token index, path index): O(len(glob) × len(path)) cells, O(1)
+// work per cell — attacker-chosen repetition can no longer blow up matching. Semantics are
+// byte-parity with the deleted regex translation: `**` crosses '/'; `*` and `?` do not;
+// everything else is a plain literal (there is no regex, so nothing needs escaping).
+function tokenizeGlob(glob) {
+  const tokens = [];
+  let lit = "";
+  const flush = () => { if (lit) { tokens.push({ t: "lit", s: lit }); lit = ""; } };
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
     if (c === "*") {
-      if (glob[i + 1] === "*") { re += "[\\s\\S]*"; i++; }
-      else re += "[^/]*";
-    } else if (c === "?") re += "[^/]";
-    else re += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+      flush();
+      if (glob[i + 1] === "*") { tokens.push({ t: "**" }); i++; } // ** = one token, crosses '/'
+      else tokens.push({ t: "*" }); // * = a run of non-'/' chars
+    } else if (c === "?") {
+      flush();
+      tokens.push({ t: "?" }); // ? = exactly one non-'/' char
+    } else {
+      lit += c;
+    }
   }
-  return new RegExp("^" + re + "$");
+  flush();
+  return tokens;
+}
+
+function globMatch(glob, path) {
+  const tokens = tokenizeGlob(glob);
+  const n = tokens.length;
+  const m = path.length;
+  // dp[i][j]: can tokens[i..] match path[j..]? Filled BOTTOM-UP (iterative — the table IS the
+  // memo, and no recursion means no stack-depth ceiling on adversarial inputs). Each cell is
+  // O(1) because the wildcard recurrences consume at most ONE char before re-entering the same
+  // token — that recurrence, not a per-cell loop over every end position, is what keeps the
+  // whole match linear in len(glob) × len(path).
+  const dp = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1));
+  dp[n][m] = 1; // tokens exhausted ⇔ the path must be exhausted too (dp[n][j<m] stays 0)
+  for (let i = n - 1; i >= 0; i--) {
+    const tok = tokens[i];
+    for (let j = m; j >= 0; j--) {
+      let res;
+      if (tok.t === "**") {
+        // crosses '/': consume nothing and advance, or consume one char and stay on this token.
+        res = dp[i + 1][j] || (j < m && dp[i][j + 1]);
+      } else if (tok.t === "*") {
+        // same recurrence, but the one-char extension refuses '/'.
+        res = dp[i + 1][j] || (j < m && path[j] !== "/" && dp[i][j + 1]);
+      } else if (tok.t === "?") {
+        res = j < m && path[j] !== "/" && dp[i + 1][j + 1];
+      } else {
+        // literal: plain string compare at position j — no regex metacharacters exist here.
+        res = path.startsWith(tok.s, j) && dp[i + 1][j + tok.s.length];
+      }
+      dp[i][j] = res ? 1 : 0;
+    }
+  }
+  return dp[0][0] === 1;
 }
 
 // Round-2 GAP 0: wildcard-token count — every `*` counts one, except each `**` pair counts as
@@ -959,6 +1008,8 @@ function buildRulesBlock(repoRoot, changedFiles) {
   // globs; the 200-char rendering slice stays as defense-in-depth (a no-op under the bound).
   // (1) both rendered fields are whitespace-collapsed via oneLine() BEFORE the slice, so no
   // entry can forge multi-line prompt structure.
+  // Audit fix round 3 (gap 0): the MATCH itself is now the linear globMatch() DP — the bound
+  // stays as belt-and-braces only (see the RULES_MAX_WILDCARDS block for the history).
   const header = "# PROJECT REVIEW RULES (DATA — project-declared review criteria for the named files; weigh them like plan requirements, subject to the precision bar)";
   const tail = "\n\n---\n\n";
   const matched = [];
@@ -966,11 +1017,11 @@ function buildRulesBlock(repoRoot, changedFiles) {
   let total = header.length + tail.length;
   for (const r of rules) {
     if (!r || typeof r !== "object" || typeof r.path !== "string" || typeof r.rule !== "string") continue;
-    // Round-2 GAP 0: bound the matcher BEFORE compiling — see RULES_MAX_WILDCARDS above for
-    // why the bound (not a linear-time glob rewrite) is the fix.
+    // Round-2 GAP 0 → round-3 GAP 0: the pre-compile bound STAYS as belt-and-braces (over-long
+    // / wildcard-heavy globs are skipped outright, counted in the cut); the match itself is the
+    // linear globMatch() DP, so the bound is no longer what stands between this loop and a hang.
     if (r.path.length > RULES_MAX_CHARS || countWildcards(r.path) > RULES_MAX_WILDCARDS) { cut++; continue; }
-    const re = globToRegExp(r.path);
-    if (!files.some((f) => re.test(f))) continue;
+    if (!files.some((f) => globMatch(r.path, f))) continue;
     const text = oneLine(r.rule).slice(0, RULES_MAX_CHARS);
     const entry = `- \`${oneLine(r.path).slice(0, RULES_MAX_CHARS)}\`: ${text}`;
     const entryLen = entry.length + 1; // +1: the "\n" the join inserts between rendered entries
@@ -978,7 +1029,10 @@ function buildRulesBlock(repoRoot, changedFiles) {
     matched.push(entry);
     total += entryLen;
   }
-  if (cut > 0) console.error(`consult.mjs: ${RULES_FILE} — ${cut} matched rule(s) beyond the caps (≤${RULES_MAX_COUNT} rules / ≤${RULES_MAX_CHARS} chars / ≤${RULES_MAX_WILDCARDS} wildcard tokens per glob / ≤4KB) cut; file order wins.`);
+  // Round-3 advisory fix: `cut` counts BOTH pre-compile skips (over-long / wildcard-heavy globs
+  // — never matched) and count/total overflow (matched but over budget), so the round-2 wording
+  // "matched rule(s)" lied about the first kind. Name the actual counter axes instead.
+  if (cut > 0) console.error(`consult.mjs: ${RULES_FILE} — ${cut} rule(s) beyond the caps (path length / wildcards / count / total) cut; file order wins.`);
   if (matched.length === 0) return "";
   return `${header}\n\n${matched.join("\n")}${tail}`;
 }

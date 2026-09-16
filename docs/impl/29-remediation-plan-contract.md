@@ -18,7 +18,7 @@ convergence — and each half optimizes against the other. Three mechanisms mult
    and to park borderline items as advisories under the approval bias (`:40-42`). On ACCEPT that is
    correct discipline. On REJECT it is a scheduled future round: every re-audit is a FRESH judge —
    the post-done prompt is built from auditor-prompt.md + original task + plan + diff ONLY
-   (`skills/odyssey/scripts/consult.mjs:1250-1284`); no `consult.history`, no prior gaps, no
+   (`skills/odyssey/scripts/consult.mjs:1340-1374`); no `consult.history`, no prior gaps, no
    remediation claims are ever passed — so a ground withheld as an advisory in round N arrives as a
    new REJECT in round N+1. This exact escalation is on record inside this repo's own runs (the
    audit-wave loop needed 5 rounds).
@@ -29,7 +29,7 @@ convergence — and each half optimizes against the other. Three mechanisms mult
    so an incomplete remediation is discovered only by spending a full external audit round, the most
    expensive possible check.
 3. **Nothing plan-shaped survives the round.** `consult.last_gaps`
-   (`consult.mjs:1515-1518`, history push `:1526-1539`) is the only remediation surface that
+   (`consult.mjs:1605-1608`, history push `:1526-1539`) is the only remediation surface that
    persists; ordering or collision hazards ("these two gaps touch the same file") are lost, and
    `normalizeConsultVerdict` whitelists its output (`skills/odyssey/scripts/lib/verdict-schema.mjs:98-104`),
    so a new auditor-emitted `remediation_plan` field would survive only buried in `.raw` — never

@@ -1092,7 +1092,11 @@ console.log("consult.mjs remediation-plan persistence tests\n");
       `, pathToFileURL(CONSULT).href, repo], { encoding: "utf8" });
       const state = readState(repo);
       check("rules (r4): audit still completes on a capped rules set (verdict recorded)", state.consult?.verdict === "ACCEPT");
-      check("rules (r4): the cut is named on stderr", /4 matched rule\(s\) beyond the caps/.test(r.stderr || ""), JSON.stringify((r.stderr || "").slice(0, 160)));
+      // Round-3 advisory: the cut message was reworded — "matched rule(s)" was a lie for
+      // pre-compile skips (those were never matched). It now names the actual counter axes.
+      check("rules (r4): the cut is named on stderr with the round-3 wording (covers pre-compile skips too)",
+        /4 rule\(s\) beyond the caps \(path length \/ wildcards \/ count \/ total\) cut; file order wins/.test(r.stderr || ""),
+        JSON.stringify((r.stderr || "").slice(0, 160)));
     } finally { rmSync(repo, { recursive: true, force: true }); }
   }
 
@@ -1196,9 +1200,45 @@ console.log("consult.mjs remediation-plan persistence tests\n");
         !once.prompt.includes("# PROJECT REVIEW RULES (DATA") &&
           !once.prompt.includes("pathological glob must be skipped"),
         `(section present=${once.prompt.includes("# PROJECT REVIEW RULES (DATA")})`);
-      check("rules (r9-pathological): the skipped rule is named in the existing stderr cut message",
-        /1 matched rule\(s\) beyond the caps/.test(stderr),
+      check("rules (r9-pathological): the skipped rule is named in the round-3 stderr cut message",
+        /1 rule\(s\) beyond the caps \(path length \/ wildcards \/ count \/ total\) cut/.test(stderr),
         `(stderr: ${JSON.stringify(stderr.slice(0, 300))})`);
+    } finally { rmSync(repo, { recursive: true, force: true }); }
+  }
+
+  // (r10) round-3 GAP 0 (security, major): the round-2 wildcard CAP (≤8 tokens) did NOT close
+  // the catastrophic-backtracking class — globToRegExp compiled `**` to [\s\S]*, so SEVEN
+  // wildcard tokens (UNDER every cap) against a long single-literal changed path still made
+  // re.test() explore ~C(n,7) partitions before failing. The isolated `timeout 10` RED probe
+  // against the pre-fix matcher (same fixture shape, real runPostDoneConsult) never returned —
+  // exit 124, killed at 10.0s; see .zcode/notepads/retro-audit-rows-30-34/gap-r3.md. A
+  // suite-embedded hang is NOT an acceptable RED, which is why the RED evidence is that probe,
+  // not this case. The fix REPLACES the regex matcher with globMatch(): a memoized DP over
+  // (token index, path index) whose cost is O(len(glob) × len(path)). This case proves the
+  // linear guarantee in-suite: a 7-** glob UNDER every cap must fall through the matcher FAST
+  // on the 403-char non-matching victim.
+  {
+    const glob7 = "x**x**x**x**x**x**x**y"; // 7 `**` tokens (≤8) in 22 chars (≤200): passes every cap
+    const victim = "x".repeat(400) + ".js"; // 403 chars, single literal — never matches (no 'y')
+    const repo = makeRulesRepo(undefined);
+    try {
+      // Same repurpose as (r9): declare the victim so the no-git fallback feeds IT to the matcher.
+      writeFileSync(join(repo, ".zcode", "plans", "test-slug.md"),
+        `# Plan\n\n## Todos\n\n- [ ] 1. do it\n  - Files: [\`${victim}\`]\n\n## Final verification wave\n`);
+      writeFileSync(join(repo, ".zcode-review-rules.json"), JSON.stringify({ rules: [
+        { path: glob7, rule: "linear matcher must return on this non-matching victim" },
+      ] }));
+      const t0 = Date.now();
+      const { result: once, prompt } = await runOnce(repo, [ACCEPT]);
+      const elapsed = Date.now() - t0;
+      check("rules (r10-linear): 7-** glob (under every cap) RETURNS from the matcher against the 403-char victim — verdict recorded",
+        once && once.verdict === "ACCEPT", `(verdict ${once && once.verdict})`);
+      check("rules (r10-linear): the 7-** glob does not match the victim (no rules section / rule text in the prompt)",
+        !prompt.includes("# PROJECT REVIEW RULES (DATA") &&
+          !prompt.includes("linear matcher must return"),
+        `(section present=${prompt.includes("# PROJECT REVIEW RULES (DATA")})`);
+      check("rules (r10-linear): the match completes FAST (linear DP; <5000ms wall — pre-fix this exact call never returns)",
+        elapsed < 5000, `(${elapsed}ms)`);
     } finally { rmSync(repo, { recursive: true, force: true }); }
   }
 
