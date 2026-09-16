@@ -421,7 +421,12 @@ if (mode === "--lint") {
     if (!registerTyped) {
       problems.push({ todo: "-", issue: "`## Deliverable contract` present but its `register:` lever is missing or untyped — it must be one of teach|survey|analyze|advocate (default `analyze`; an explicit user directive always wins). A vacuous contract looks enforced while binding nothing." });
     }
-    const headingItems = contractLines.filter((ln) => /^\s*(?:[-*]|\d+[.)])\s*##\s+\S/.test(ln));
+    // Heading items are list entries whose text begins with a literal H2 (`## Heading`). The
+    // detector tolerates surrounding wrapper characters — backticks, quotes, emphasis markers
+    // (`1. `## Background`` / `- "## Findings"` / `1. **## Findings**`) — because writing a
+    // literal H2 inside a list is naturally done wrapped, and demanding a bare `##` right
+    // after the marker falsely rejected fully-populated lists as empty (audit gap 0).
+    const headingItems = contractLines.filter((ln) => /^\s*(?:[-*]|\d+[.)])\s*[`"'*_]*##\s+\S/.test(ln));
     if (headingItems.length === 0) {
       problems.push({ todo: "-", issue: "`## Deliverable contract` present but its Headings list is empty — the ordered literal headings are the contract's enforcement surface (grep-able acceptance criteria; the deliverable is judged heading-by-heading). Either populate them or remove the section: an empty contract binds nothing while claiming to." });
     }

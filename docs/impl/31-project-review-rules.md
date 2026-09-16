@@ -17,7 +17,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
 1. **The audit rubric is one-size for every repo.** `auditor-prompt.md` judges every diff
    with the same four criteria (`skills/odyssey/references/auditor-prompt.md:26-38`) and no
    per-repo customization surface exists anywhere: the post-done prompt assembly
-   (`skills/odyssey/scripts/consult.mjs:1238-1272`) composes auditor-prompt + task + plan +
+   (`skills/odyssey/scripts/consult.mjs:1250-1284`) composes auditor-prompt + task + plan +
    diff + out-of-scope — nothing repo-declared. A repo whose maintainers know their own
    defect classes (the exact knowledge OCR's rule.json encodes) has no way to hand them to
    the auditor.
@@ -46,10 +46,10 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
    Hand-rolled `*`/`**`/`?` glob matcher (zero npm deps, house rule), own test cases.
 2. **`consult.mjs` — load, match, inject (post-done lane only).** A small loader reads the
    file during the post-done gather, matches against the changed-file set, and injects one
-   section between THE PLAN and THE DIFF (the seam at `consult.mjs:1252-1257`):
+   section between THE PLAN and THE DIFF (the seam at `consult.mjs:1264-1269`):
    `# PROJECT REVIEW RULES (DATA — project-declared review criteria for the named files)`
    followed by `- <glob>: <rule>` lines. DATA framing matches the plan/diff precedent
-   (`consult.mjs:1231-1232` — rules are untrusted repo content; the framing plus the caps
+   (`consult.mjs:1243-1244` — rules are untrusted repo content; the framing plus the caps
    plus string-validation of fields is the prompt-injection containment). Absent file →
    the prompt is BYTE-IDENTICAL to today (a criterion, not a hope). Malformed JSON / bad
    shape / oversize → one stderr warn, rules skipped, audit runs (fail-open to no rules —
@@ -67,7 +67,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
 4. **F2 lane — a pointer, not a paste.** `capabilities.md:103` (the F2 detail line) gains:
    when `.zcode-review-rules.json` exists at the repo root, the conductor passes its path
    in the F2 `code-reviewer` dispatch prompt (pointer + delta per the context-economy
-   rule, `SKILL.md:396-401`) — the reviewer reads the file itself; nothing is restated.
+   rule, `SKILL.md:397-402`) — the reviewer reads the file itself; nothing is restated.
    SKILL.md is deliberately not a seam here: its only F2 text is the fixed-width phase-6
    ASCII diagram, which admits no prose clause.
 

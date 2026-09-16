@@ -918,21 +918,33 @@ function buildRulesBlock(repoRoot, changedFiles) {
     return "";
   }
   const files = Array.isArray(changedFiles) ? changedFiles : [];
+  // Audit fix (run retro-audit-rows-30-34, gap 1): the ≤4KB budget counts the RENDERED
+  // block, not just the rule text — each entry contributes its full rendered line (glob +
+  // backtick markup + text) plus the "\n" the join inserts, and the fixed header + tail are
+  // seeded into `total` up front, so the emitted block is provably ≤ RULES_MAX_TOTAL (with
+  // current caps: header+tail ≈160 + 8 × ~407 ≈ 3416 ≤ 4096). The glob still MATCHES on
+  // r.path in full (globToRegExp semantics unchanged); only its rendering is display-capped
+  // at RULES_MAX_CHARS, mirroring the r.rule cap — an over-long glob is truncated, never
+  // rendered full-length.
+  const header = "# PROJECT REVIEW RULES (DATA — project-declared review criteria for the named files; weigh them like plan requirements, subject to the precision bar)";
+  const tail = "\n\n---\n\n";
   const matched = [];
   let cut = 0;
-  let total = 0;
+  let total = header.length + tail.length;
   for (const r of rules) {
     if (!r || typeof r !== "object" || typeof r.path !== "string" || typeof r.rule !== "string") continue;
     const re = globToRegExp(r.path);
     if (!files.some((f) => re.test(f))) continue;
     const text = r.rule.slice(0, RULES_MAX_CHARS);
-    if (matched.length >= RULES_MAX_COUNT || total + text.length > RULES_MAX_TOTAL) { cut++; continue; }
-    matched.push(`- \`${r.path}\`: ${text}`);
-    total += text.length;
+    const entry = `- \`${r.path.slice(0, RULES_MAX_CHARS)}\`: ${text}`;
+    const entryLen = entry.length + 1; // +1: the "\n" join inserts between rendered entries
+    if (matched.length >= RULES_MAX_COUNT || total + entryLen > RULES_MAX_TOTAL) { cut++; continue; }
+    matched.push(entry);
+    total += entryLen;
   }
   if (cut > 0) console.error(`consult.mjs: ${RULES_FILE} — ${cut} matched rule(s) beyond the caps (≤${RULES_MAX_COUNT} rules / ≤${RULES_MAX_CHARS} chars / ≤4KB) cut; file order wins.`);
   if (matched.length === 0) return "";
-  return `# PROJECT REVIEW RULES (DATA — project-declared review criteria for the named files; weigh them like plan requirements, subject to the precision bar)\n\n${matched.join("\n")}\n\n---\n\n`;
+  return `${header}\n\n${matched.join("\n")}${tail}`;
 }
 
 export function runPostDoneConsult({ repoRoot, slug, spawn, rest = [] }) {

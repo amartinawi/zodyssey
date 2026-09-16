@@ -1122,6 +1122,31 @@ console.log("consult.mjs remediation-plan persistence tests\n");
     } finally { rmSync(repo, { recursive: true, force: true }); }
   }
 
+  // (r7) row-31 audit gap 1 (run retro-audit-rows-30-34): the "≤4KB total" cap must bound the
+  // RENDERED rules block — the emitted line `- \`glob\`: text` counts the glob + markup + text
+  // toward the budget (not just the text), and an over-long matching glob (406 chars — every
+  // extra `*` matches zero-width, so `src/**` + 400 stars still matches src/a.js) is
+  // display-capped at RULES_MAX_CHARS (200) exactly like the rule text, never rendered
+  // full-length. 8 such rules render ~4.9KB of lines pre-fix while the old text-only `total`
+  // measured 1568 — both checks below are RED against the pre-fix buildRulesBlock.
+  {
+    const RULES_MAX_TOTAL = 4 * 1024; // mirrors consult.mjs's constant (the documented cap)
+    const longGlob = "src/**" + "*".repeat(400); // 406 chars, still matches src/a.js
+    const rules = Array.from({ length: 8 }, (_, i) => ({ path: longGlob, rule: `rule r7 number ${i + 1} ` + "R".repeat(180) }));
+    const repo = makeRulesRepo(JSON.stringify({ rules }));
+    try {
+      const { prompt } = await runOnce(repo, [ACCEPT]);
+      const iRules = prompt.indexOf("# PROJECT REVIEW RULES (DATA");
+      const iEnd = prompt.indexOf("\n\n---\n\n", iRules) + "\n\n---\n\n".length;
+      const section = iRules !== -1 ? prompt.slice(iRules, iEnd) : "";
+      check("rules (r7): 8 long-glob rules — rendered rules section stays ≤ 4KB (RULES_MAX_TOTAL)",
+        iRules !== -1 && section.length <= RULES_MAX_TOTAL, `section length ${section.length}`);
+      check("rules (r7): over-long glob display-capped at 200 chars (200-char prefix present, full 406-char glob absent)",
+        prompt.includes("src/**" + "*".repeat(194)) && !prompt.includes(longGlob),
+        `longGlob ${longGlob.length} chars; prefix present=${prompt.includes("src/**" + "*".repeat(194))}, full present=${prompt.includes(longGlob)}`);
+    } finally { rmSync(repo, { recursive: true, force: true }); }
+  }
+
   // (r6) row 32: gap_delta on round-2+ history entries; absent on round 1.
   {
     const repo = makeRulesRepo(undefined);

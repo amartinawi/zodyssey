@@ -53,7 +53,7 @@ that scoping `--force` exists to close.
    rejects `--force audited`. Combined with (2), the two-command master-bypass the INDEX warns of
    — `set-phase abandoned --force` then `set-phase audited` — is blocked: the second step is not a
    force target, and its precondition demands a `consult.verdict === "ACCEPT"` that only the
-   trusted `consult.mjs` writer can mint (`consult.mjs:1344`, and the multi-auditor lane at `:760`,
+   trusted `consult.mjs` writer can mint (`consult.mjs:1356`, and the multi-auditor lane at `:760`,
    both under the state lock). Forging it needs the same trusted-writer access every other verdict
    needs; the argv surface grants nothing.
 

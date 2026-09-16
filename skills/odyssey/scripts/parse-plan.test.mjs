@@ -461,6 +461,14 @@ console.log("parse-plan.mjs unit tests\n");
     check("contract: bullet-form headings pass; prose tail on the register allowed", r.code === 0,
       JSON.stringify(r.out.problems || []).slice(0, 160));
 
+    // Backtick-wrapped headings (the natural way to write a literal H2 inside a list) also
+    // count — the detector strips surrounding backticks/quotes/emphasis wrappers before
+    // testing for `##`, so `1. `## Background`` is NOT falsely rejected as an empty list.
+    writeFileSync(planPath, base("## Deliverable contract\n- register: analyze\n\n### Headings (ordered — literal H2s)\n\n1. `## Background`\n2. `## Findings`"));
+    r = lint();
+    check("contract: backtick-wrapped headings pass (wrappers stripped)", r.code === 0,
+      JSON.stringify(r.out.problems || []).slice(0, 160));
+
     // Vacuous: headings list empty → the enforcement surface is missing.
     writeFileSync(planPath, base("## Deliverable contract\n- register: analyze\n- format: short\n\n### Headings\n\n(none yet)"));
     r = lint();

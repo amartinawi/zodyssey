@@ -68,7 +68,7 @@ Because sub-agents cannot load skills (trust anchor), **the orchestrator loads t
 When metis classifies the run's KIND as research (the deliverable is a report, study, or survey — not code), zodyssey:prometheus writes a `## Deliverable contract` section into the plan, transcribed from metis's directives:
 
 - **Levers** — three typed lines: `register: teach|survey|analyze|advocate` (default `analyze`; an explicit user directive always wins), `format: short|structured|argumentative`, `tier: light|full` (light = bounded lookup/comparison; full = contested topics and conflicting evidence — **when uncertain, tier up**).
-- **Headings** — an ordered list of literal H2 headings the deliverable must emit, in order: one per enumerated ask, one per discuss/analyze-flagged entity, or 4-7 derived from the sub-questions for narrative asks. Never empty — `parse-plan --lint` refuses a vacuous contract (shape), momus rejects a research plan without one (presence), and the external auditor judges the finished deliverable heading-by-heading against it.
+- **Headings** — an ordered list of literal H2 headings the deliverable must emit, in order: one per enumerated ask, one per discuss/analyze-flagged entity, or 4-7 derived from the sub-questions for narrative asks. Write each item as a list line (`1.`/`-`) whose text begins with `## <Heading>`; the shape lint accepts the heading with or without surrounding backticks/quotes/emphasis wrappers (`` 1. `## Background` ``, `1. ## Background`, and `- "## Findings"` all count) — a line with no literal `## ` after the marker does not. Never empty — `parse-plan --lint` refuses a vacuous contract (shape), momus rejects a research plan without one (presence), and the external auditor judges the finished deliverable heading-by-heading against it.
 - **Items** — the atomic decomposition: sub-questions, entities (with required fields), required formats, **period-pinned time periods with their primary source named** (missing period-pins are the top silent miss), scope conditions — plus a coverage note mapping every noun-phrase of the verbatim ask to an item (zero unmapped phrases).
 
 Write the deliverable todo's acceptance criteria as grep-able heading checks (`grep -q "^## <Heading>" <deliverable>`), so phase 5 verifies the Deliverable contract mechanically.
@@ -329,8 +329,9 @@ because the auditor cannot inherit the run's assumptions.
    - **gap lifecycle (row 32):** every history entry from round 2 on carries `gap_delta` (read it
      `|| {}`) — new/persisting/resolved counts vs the previous round, computed from a deterministic
      finding key with the `persisting_keys` recorded — the filter-miss check above can match keys
-     instead of eyeballing prose, and run-report surfaces `max_persisting_streak` (a gap persisting
-     ≥3 rounds is the non-convergence signal to surface).
+     instead of eyeballing prose, and run-report surfaces `max_persisting_streak` — counted in transitions
+     (a streak of N means N+1 consecutive rounds; surface at ≥2, i.e. a gap in three straight rounds) as
+     the non-convergence signal.
    - **loop until ACCEPT — no hard cap.** Soft safety rail: every 5 rounds, AskUserQuestion to
      confirm the user wants to continue (prevents unattended infinite loops; honors "no hard cap").
    - **empty last_gaps surface rule (key on observable state, not on what emptied it):** a REJECT

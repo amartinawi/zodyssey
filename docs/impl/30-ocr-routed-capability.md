@@ -68,7 +68,7 @@ code is missing, only the table rows that make the capability visible to triage/
 ## Must NOT do
 
 - No pipeline wiring: `ocr` NEVER joins consult/F2/F4 — the enforcement path keeps
-  `CLAUDE_CLI`/`CLAUDE_CLI_2` (`SKILL.md:458`) as its only external binaries; adopting OCR as
+  `CLAUDE_CLI`/`CLAUDE_CLI_2` (`SKILL.md:459`) as its only external binaries; adopting OCR as
   machinery was the study's REJECTED option (own API-key lifecycle, marginal over the
   existing second-model knob).
 - No vendoring of their SKILL.md into the plugin — it would ship foreign content to every
