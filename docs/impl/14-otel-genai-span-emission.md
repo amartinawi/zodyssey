@@ -23,7 +23,7 @@ run reaches `done|audited`, `skills/odyssey/scripts/set-phase.mjs:478-498` spawn
 run-report and appends its JSON record to `~/.zcode/orchestration/eval/results.jsonl`
 (203 records at re-derivation time; the file is live and drifted 184 → 185 → 203 across this
 queue's own lifetime — stamp your own count). That record already carries everything a run-span
-needs: timing (`skills/odyssey/scripts/run-report.mjs:37-42` derives `start` from
+needs: timing (`skills/odyssey/scripts/run-report.mjs:38-43` derives `start` from
 `state.started_at` and `end` from the phase/checkpoint tail; `:117` emits `wall_clock_min`),
 outcome (`:103-124` — `success`, `verdict`, `review_rounds`, `todos_total/done/failed`, retries,
 resume events, hook blocks), and cost (`:99` calls `collectRunTokens`; `:127` passes `tokens`
@@ -61,7 +61,7 @@ Stated as observable behaviour, not as a diff:
    `ZODYSSEY_OTLP_TRACES_ENDPOINT` is set, the `done|audited` transition exports exactly one span
    for the run: an OTLP/JSON `POST` to `<endpoint>/v1/traces`, span name `invoke_agent` (the
    convention's root operation per `docs/OPPORTUNITY-MAP.md:411`), start/end timestamps from the
-   same derivation run-report uses (`skills/odyssey/scripts/run-report.mjs:37-42`), and attributes
+   same derivation run-report uses (`skills/odyssey/scripts/run-report.mjs:38-43`), and attributes
    mapped from the already-computed run-report record (slug, intent, verdict, success,
    `todos_total/done/failed`, `wall_clock_min`, token totals when populated). The emitter consumes
    that record — set-phase already has it in hand at `:456-461` — rather than re-deriving scorecard

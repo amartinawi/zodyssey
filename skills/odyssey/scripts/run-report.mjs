@@ -16,6 +16,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
 import { collectRunTokens } from "./lib/tokens.mjs";
+import { gapKey, scanRecurredGaps } from "./lib/gap-ledger.mjs";
 
 const [repoRoot, slug, ...rest] = argv.slice(2);
 if (!repoRoot || !slug) {
@@ -61,6 +62,48 @@ const verdict = state.review?.verdict ?? null;
 const consultHist = Array.isArray(state.consult?.history) ? state.consult.history : [];
 const verifyOrigin = (consultHist.length > 0 || state.phase === "audited") ? "external-audit" : "in-session-only";
 const consultRounds = state.consult?.rounds || consultHist.length || null;
+
+// --- gap lifecycle (row 32): the convergence claim, finally measured ---------------------
+// consult_rounds says how LONG the loop ran; gap_delta says whether it CONVERGED. Deterministic
+// finding key (lib/gap-ledger.mjs): last-round buckets, the longest consecutive per-key
+// persisting streak counted in TRANSITIONS (first appearance = 0 — a gap in 4 straight rounds
+// streaks 3), open-at-close (kept gaps on a terminal REJECT are OPEN, never "resolved" — the
+// never-congratulate discipline), and cross-run recurrence of the final kept gaps against
+// sibling state files. Advisory evidence only — nothing gates on it, and none of it ever
+// reaches the next auditor's prompt. Pre-32 histories (no gap_delta) still yield the streak
+// (replayed from each round's gaps) with null last-round buckets.
+const lifecycle = (() => {
+  if (!consultHist.length) return null;
+  let maxStreak = 0;
+  let streaks = new Map();
+  for (const h of consultHist) {
+    const cur = new Set((Array.isArray(h.gaps) ? h.gaps : []).map((g) => gapKey(g)));
+    const next = new Map();
+    for (const k of cur) {
+      const s = (streaks.has(k) ? streaks.get(k) : -1) + 1;
+      next.set(k, s);
+      if (s > maxStreak) maxStreak = s;
+    }
+    streaks = next;
+  }
+  const lastDelta = consultHist[consultHist.length - 1].gap_delta || null;
+  const finalGaps = Array.isArray(state.consult?.last_gaps) ? state.consult.last_gaps : [];
+  const terminal = ["done", "audited", "abandoned", "blocked"].includes(state.phase);
+  const openAtClose = state.consult?.verdict === "REJECT" && terminal && finalGaps.length > 0 ? finalGaps.length : 0;
+  const recurred = finalGaps.length > 0
+    ? scanRecurredGaps(repoRoot, slug, finalGaps.map((g) => gapKey(g)))
+    : { count: 0, slugs: [] };
+  return {
+    lifecycle: {
+      last_new: lastDelta ? lastDelta.new : null,
+      last_persisting: lastDelta ? lastDelta.persisting : null,
+      last_resolved: lastDelta ? lastDelta.resolved : null,
+      max_persisting_streak: maxStreak,
+      open_at_close_gaps: openAtClose,
+    },
+    recurred: { count: recurred.count, slugs: recurred.slugs },
+  };
+})();
 
 // --- checkpoints (resume signal) ---
 const checkpoints = state.checkpoints || [];
@@ -139,6 +182,8 @@ const report = {
   verdict,
   verify_origin: verifyOrigin,
   consult_rounds: consultRounds,
+  consult_gap_lifecycle: lifecycle ? lifecycle.lifecycle : null, // row 32: additive; null for no-consult runs and pre-32 histories
+  recurred_gaps_from_prior_runs: lifecycle ? lifecycle.recurred : null, // row 32: cross-run recurrence, advisory only
   // T3-#7: success derives from the EVIDENCE (state.final.verdict), not the phase string.
   // Reaching "done" only means the final wave ran; the final wave's verdict is what says the
   // work passed. A run that reached done through a bug (not real verification) won't have
@@ -182,6 +227,12 @@ console.log(`  success           ${report.success ? "YES ✅" : "no ⚠"}`);
 console.log(`  verify origin     ${verifyOrigin === "external-audit"
   ? `external audit${consultRounds ? ` (${consultRounds} round${consultRounds === 1 ? "" : "s"})` : ""}`
   : "in-session only — never externally audited"}`);
+if (lifecycle) { // consult_gap_lifecycle (row 32) — rendered only when consult history exists
+  const L = lifecycle.lifecycle;
+  console.log(`  gap lifecycle     new ${L.last_new ?? "—"} / persisting ${L.last_persisting ?? "—"} / resolved ${L.last_resolved ?? "—"} (last round) · max persisting streak ${L.max_persisting_streak}`);
+  if (L.open_at_close_gaps > 0) console.log(`  open at close     ${L.open_at_close_gaps} kept gap(s) on a terminal REJECT — open, never resolved`);
+  if (lifecycle.recurred.count > 0) console.log(`  recurred gaps     ${lifecycle.recurred.count} from prior run(s): ${lifecycle.recurred.slugs.join(", ")}`);
+}
 console.log(`  ${"─".repeat(48)}`);
 console.log(`  wall-clock        ${wallClockMin} min`);
 console.log(`  review rounds     ${reviewRounds}/3    ${bar(3 - reviewRounds + 1, 3)} (1 = great)`);

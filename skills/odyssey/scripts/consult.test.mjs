@@ -1000,5 +1000,145 @@ console.log("consult.mjs remediation-plan persistence tests\n");
   }
 }
 
+
+// --- Row 31: per-project review rules (.zcode-review-rules.json → post-done prompt) -------
+// And row 32: gap_delta on the post-done history entries. Both driven OFFLINE through the
+// injectable runPostDoneConsult spawn (opts.input IS the composed prompt — the capture point).
+{
+  const { runPostDoneConsult } = await import(pathToFileURL(CONSULT).href);
+  const envelope = (v) => ({ status: 0, stdout: JSON.stringify({ result: JSON.stringify(v) }), stderr: "" });
+  const ACCEPT = { verdict: "ACCEPT", gaps: [], summary: "canned" };
+  const REJECT = (gaps) => ({ verdict: "REJECT", gaps, summary: "canned reject" });
+  function makeRulesRepo(rulesFile) {
+    const dir = mkdtempSync(join(tmpdir(), "zod-rules-test-"));
+    mkdirSync(join(dir, ".zcode", "state"), { recursive: true });
+    mkdirSync(join(dir, ".zcode", "plans"), { recursive: true });
+    writeFileSync(join(dir, ".zcode", "state", "test-slug.json"),
+      JSON.stringify({ slug: "test-slug", phase: "verify", updated_at: "2026-09-16T00:00:00Z" }, null, 2) + "\n");
+    writeFileSync(join(dir, ".zcode", "plans", "test-slug.md"),
+      "# Plan\n\n## Todos\n\n- [ ] 1. do it\n  - Files: [`src/a.js`]\n\n## Final verification wave\n");
+    writeFileSync(join(dir, ".zcode", "plans", "test-slug.task.md"), "Make the thing work.");
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src", "a.js"), "untracked work file\n");
+    if (rulesFile !== undefined) writeFileSync(join(dir, ".zcode-review-rules.json"), rulesFile);
+    return dir;
+  }
+  async function runOnce(repo, verdicts) {
+    let call = 0;
+    let captured = "";
+    const stub = (_bin, _args, opts) => {
+      call += 1;
+      captured = opts.input;
+      return envelope(verdicts[call - 1] || ACCEPT);
+    };
+    const r = await runPostDoneConsult({ repoRoot: repo, slug: "test-slug", spawn: stub });
+    return { result: r, prompt: captured, calls: call };
+  }
+
+  // (r1) rules present + matching an untracked changed file → section injected between PLAN and DIFF.
+  {
+    const repo = makeRulesRepo(JSON.stringify({ rules: [{ path: "src/**", rule: "every new check needs a paired regression case" }] }));
+    try {
+      const { prompt } = await runOnce(repo, [ACCEPT]);
+      const iPlan = prompt.indexOf("# THE PLAN");
+      // The DATA-header form only — auditor-prompt.md's own legitimizing line mentions the
+      // section name too, and it rides the header BEFORE THE PLAN.
+      const iRules = prompt.indexOf("# PROJECT REVIEW RULES (DATA");
+      const iDiff = prompt.indexOf("# THE DIFF");
+      check("rules (r1): section injected, positioned between THE PLAN and THE DIFF",
+        iRules > iPlan && iRules < iDiff, `(indices ${iPlan}/${iRules}/${iDiff})`);
+      check("rules (r1): matched rule rendered with its glob + text",
+        prompt.includes("- `src/**`: every new check needs a paired regression case"));
+    } finally { rmSync(repo, { recursive: true, force: true }); }
+  }
+
+  // (r2) NO rules file → the seam is exactly today's shape (nothing between --- and THE DIFF).
+  {
+    const repo = makeRulesRepo(undefined);
+    try {
+      const { prompt } = await runOnce(repo, [ACCEPT]);
+      check("rules (r2): absent file → no injected rules section in the prompt", !prompt.includes("# PROJECT REVIEW RULES (DATA"));
+      check("rules (r2): absent file → the PLAN→DIFF seam is byte-identical in shape",
+        /# THE PLAN[\s\S]*?\n---\n\n# THE DIFF/.test(prompt));
+    } finally { rmSync(repo, { recursive: true, force: true }); }
+  }
+
+  // (r3) malformed rules → one stderr warn + the prompt identical to the absent case.
+  {
+    const repoAbsent = makeRulesRepo(undefined);
+    const repoBad = makeRulesRepo('{"rules": "everything"}');
+    try {
+      const a = await runOnce(repoAbsent, [ACCEPT]);
+      const r = spawnSync("node", ["-e", `
+        const { runPostDoneConsult } = await import(process.argv[1]);
+        const stub = () => ({ status: 0, stdout: JSON.stringify({ result: JSON.stringify({ verdict: "ACCEPT", gaps: [], summary: "c" }) }), stderr: "" });
+        await runPostDoneConsult({ repoRoot: process.argv[2], slug: "test-slug", spawn: stub });
+      `, pathToFileURL(CONSULT).href, repoBad], { encoding: "utf8" });
+      check("rules (r3): malformed file warns on stderr", /WARNING.*zcode-review-rules/.test(r.stderr || ""), JSON.stringify((r.stderr || "").slice(0, 120)));
+      const badPrompt = (r.stdout.match(/.*/) || [""])[0]; // stdout is JSON verdict, prompt lives in the stub — re-capture instead:
+      const cap = await runOnce(repoBad, [ACCEPT]);
+      check("rules (r3): malformed file → prompt identical to the absent-file prompt", cap.prompt === a.prompt);
+    } finally { rmSync(repoAbsent, { recursive: true, force: true }); rmSync(repoBad, { recursive: true, force: true }); }
+  }
+
+  // (r4) caps: 12 matching rules → 8 injected, the cut named on stderr.
+  {
+    const rules = Array.from({ length: 12 }, (_, i) => ({ path: "src/**", rule: `rule number ${i + 1}` }));
+    const repo = makeRulesRepo(JSON.stringify({ rules }));
+    try {
+      const r = spawnSync("node", ["-e", `
+        const { runPostDoneConsult } = await import(process.argv[1]);
+        const stub = () => ({ status: 0, stdout: JSON.stringify({ result: JSON.stringify({ verdict: "ACCEPT", gaps: [], summary: "c" }) }), stderr: "" });
+        await runPostDoneConsult({ repoRoot: process.argv[2], slug: "test-slug", spawn: stub });
+      `, pathToFileURL(CONSULT).href, repo], { encoding: "utf8" });
+      const state = readState(repo);
+      check("rules (r4): audit still completes on a capped rules set (verdict recorded)", state.consult?.verdict === "ACCEPT");
+      check("rules (r4): the cut is named on stderr", /4 matched rule\(s\) beyond the caps/.test(r.stderr || ""), JSON.stringify((r.stderr || "").slice(0, 160)));
+    } finally { rmSync(repo, { recursive: true, force: true }); }
+  }
+
+  // (r5) glob semantics: ** crosses slashes; * and ? do not.
+  {
+    const repo = mkdtempSync(join(tmpdir(), "zod-rules-glob-"));
+    try {
+      mkdirSync(join(repo, ".zcode", "state"), { recursive: true });
+      mkdirSync(join(repo, ".zcode", "plans"), { recursive: true });
+      mkdirSync(join(repo, "src", "deep"), { recursive: true });
+      mkdirSync(join(repo, "lib"), { recursive: true });
+      writeFileSync(join(repo, "src", "deep", "b.py"), "x\n");
+      writeFileSync(join(repo, "lib", "x.mjs"), "x\n");
+      writeFileSync(join(repo, ".zcode", "state", "test-slug.json"), JSON.stringify({ slug: "test-slug", phase: "verify" }));
+      writeFileSync(join(repo, ".zcode", "plans", "test-slug.md"),
+        "# Plan\n\n## Todos\n\n- [ ] 1. do it\n  - Files: [`src/deep/b.py`, `lib/x.mjs`]\n\n## Final verification wave\n");
+      writeFileSync(join(repo, ".zcode", "plans", "test-slug.task.md"), "t");
+      writeFileSync(join(repo, ".zcode-review-rules.json"), JSON.stringify({ rules: [
+        { path: "src/**", rule: "src-deep match" },
+        { path: "*.py", rule: "WRONG single-star must not cross slashes" },
+        { path: "**/*.mjs", rule: "lib mjs match" },
+      ] }));
+      const { prompt } = await runOnce(repo, [ACCEPT]);
+      check("rules (r5): ** matches across directory slashes; * does not",
+        prompt.includes("src-deep match") && prompt.includes("lib mjs match") && !prompt.includes("WRONG single-star"));
+    } finally { rmSync(repo, { recursive: true, force: true }); }
+  }
+
+  // (r6) row 32: gap_delta on round-2+ history entries; absent on round 1.
+  {
+    const repo = makeRulesRepo(undefined);
+    try {
+      const g = (issue) => ({ category: "bug", severity: "major", issue, fix: "f" });
+      await runOnce(repo, [REJECT([g("alpha bug"), g("beta bug")]), { refutations: [] }]);
+      let st = readState(repo);
+      check("gap_delta (r6): round 1 entry carries NO gap_delta", st.consult.history.length === 1 && !("gap_delta" in st.consult.history[0]));
+      await runOnce(repo, [REJECT([g("alpha  bug"), g("gamma bug")]), { refutations: [] }]);
+      st = readState(repo);
+      const d = st.consult.history[1].gap_delta;
+      check("gap_delta (r6): round 2 buckets — alpha whitespace-collapsed persists, beta resolved, gamma new",
+        !!d && d.persisting === 1 && d.resolved === 1 && d.new === 1 &&
+        JSON.stringify(d.persisting_keys).includes("alpha bug"), JSON.stringify(d));
+    } finally { rmSync(repo, { recursive: true, force: true }); }
+  }
+}
+
 console.log(`\n${pass}/${pass + fail} passed`);
 process.exit(fail === 0 ? 0 : 1);

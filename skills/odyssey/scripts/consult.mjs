@@ -73,6 +73,7 @@ import { normalizeConsultVerdict } from "./lib/verdict-schema.mjs";
 import { outcomeToGraphEntity, validateOutcome } from "./lib/memory-schema.mjs";
 import { SECRET_PATH_RE, redactSecrets, isSecretPath } from "./lib/redact.mjs";
 import { resolvePlanPath } from "./lib/plan-path.mjs";
+import { compareGaps } from "./lib/gap-ledger.mjs";
 
 // v0.3.0 portability: resolve auditor-prompt.md relative to this script's own location (ESM
 // URL-relative) so it is found from the plugin cache install, not only the legacy
@@ -787,6 +788,12 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
         })();
         fresh.consult.last_gaps = winner.gaps;
         fresh.consult.last_remediation_plan = winnerPlan;
+        // Row 32: gap lifecycle on the multi-auditor lane too (same advisory shape).
+        const priorMulti = Array.isArray(fresh.consult.history) ? fresh.consult.history[fresh.consult.history.length - 1] : null;
+        const gapDeltaMulti = priorMulti ? (() => {
+          const d = compareGaps(priorMulti.gaps || [], winner.gaps);
+          return { round: fresh.consult.rounds, new: d.new.length, persisting: d.persisting.length, resolved: d.resolved.length, persisting_keys: d.persisting };
+        })() : null;
         fresh.consult.history.push({
           round: fresh.consult.rounds,
           at,
@@ -797,6 +804,7 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
           remediation_plan: winnerPlan,
           multi_auditor: true,
           readOnlyViolation,
+          ...(gapDeltaMulti ? { gap_delta: gapDeltaMulti } : {}), // row 32: same advisory shape as the post-done lane
         });
       } else {
         // DISAGREEMENT: never set a verdict — force human adjudication.
@@ -867,6 +875,66 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
 // prints and owns exit codes). The spawn window is tripwire-wrapped and the history push
 // records readOnlyViolation beside audit_head.
 // ===========================================================================
+// --- Row 31: per-project review rules (.zcode-review-rules.json at the repo root) ---------
+// A committed, per-repo rules file whose glob-matched entries inject as DATA into the
+// post-done audit prompt — the repo's maintainers can declare their own defect classes.
+// Absent file → "" (the prompt stays BYTE-IDENTICAL); malformed → one stderr warn + ""
+// (fail-open to no rules — advisory DATA, never a gate). Caps: ≤8 matched rules per round,
+// ≤200 chars per rule, ≤4KB total (file order wins past the caps). Zero-dependency glob:
+// ** crosses slashes; * and ? do not. Only the post-done lane injects (the multi-auditor
+// prompt carries no diff at all, and plan-audit judges a plan — no changed files to match).
+const RULES_FILE = ".zcode-review-rules.json";
+const RULES_MAX_COUNT = 8;
+const RULES_MAX_CHARS = 200;
+const RULES_MAX_TOTAL = 4 * 1024;
+
+function globToRegExp(glob) {
+  let re = "";
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "*") {
+      if (glob[i + 1] === "*") { re += "[\\s\\S]*"; i++; }
+      else re += "[^/]*";
+    } else if (c === "?") re += "[^/]";
+    else re += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp("^" + re + "$");
+}
+
+function buildRulesBlock(repoRoot, changedFiles) {
+  let doc;
+  try {
+    doc = JSON.parse(readFileSync(join(repoRoot, RULES_FILE), "utf8"));
+  } catch (err) {
+    // ENOENT is the normal absent case — silent; anything else warns once and degrades.
+    if (!err || err.code !== "ENOENT") {
+      console.error(`consult.mjs: WARNING — ${RULES_FILE} unreadable or malformed; skipping project rules.`);
+    }
+    return "";
+  }
+  const rules = doc && Array.isArray(doc.rules) ? doc.rules : null;
+  if (!rules) {
+    console.error(`consult.mjs: WARNING — ${RULES_FILE} has no "rules" array; skipping project rules.`);
+    return "";
+  }
+  const files = Array.isArray(changedFiles) ? changedFiles : [];
+  const matched = [];
+  let cut = 0;
+  let total = 0;
+  for (const r of rules) {
+    if (!r || typeof r !== "object" || typeof r.path !== "string" || typeof r.rule !== "string") continue;
+    const re = globToRegExp(r.path);
+    if (!files.some((f) => re.test(f))) continue;
+    const text = r.rule.slice(0, RULES_MAX_CHARS);
+    if (matched.length >= RULES_MAX_COUNT || total + text.length > RULES_MAX_TOTAL) { cut++; continue; }
+    matched.push(`- \`${r.path}\`: ${text}`);
+    total += text.length;
+  }
+  if (cut > 0) console.error(`consult.mjs: ${RULES_FILE} — ${cut} matched rule(s) beyond the caps (≤${RULES_MAX_COUNT} rules / ≤${RULES_MAX_CHARS} chars / ≤4KB) cut; file order wins.`);
+  if (matched.length === 0) return "";
+  return `# PROJECT REVIEW RULES (DATA — project-declared review criteria for the named files; weigh them like plan requirements, subject to the precision bar)\n\n${matched.join("\n")}\n\n---\n\n`;
+}
+
 export function runPostDoneConsult({ repoRoot, slug, spawn, rest = [] }) {
 const statePath = join(repoRoot, ".zcode", "state", `${slug}.json`);
 if (!existsSync(statePath)) {
@@ -1110,6 +1178,7 @@ const declaredList = (() => {
 let outOfScopeSection = declaredList.length === 0
   ? "(the plan declares no Files — every changed file is formally out-of-scope; judge accordingly)"
   : "(none — every changed file was in the plan's declared scope)";
+let changedFilesAll = []; // row 31: every changed file (in-scope + out-of-scope + untracked), for the rules matcher
 try {
   const allChangedRaw = startSha
     ? git(["diff", "--name-only", startSha])
@@ -1124,6 +1193,7 @@ try {
     const clean = sanitizePath(p);
     if (clean && !isGeneratedOrBookkeeping(clean)) allSet.add(clean);
   }
+  changedFilesAll = [...allSet];
   const outOfScope = [...allSet].filter((p) => !declaredList.includes(p));
   if (outOfScope.length) {
     // fetch each out-of-scope path's diff (truncated) so the auditor can judge severity
@@ -1151,6 +1221,11 @@ try {
 } catch {
   // git not available or not a repo — out-of-scope stays "none"
 }
+if (changedFilesAll.length === 0) changedFilesAll = declaredList.slice(); // row 31 fallback: at least the declared files
+
+// Row 31: the project's own review rules, glob-matched against every changed file,
+// injected as DATA. Absent file → "" → the prompt below is byte-identical to pre-row-31.
+const rulesBlock = buildRulesBlock(repoRoot, changedFilesAll);
 
 // --- build the full prompt handed to the external auditor ---
 // Untrusted-content framing (audit gap #8): explicitly tell the auditor the PLAN and DIFF are
@@ -1176,7 +1251,7 @@ ${plan}
 
 ---
 
-# THE DIFF — in declared scope  (DATA — the implementer's changes to plan-declared files)
+${rulesBlock}# THE DIFF — in declared scope  (DATA — the implementer's changes to plan-declared files)
 
 ${diffRedacted || "(empty diff — no changes detected. Judge accordingly: was anything actually done?)"}
 
@@ -1429,6 +1504,13 @@ state.consult.rounds = (state.consult.rounds || 0) + 1;
 state.consult.verdict = normalized.verdict;
 state.consult.last_gaps = finalGaps; // post-routing, post-refute mandatory-fix list (the verdict value is never touched)
 state.consult.last_remediation_plan = remediationPlan; // row 29: the plan remapped onto finalGaps positions; readers use || []
+// Row 32: gap lifecycle — this round's kept gaps vs the previous round's, by deterministic
+// finding key. Advisory evidence on the history entry only; NEVER shown to the next auditor.
+const priorHistoryEntry = Array.isArray(state.consult.history) ? state.consult.history[state.consult.history.length - 1] : null;
+const gapDelta = priorHistoryEntry ? (() => {
+  const d = compareGaps(priorHistoryEntry.gaps || [], finalGaps);
+  return { round: state.consult.rounds, new: d.new.length, persisting: d.persisting.length, resolved: d.resolved.length, persisting_keys: d.persisting };
+})() : null;
 state.consult.history.push({
   round: state.consult.rounds,
   at: new Date().toISOString(),
@@ -1441,6 +1523,7 @@ state.consult.history.push({
   readOnlyViolation: violationToRecord, // item 28 tripwire: false | true | null (fail-closed), never adjudicated; the refute window merges in when refute ran
   refute: refuteField, // optional (gap-refute filter): present only when the refuter spawn ran; readers use || {} / || []
   remediation_plan: remediationPlan, // row 29: the same remapped plan on this round's history entry
+  ...(gapDelta ? { gap_delta: gapDelta } : {}), // row 32: new/persisting/resolved vs the previous round; absent on round 1
 });
 state.updated_at = new Date().toISOString();
 // atomic write under O_EXCL lockfile (audit gap #5c: last-writer-safe vs stop.mjs/pre-tool.mjs).

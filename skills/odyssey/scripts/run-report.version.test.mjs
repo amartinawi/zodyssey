@@ -157,5 +157,62 @@ console.log("run-report.mjs — zodyssey_version (self-relative manifest stamp, 
   } finally { rmSync(T, { recursive: true, force: true }); rmSync(dir, { recursive: true, force: true }); }
 }
 
+
+// --- (d) row 32 additive fields: gap lifecycle is additive, null for no-consult runs ---------
+// A pre-32 state (consult history WITHOUT gap_delta entries) must render with the fields
+// PRESENT (null last-round buckets, replayed streak) and a no-consult state with both null —
+// and the text scorecard gains its lifecycle line ONLY when consult history exists.
+{
+  // (d1) no consult lane at all → both fields null, no lifecycle scorecard line.
+  const dir = makeRepo();
+  try {
+    writeState(dir, "t", baseState()); // baseState carries no consult lane
+    const rj = run(RR, [dir, "t", "--json"]);
+    const j = parseJson(rj.stdout);
+    check("(d1) no-consult run: consult_gap_lifecycle === null",
+      j !== null && j.consult_gap_lifecycle === null, JSON.stringify(j && j.consult_gap_lifecycle));
+    check("(d1) no-consult run: recurred_gaps_from_prior_runs === null",
+      j !== null && j.recurred_gaps_from_prior_runs === null, JSON.stringify(j && j.recurred_gaps_from_prior_runs));
+    const rt = run(RR, [dir, "t"]);
+    check("(d1) no-consult run: no lifecycle line in the text scorecard", !/gap lifecycle/.test(rt.stdout));
+    check("(h) no crash output (d1)", noCrash(rj) && noCrash(rt));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+
+  // (d2) pre-32 consult history (entries lack gap_delta) → fields present, streak replayed,
+  //      last-round buckets null (no gap_delta on the final entry), lifecycle line rendered.
+  const dir2 = makeRepo();
+  try {
+    const g = (issue) => ({ category: "bug", severity: "major", issue, fix: "f" });
+    writeState(dir2, "t", {
+      ...baseState(),
+      phase: "done",
+      consult: {
+        rounds: 3,
+        verdict: "REJECT",
+        last_gaps: [g("the persisting ground")],
+        history: [
+          { round: 1, verdict: "REJECT", gaps: [g("the persisting ground"), g("one-off")] },
+          { round: 2, verdict: "REJECT", gaps: [g("the persisting ground")] },
+          { round: 3, verdict: "REJECT", gaps: [g("the persisting ground")] },
+        ],
+      },
+    });
+    const rj = run(RR, [dir2, "t", "--json"]);
+    const j = parseJson(rj.stdout);
+    check("(d2) pre-32 history: field present with replayed streak (3 rounds, one key throughout → 2 transitions)",
+      j !== null && j.consult_gap_lifecycle !== null && j.consult_gap_lifecycle.max_persisting_streak === 2,
+      JSON.stringify(j && j.consult_gap_lifecycle));
+    check("(d2) pre-32 history: last-round buckets null (no gap_delta on the final entry)",
+      j.consult_gap_lifecycle.last_new === null && j.consult_gap_lifecycle.last_persisting === null && j.consult_gap_lifecycle.last_resolved === null,
+      JSON.stringify(j && j.consult_gap_lifecycle));
+    check("(d2) pre-32 history: open at close counts the terminal-REJECT kept gaps",
+      j.consult_gap_lifecycle.open_at_close_gaps === 1, JSON.stringify(j && j.consult_gap_lifecycle));
+    const rt = run(RR, [dir2, "t"]);
+    check("(d2) pre-32 history: lifecycle + open-at-close lines rendered",
+      /gap lifecycle/.test(rt.stdout) && /open at close/.test(rt.stdout));
+    check("(h) no crash output (d2)", noCrash(rj) && noCrash(rt));
+  } finally { rmSync(dir2, { recursive: true, force: true }); }
+}
+
 console.log(`\n${pass}/${pass + fail} passed`);
 exit(fail === 0 ? 0 : 1);

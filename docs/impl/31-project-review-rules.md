@@ -17,7 +17,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
 1. **The audit rubric is one-size for every repo.** `auditor-prompt.md` judges every diff
    with the same four criteria (`skills/odyssey/references/auditor-prompt.md:26-38`) and no
    per-repo customization surface exists anywhere: the post-done prompt assembly
-   (`skills/odyssey/scripts/consult.mjs:1163-1197`) composes auditor-prompt + task + plan +
+   (`skills/odyssey/scripts/consult.mjs:1238-1272`) composes auditor-prompt + task + plan +
    diff + out-of-scope — nothing repo-declared. A repo whose maintainers know their own
    defect classes (the exact knowledge OCR's rule.json encodes) has no way to hand them to
    the auditor.
@@ -28,7 +28,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
    in `auditor-prompt.md` makes them contractually ignorable. The prompt and the injection
    mechanism are one change, not two.
 3. **The F2 lane has the same blindness.** The F2 code-quality dispatch text
-   (`skills/odyssey/references/capabilities.md:102` — `Task: code-reviewer` + `skill:
+   (`skills/odyssey/references/capabilities.md:103` — `Task: code-reviewer` + `skill:
    merge-ready`) reviews with a static rubric too;
    the plan contract solved this shape for execution (executable criteria per repo);
    the audit lane never got the equivalent.
@@ -46,28 +46,28 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
    Hand-rolled `*`/`**`/`?` glob matcher (zero npm deps, house rule), own test cases.
 2. **`consult.mjs` — load, match, inject (post-done lane only).** A small loader reads the
    file during the post-done gather, matches against the changed-file set, and injects one
-   section between THE PLAN and THE DIFF (the seam at `consult.mjs:1177-1182`):
+   section between THE PLAN and THE DIFF (the seam at `consult.mjs:1252-1257`):
    `# PROJECT REVIEW RULES (DATA — project-declared review criteria for the named files)`
    followed by `- <glob>: <rule>` lines. DATA framing matches the plan/diff precedent
-   (`consult.mjs:1156-1157` — rules are untrusted repo content; the framing plus the caps
+   (`consult.mjs:1231-1232` — rules are untrusted repo content; the framing plus the caps
    plus string-validation of fields is the prompt-injection containment). Absent file →
    the prompt is BYTE-IDENTICAL to today (a criterion, not a hope). Malformed JSON / bad
    shape / oversize → one stderr warn, rules skipped, audit runs (fail-open to no rules —
    rules are advisory DATA, never a gate). The multi-auditor lane is deliberately
    UNTOUCHED: its prompt carries no diff section at all
-   (`consult.mjs:601-619` — plan + original task only), so changed-file matching has no
+   (`consult.mjs:602-620` — plan + original task only), so changed-file matching has no
    input there; `--plan-audit` judges a plan (`buildPlanAuditPrompt`,
-   `consult.mjs:194-205`), not code — same reason. One lane, honestly scoped.
+   `consult.mjs:195-206`), not code — same reason. One lane, honestly scoped.
 3. **`auditor-prompt.md` — ONE legitimizing line**, appended in the rules block after
    `auditor-prompt.md:90` (keeps every pin `≤:57` intact — the row-29 placement
    discipline): a PROJECT REVIEW RULES section, when present, carries the repo's own
    declared review criteria; treat a matched rule as a project requirement for the files
-   it names, subject to the precision bar (`auditor-prompt.md:120-127` — trigger + wrong
+   it names, subject to the precision bar (`auditor-prompt.md:121-128` — trigger + wrong
    result, no matter who asked for the check).
-4. **F2 lane — a pointer, not a paste.** `capabilities.md:102` (the F2 detail line) gains:
+4. **F2 lane — a pointer, not a paste.** `capabilities.md:103` (the F2 detail line) gains:
    when `.zcode-review-rules.json` exists at the repo root, the conductor passes its path
    in the F2 `code-reviewer` dispatch prompt (pointer + delta per the context-economy
-   rule, `SKILL.md:390-395`) — the reviewer reads the file itself; nothing is restated.
+   rule, `SKILL.md:396-401`) — the reviewer reads the file itself; nothing is restated.
    SKILL.md is deliberately not a seam here: its only F2 text is the fixed-width phase-6
    ASCII diagram, which admits no prose clause.
 
@@ -97,7 +97,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
   lives in `auditor-prompt.md`. This mechanism injects PROJECT rules only.
 - No rules into executor dispatches (phase 4 works from the plan; review criteria bias
   belongs on the review lanes) and none into the plan-audit/multi-auditor lanes (no diff
-  input there — `consult.mjs:601-619`).
+  input there — `consult.mjs:602-620`).
 - Zero npm dependencies (hand-rolled glob) · Node 18+ built-ins only · synchronous · no
   hook changes, no new phase, no new state fields.
 

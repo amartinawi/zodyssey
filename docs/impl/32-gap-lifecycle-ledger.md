@@ -17,19 +17,19 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
 
 1. **The loop's convergence claim is unmeasured.** "The remediation loop converges because
    each round shrinks the gap list — if it doesn't, the 5-round check-in surfaces it"
-   (`skills/odyssey/SKILL.md:336-338`). Nothing measures whether the gap list shrinks: the
+   (`skills/odyssey/SKILL.md:342-344`). Nothing measures whether the gap list shrinks: the
    history entry stores each round's gaps verbatim
-   (`skills/odyssey/scripts/consult.mjs:1432-1444`) and the report carries only
-   `consult_rounds` (`skills/odyssey/scripts/run-report.mjs:141`) — a count, blind to
+   (`skills/odyssey/scripts/consult.mjs:1514-1527`) and the report carries only
+   `consult_rounds` (`skills/odyssey/scripts/run-report.mjs:184`) — a count, blind to
    content. Row 29's evidence made this load-bearing: operator-reported 8-round
    non-convergent loops (`docs/impl/29-remediation-plan-contract.md:6-8`), and every round
    is a FRESH judge — so round N+1's REJECT is indistinguishable between "new information"
    and "the same ground re-raised against a fix that didn't land or didn't address it".
 2. **The filter-miss signal is prose, not mechanism.** "a new-round gap matching a prior
-   round's `[refuted]` advisory surfaces to the operator" (`SKILL.md:326-327`) — the
+   round's `[refuted]` advisory surfaces to the operator" (`SKILL.md:327-328`) — the
    conductor eyeballs the match; no deterministic key exists to match on.
 3. **Row 29's verify gate proves the fix, not the judge's agreement.** The pre-audit verify
-   gate (`SKILL.md:319-325`) checks each gap's `verify` command exits 0 — mechanical proof
+   gate (`SKILL.md:320-326`) checks each gap's `verify` command exits 0 — mechanical proof
    a fix landed. It cannot see the case where the verify passes but the next fresh judge
    re-raises the same ground (the fix addressed the letter, not the finding). Detecting
    THAT requires finding identity across rounds — which nothing has.
@@ -50,16 +50,16 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
      key) so JSON output is diffable run-to-run.
 2. **`consult.mjs` — one additive field on every history push.** Before each push, when
    `state.consult.history` already has an entry, compute the delta of this round's KEPT
-   gaps (`last_gaps` — post-routing/post-refute, `consult.mjs:1430`) against the previous
+   gaps (`last_gaps` — post-routing/post-refute, `consult.mjs:1505`) against the previous
    round's kept gaps; store `gap_delta: { round, new, persisting, resolved }` (counts +
    the persisting keys array) on the new entry at both push sites — post-done
-   (`consult.mjs:1432-1444`) and the multi-auditor lane (`consult.mjs:790`). First round →
+   (`consult.mjs:1514-1527`) and the multi-auditor lane (`consult.mjs:797`). First round →
    no field (nothing to compare). Verdict, gaps, exit codes, stdout JSON: untouched.
 3. **`run-report.mjs` — the report finally measures the claim.** Additive fields after
-   `consult_rounds` (`run-report.mjs:141`): `consult_gap_lifecycle: { last_new,
+   `consult_rounds` (`run-report.mjs:184`): `consult_gap_lifecycle: { last_new,
    last_persisting, last_resolved, max_persisting_streak }` (null when no consult history),
-   computed from `state.consult.history` (`run-report.mjs:61-63` already reads it); one
-   scorecard line after the verify-origin line (`run-report.mjs:182-184`) rendered only
+   computed from `state.consult.history` (`run-report.mjs:62-64` already reads it); one
+   scorecard line after the verify-origin line (`run-report.mjs:227-229`) rendered only
    when the fields exist (byte-identical output for pre-32 runs, the row-27 additive
    discipline). `max_persisting_streak` is the honest non-convergence signal: a gap
    persisting ≥3 rounds is exactly the operator's 8-round pathology, named per finding.
@@ -95,7 +95,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
 - **Never inject prior-round gaps into the next auditor's prompt** — round independence is
   load-bearing (`docs/impl/29-remediation-plan-contract.md:113-114`); the ledger reports
   to humans and the operator, never argues to the judge. The post-done prompt
-  (`consult.mjs:1163-1197`) gains nothing.
+  (`consult.mjs:1238-1272`) gains nothing.
 - Never gate on deltas — `gap_delta` and every report field are advisory evidence; no
   exit code, no verdict, no phase transition reads them (the item-19/25 advisory-only
   discipline).
@@ -105,9 +105,9 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
   load unchanged; `compareGaps` handles missing/empty fields without throwing.
 - `normalizeConsultVerdict` and `extractRemediationPlan` stay byte-identical
   (`lib/verdict-schema.mjs:88-105`, `:179-186`) — the ledger is downstream of KEPT gaps
-  only; routing/refute semantics (`consult.mjs:1385-1424`) are not re-derived, consumed
+  only; routing/refute semantics (`consult.mjs:1460-1499`) are not re-derived, consumed
   as-is.
-- The multi-auditor push (`consult.mjs:790`) gets the same one field — nothing else on that
+- The multi-auditor push (`consult.mjs:797`) gets the same one field — nothing else on that
   lane changes; plan-audit (writes `state.plan_audit`, no history) is out of scope.
 
 ## Acceptance criteria

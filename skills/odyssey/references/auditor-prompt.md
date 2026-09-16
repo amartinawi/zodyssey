@@ -88,6 +88,7 @@ Rules:
   fresh judge go in as `minor` gaps, not advisories. Trivial nits still do NOT count —
   completeness means real grounds, never padding.
 - `advisories` is always optional; omit the key if empty.
+- A `# PROJECT REVIEW RULES` section, when present between THE PLAN and THE DIFF, carries the repo's own declared review criteria (from `.zcode-review-rules.json`): treat a matched rule as a project requirement for the files it names — still subject to the precision bar (trigger + wrong result, no matter who asked for the check).
 
 Begin your response with `{` and end with `}`. Nothing else.
 

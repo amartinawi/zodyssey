@@ -18,12 +18,12 @@ hopium. Read the Must-NOT list before designing anything — the anti-goal is ab
 party independent of the model — never confirms them.** The chain, anchored:
 
 - PRIME (phase −1) produces the primed brief carrying "· intent + success criteria"
-  (`skills/odyssey/SKILL.md:82`) via `skill: prompt-master` (`skills/odyssey/SKILL.md:80`;
-  described at `skills/odyssey/references/capabilities.md:59`). Those success criteria are
+  (`skills/odyssey/SKILL.md:83`) via `skill: prompt-master` (`skills/odyssey/SKILL.md:81`;
+  described at `skills/odyssey/references/capabilities.md:60`). Those success criteria are
   model-derived. The user's only touchpoints in the whole pipeline are: the ambiguity ritual at
-  PRIME ("· ambiguities → ask the user (max 3, then commit)" at `skills/odyssey/SKILL.md:84`;
+  PRIME ("· ambiguities → ask the user (max 3, then commit)" at `skills/odyssey/SKILL.md:85`;
   "ask the user FIRST and WAIT" at `:85-86`), metis's user-questions at consult
-  (`skills/odyssey/SKILL.md:118`, `:417`), and the momus-loop safety rail (`:328`). **None of these
+  (`skills/odyssey/SKILL.md:119`, `:423`), and the momus-loop safety rail (`:334`). **None of these
   confirms the criteria themselves** — ambiguities are about what was asked, not about what will
   count as done.
 - The criteria that actually gate execution are authored later, by prometheus, into the plan the
@@ -78,7 +78,7 @@ transcription — and one absolute: **it never blocks.**
 standard the plan template itself enforces downstream (`skills/odyssey/scripts/scaffold.mjs:178`)
 — PRIME appends **one** AskUserQuestion round to the existing ambiguity ritual. The round lives
 INSIDE the standing budget, not beside it: max 3 questions at PRIME, then commit
-(`skills/odyssey/SKILL.md:84`). The question presents the top proposed criteria (at most 3
+(`skills/odyssey/SKILL.md:85`). The question presents the top proposed criteria (at most 3
 criteria; at most 4 options total per the AskUserQuestion tool's contract, one of which is always
 an explicit **skip**) for the user to **confirm / adjust / skip**. If the brief's criteria are
 qualitative, vague, or absent → **no round** — the trigger fails and the flow is exactly today's.
@@ -86,7 +86,7 @@ qualitative, vague, or absent → **no round** — the trigger fails and the flo
 **2. Recording — a stamped state, not a memory.** The conductor passes the round's outcome to the
 scaffold when it creates the run: `scripts/scaffold.mjs <repo> <slug> <title> <intent> [task-brief]
 --criteria-state confirmed|adjusted|skipped` (the invocation the conductor already makes, at
-`skills/odyssey/SKILL.md:434`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
+`skills/odyssey/SKILL.md:440`). Scaffold stamps `plans/<slug>.task.md` — the G5 file it already
 writes for the primed brief (`skills/odyssey/scripts/scaffold.mjs:239`, `:242`) — with a first
 line:
 
@@ -103,7 +103,7 @@ a value outside the three-state vocabulary exits **2** (bad args — the existin
 at `skills/odyssey/scripts/scaffold.mjs:36-37`), before any file is written.
 
 **3. Transcription — downstream honors the adjustment.** The PLAN phase
-(`skills/odyssey/SKILL.md:125-139`) gains one rule keyed to the stamp: `adjusted` → the user's
+(`skills/odyssey/SKILL.md:126-140`) gains one rule keyed to the stamp: `adjusted` → the user's
 criteria are transcribed verbatim (as executable commands) into the todos' Acceptance criteria —
 they are the source of truth, not the model's paraphrase of them; `confirmed` → the presented
 criteria; `skipped` or no stamp → today's authorship, unchanged. The user's role stays
@@ -135,7 +135,7 @@ The declared editable set — this becomes the fix-run plan's `Files:` list, ver
 
 Nothing else. `agents/prometheus.md` stays untouched (the user's role is upstream by design —
 see Must NOT do). `skills/odyssey/scripts/consult.mjs` is untouched: it reads `<slug>.task.md` as
-THE ORIGINAL TASK (`consult.mjs:926`, `:924`) and the stamp is a first-line HTML comment in what is
+THE ORIGINAL TASK (`consult.mjs:994`, `:992`) and the stamp is a first-line HTML comment in what is
 otherwise prose context. Hooks are untouched — this is not a gate and must never become one.
 `docs/` belongs to the release pass, not the gated run.
 
@@ -149,7 +149,7 @@ otherwise prose context. Hooks are untouched — this is not a gate and must nev
 - **Never make the round blocking.** No precondition, refusal, retry loop, or state-lane keyed on
   the confirmation state. Skip, no-answer, and headless must be byte-equivalent to today's flow.
 - **No blocking interview.** One round, inside the existing "max 3, then commit" budget
-  (`skills/odyssey/SKILL.md:84`) — never beside it, never above it, never a second round because
+  (`skills/odyssey/SKILL.md:85`) — never beside it, never above it, never a second round because
   the answer was incomplete. Never exceed the AskUserQuestion option cap (≤4 options).
 - **Do not make the flag load-bearing.** `--criteria-state` records a label; it authenticates
   nothing. Any agent can pass any value, and a forged `confirmed` stamp must remain inert — it can
@@ -300,7 +300,7 @@ Unchanged controls, required on BOTH builds — a probe that moves any of them h
 | Scaffold with no brief | exit 0 + W5 warning (`scaffold.mjs:247`) | **exit 0 + same warning** (a flag cannot make no-brief an error) |
 | plan.md / state.json contents, with vs. without the flag | identical | **identical** (the flag touches the task file only) |
 | A run created before this change (unstamped brief) | loads, consults, transitions | **loads, consults, transitions** (no new required state; `skipped`-by-absence is the transcription rule's default arm) |
-| Ambiguity ritual and metis user-question flows (`SKILL.md:84`, `:117`) | unchanged wording and budget | **unchanged wording and budget** (the round joins the budget; it does not expand it) |
+| Ambiguity ritual and metis user-question flows (`SKILL.md:85`, `:118`) | unchanged wording and budget | **unchanged wording and budget** (the round joins the budget; it does not expand it) |
 
 ## What it breaks
 
@@ -309,7 +309,7 @@ interaction round appears at PRIME — before any agent is dispatched, when answ
 The costs, stated exactly:
 
 - **One extra question for zero-question users.** Bounded: a single round, inside the standing
-  max-3 budget (`skills/odyssey/SKILL.md:84`), with an explicit skip option always present; a skip
+  max-3 budget (`skills/odyssey/SKILL.md:85`), with an explicit skip option always present; a skip
   answer reproduces today's flow byte-for-byte (control row 1 of the paired probe). Users who
   answer nothing at all get the same degradation — silence is a skip, not a stall.
 - **Latency for autonomous/headless runs: none, by contract.** AskUserQuestion unavailable →
@@ -318,7 +318,7 @@ The costs, stated exactly:
   `docs/OPPORTUNITY-MAP.md:267`) converted into the degradation clause; state it in the SKILL.md
   text itself so the opt-out is documented where the conductor reads it.
 - **Byte-exact consumers of `<slug>.task.md`.** `consult.mjs` reads the file as THE ORIGINAL TASK
-  for scope-fidelity judgment (`consult.mjs:926`, `:924`); a first-line HTML comment is additive to
+  for scope-fidelity judgment (`consult.mjs:994`, `:992`); a first-line HTML comment is additive to
   what is otherwise prose context — but re-verify consult's tolerance at build time before
   landing, and if any consumer ever byte-compares the file, the stamp is the thing to reconcile,
   never the brief body.
@@ -370,7 +370,7 @@ ambiguities; criteria are planner-authored"), each re-anchored at build time:
 - `skills/odyssey/SKILL.md` — done in this change (it IS the deliverable): PRIME box `:69-87`
   (round + trigger + bound + skip), PLAN box `:114-128` (transcription rule), scaffold invocation
   `:390` (the flag).
-- `skills/odyssey/references/capabilities.md:59` — the prompt-master entry's primed-brief
+- `skills/odyssey/references/capabilities.md:60` — the prompt-master entry's primed-brief
   description gains the criteria-confirmation round (trigger, one round, skip path).
 - `skills/odyssey/references/scripts.md:7` — the scaffold signature documents the optional
   `--criteria-state confirmed|adjusted|skipped` argument, the first-line stamp format, and the

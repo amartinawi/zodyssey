@@ -16,10 +16,10 @@ below were re-derived on 2026-08-16 and this file moves fast. Do exactly this on
 `~/.zcode/orchestration/eval/results.jsonl` by executing run-report from the **plugin cache**
 (`skills/odyssey/scripts/set-phase.mjs:481-485` — `fileURLToPath(new URL("./run-report.mjs",
 import.meta.url))`, with the in-code comment "so it is found from the plugin cache install").
-`skills/odyssey/scripts/run-report.mjs:114` calls `collectRunTokens`, which reads ZCode's durable
+`skills/odyssey/scripts/run-report.mjs:157` calls `collectRunTokens`, which reads ZCode's durable
 telemetry — the SQLite DB at `~/.zcode/cli/db/db.sqlite` (`skills/odyssey/scripts/lib/tokens.mjs:36`,
 table `model_usage` joined to `session` at `:105-114`). Token accounting shipped in 0.5.2
-(`CHANGELOG.md:645` dated 2026-08-15, entry at `CHANGELOG.md:705`; commit `6b0b428`
+(`CHANGELOG.md:668` dated 2026-08-15, entry at `CHANGELOG.md:728`; commit `6b0b428`
 "feat(telemetry): real per-run token accounting").
 
 **The corpus says "2 of ~193 populated" — and that number decomposes into three eras, none of which
@@ -50,7 +50,7 @@ already exists). The residual defects are three, all verified:
    distinct conditions — missing args (`skills/odyssey/scripts/lib/tokens.mjs:84`), DB file absent
    (`:85`), the `node:sqlite` binding unavailable (`:88-89`), DB open/query failure incl. locked
    (`:92`, `:171-173`), and zero usage rows in the window (`:116`) — and
-   `skills/odyssey/scripts/run-report.mjs:145` flattened all five (pre-0.6.3) into the single sentinel
+   `skills/odyssey/scripts/run-report.mjs:190` flattened all five (pre-0.6.3) into the single sentinel
    `"tokens":null`. A record cannot say whether null means "fixture run, correctly empty" or
    "telemetry silently dead". It took live DB forensics (this prompt's own re-derivation) to
    establish the mechanism works at all; the populated fraction is not measurable as a health

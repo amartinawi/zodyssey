@@ -18,7 +18,7 @@ release — the directory name and the declared version disagree, and the direct
 This is load-bearing, not cosmetic. The terminal auto-append runs the **cached** `run-report.mjs`
 (`set-phase.mjs:480-485` resolves it self-relative "so it is found from the plugin cache install"),
 so "which plugin version actually emitted this record?" is a provenance question this project asks on
-every `done`/`audited` close. The emitted record (`run-report.mjs:134-166`) carries `slug`, `phase`,
+every `done`/`audited` close. The emitted record (`run-report.mjs:177-211`) carries `slug`, `phase`,
 `verify_origin`, `wall_clock_min`, `generated_at`, … but **no version field at all** — so a row in
 `~/.zcode/orchestration/eval/results.jsonl` cannot say which plugin version produced it, and the only
 thing that could answer it (the cache dir name) answers it wrong.

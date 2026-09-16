@@ -4,6 +4,29 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 ### Added
+- Capability routing: "Review a PR / changeset line-by-line" now routes to the external `ocr`
+  CLI (alibaba/open-code-review — Apache-2.0, npm `@alibaba-group/open-code-review` v1.12.2,
+  own LLM config) when installed, with the invocation discipline (audience agent, output
+  file, severity-grouped reporting) in capabilities.md. Routing-only: the enforcement
+  pipeline (consult/F2/F4) keeps its existing binaries; a repo without `ocr` degrades to
+  today's in-session review routes.
+- Per-project review rules (open-code-review adaptation, row 31): a committed
+  `.zcode-review-rules.json` at the repo root (`{"rules":[{"path":"<glob>","rule":"<one line>"}]}`)
+  is glob-matched against the changed files and injected as a DATA section into the external
+  auditor's prompt (post-done lane; ≤8 rules / ≤200 chars each / ≤4KB total; absent file →
+  byte-identical prompt; malformed → warn + skip, never a gate). auditor-prompt.md legitimizes
+  matched rules as project requirements, still subject to the precision bar. The
+  multi-auditor and plan-audit lanes are untouched (no diff input there). Transplanted from
+  alibaba/open-code-review's rule.json layering.
+- Gap lifecycle ledger (open-code-review adaptation, row 32): every consult history entry
+  gains `gap_delta` (new/persisting/resolved vs the previous round, computed from a
+  deterministic finding key — category + whitespace-collapsed issue), and run-report emits
+  `consult_gap_lifecycle` (including `max_persisting_streak` — the honest non-convergence
+  signal), `open at close` (kept gaps on a terminal REJECT are never counted as resolved),
+  and `recurred_gaps_from_prior_runs`. Advisory evidence only: nothing gates on it, and the
+  next auditor round still receives nothing from the previous one. Mechanism transplanted
+  from alibaba/open-code-review's session-compare (findingKey + New/Persisting/Resolved/
+  NotReviewed buckets). Suite 59 → 60 (new gap-ledger suite).
 - Research deliverable contract (hyperresearch adaptation, row 33): research-kind plans carry a
   `## Deliverable contract` (register/format/tier levers — `analyze` default, explicit user
   directive wins, tier-up-when-uncertain; ordered literal headings; atomic items incl.

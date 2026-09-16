@@ -52,6 +52,7 @@
 | **Merge / finish branch** | `skill: finishing-a-development-branch` | `skill: merge-ready` |
 | **Media / image / PDF** | `Task: zodyssey:multimodal-looker` (ours) | — |
 | **Parallel independent tasks** | `skill: dispatching-parallel-agents` | (the orchestrator does this natively in phase 4) |
+| **Review a PR / changeset line-by-line (external reviewer)** | `skill: open-code-review` (`ocr` CLI — external install) | `Task: code-reviewer`, `claude-security` plugin |
 
 ## Detail — when to reach for each, by phase
 
@@ -99,7 +100,7 @@
 ### Phase 6 — Final verification wave (F1–F4) — now evidence-bound
 - **`scripts/record-final-wave.mjs`** — binds all four F-items to evidence (closes the "final wave was unbound self-report" gap, the operational-consult's central defect).
 - **F1 Plan-compliance:** MACHINE-CHECKED inside record-final-wave.mjs as a set-difference (plan `Files:` vs `git diff --name-only`). No longer orchestrator self-review.
-- **F2 Code-quality:** `Task: code-reviewer` (feature-dev) → produces an artifact under `.zcode/reviews/` with a hook-minted nonce; `skill: merge-ready` as the F2 wrapper (multi-axis subagent review with verified findings). record-final-wave verifies the nonce.
+- **F2 Code-quality:** `Task: code-reviewer` (feature-dev) → produces an artifact under `.zcode/reviews/` with a hook-minted nonce; `skill: merge-ready` as the F2 wrapper (multi-axis subagent review with verified findings). record-final-wave verifies the nonce. When a committed `.zcode-review-rules.json` exists at the repo root (row 31), the conductor passes its PATH in the F2 dispatch prompt (pointer, not paste — the reviewer reads the file itself).
 - **F3 Manual-QA:** for UI tasks, the **`skill: ui-ux-pro-max`** pre-delivery checklist (no emoji icons, contrast ≥4.5:1, no layout-shift hovers, responsive at 320/768/1024/1440px, accessibility: alt text + form labels + `prefers-reduced-motion`) serves as the F3 verification standard. Route the **`chrome-devtools` MCP** (drive the page + screenshot) and the **`zai-mcp-server` MCP** (`ui_diff_check` vs a design ref, or `diagnose_error_screenshot`) to produce the F3 verdict — **in the PARENT thread** (sub-agents don't get routed MCPs; see trust anchor above). That verdict is written to a checklist file consumed by `record-final-wave.mjs --f3-checklist <path>` (NOT a bare `--f3`). → see **`references/f3-ui-verify.md`** for the full wiring sequence (drive → screenshot → diff/diagnose → checklist → `--f3-checklist`). For non-UI tasks, an executable shell checklist remains (same `--f3-checklist` consumption).
 - **F4 Scope-fidelity:** `Task: zodyssey:oracle` → artifact under `.zcode/reviews/` with a hook-minted nonce; record-final-wave verifies.
 
@@ -116,6 +117,8 @@
 - **`skill: using-superpowers`** — load at SessionStart to keep the capability-discovery habit active throughout.
 - **AWS work:** the 13 `aws-*` skills are authoritative for anything on AWS — Metis/Prometheus MUST route AWS tasks to the matching one rather than improvising.
 - **WordPress / Iqraa / SEO:** `iqraa-wordpress`, `wordpress-mcp`, and the `openseo-*` / SEO skills are domain-specific; route to them for those domains.
+
+- **`ocr` — the external line-precise reviewer (row 30; routing-only).** `skill: open-code-review` wraps the `ocr` CLI (alibaba/open-code-review — Apache-2.0, npm `@alibaba-group/open-code-review` v1.12.2, 28k★; clears the external-skill quality gate above with room to spare). Route when the user wants line-precise review of changes/PRs in their repo AND `ocr` is installed. Install story: `npm i -g @alibaba-group/open-code-review` (needs Git ≥ 2.41) + its own LLM config (`ocr config provider`) — NOT the ZOdyssey auditor's `CLAUDE_CLI`. Invocation discipline from their shipped skill: always `ocr review --audience agent -b "<business context from the task>"`, prefer `--output <file>` read in full (never pipe through `tail`/`head` — drops comments), report grouped by severity discarding `low` as likely false positives, and never auto-apply fixes without explicit user request. Not installed → the discovery tri-state with this manual-install pointer; a repo without `ocr` degrades to today's in-session review routes — absence is never a gate. The enforcement pipeline (consult/F2/F4) keeps its existing binaries.
 
 ### The three newest capabilities (use these deliberately)
 

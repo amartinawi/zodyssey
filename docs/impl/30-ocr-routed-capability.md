@@ -19,14 +19,14 @@ bin).
 
 ZOdyssey's promise is "always use the best available capability for the job"
 (`skills/odyssey/references/capabilities.md:3`), enforced as the default
-(`skills/odyssey/SKILL.md:46-57` — generic knowledge is the FALLBACK). For code review the
+(`skills/odyssey/SKILL.md:47-58` — generic knowledge is the FALLBACK). For code review the
 table routes two in-session shapes — "Audit code" (`SKILL.md:36`) and "Review code
 (pre-merge)" (`capabilities.md:49`) — and F2 routes `Task: code-reviewer`
-(`capabilities.md:102`). Missing: the activity "review a PR / changeset line-by-line in
+(`capabilities.md:103`). Missing: the activity "review a PR / changeset line-by-line in
 THIS repo with an external specialized reviewer". A user asking ZOdyssey exactly that gets a
 generic in-session review, the Task-B failure class the routing rule exists to prevent
 (an installed best capability bypassed). `ocr` clears the external-skill quality gate
-(`SKILL.md:44` — prefer ≥1K installs and official sources) with room to spare: alibaba org,
+(`SKILL.md:45` — prefer ≥1K installs and official sources) with room to spare: alibaba org,
 28k★, Apache-2.0, npm-distributed. This is a routing gap, not a mechanism gap — no pipeline
 code is missing, only the table rows that make the capability visible to triage/metis.
 
@@ -38,7 +38,7 @@ code is missing, only the table rows that make the capability visible to triage/
    external line-precise reviewer over arbitrary diffs):
    `| **Review a PR / changeset line-by-line (external reviewer)** | `skill: open-code-review` (`ocr` CLI — external install) | `Task: code-reviewer`, `claude-security` plugin |`
 2. **A detail paragraph under the matrix's phase sections** (append at the end of the
-   "Cross-cutting" section, before `capabilities.md:120`'s newest-capabilities heading, or as
+   "Cross-cutting" section, before `capabilities.md:123`'s newest-capabilities heading, or as
    a new final section — placement keeps all pins above it intact) carrying:
    - the install story: `npm i -g @alibaba-group/open-code-review` (v1.12.2, Apache-2.0,
      installs `ocr`; Git ≥ 2.41) + its own LLM config (`ocr config provider`) — NOT the
@@ -51,7 +51,7 @@ code is missing, only the table rows that make the capability visible to triage/
      auto-apply fixes without explicit user request;
    - the routing condition: route when the user wants line-precise review of changes/PRs in
      their repo AND `ocr` is installed; not installed → the discovery tri-state
-     (`SKILL.md:48-57`) with the manual-install pointer above. Absence degrades to today's
+     (`SKILL.md:49-58`) with the manual-install pointer above. Absence degrades to today's
      routing; nothing blocks.
 3. **`SKILL.md` headline table gains ONE row, appended after `SKILL.md:40`** (end of table;
    all pins `≥:41` shift — declared below):
@@ -68,12 +68,12 @@ code is missing, only the table rows that make the capability visible to triage/
 ## Must NOT do
 
 - No pipeline wiring: `ocr` NEVER joins consult/F2/F4 — the enforcement path keeps
-  `CLAUDE_CLI`/`CLAUDE_CLI_2` (`SKILL.md:452`) as its only external binaries; adopting OCR as
+  `CLAUDE_CLI`/`CLAUDE_CLI_2` (`SKILL.md:458`) as its only external binaries; adopting OCR as
   machinery was the study's REJECTED option (own API-key lifecycle, marginal over the
   existing second-model knob).
 - No vendoring of their SKILL.md into the plugin — it would ship foreign content to every
   install and drag versioning; the routing row points at the external install.
-- No new MCP registration (`capabilities.md:151` discipline: route high-leverage unrouted
+- No new MCP registration (`capabilities.md:154` discipline: route high-leverage unrouted
   ones first; `ocr` is a CLI skill route, not an MCP).
 - No modification of existing matrix rows — additive only; the `:49` pre-merge row is
   untouched (one activity per row).
@@ -146,7 +146,7 @@ and capabilities.md pins `≥:55`. No consult.mjs / auditor-prompt.md / hook sur
 ## Capability routing
 
 `generic: documentation-only row additions — no code surface; the implementing run
-transcribes exactly this` (the external-skill quality gate at `SKILL.md:44` is satisfied
+transcribes exactly this` (the external-skill quality gate at `SKILL.md:45` is satisfied
 and stamped inside the row text: org, license, star count).
 
 ## Estimated size

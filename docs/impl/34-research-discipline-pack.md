@@ -23,7 +23,7 @@ Ground-truthed 2026-09-16 (post-`63ff76a`, suite 59/59).
    reprints of one press release argue with the weight of one source"). explore
    (`agents/explore.md:36-53`) returns file lists + answers with no span-citation rule.
 3. **Synthesis merges silently.** SKILL.md's context-economy rule 3
-   (`skills/odyssey/SKILL.md:208-214`) mandates synthesis-as-sub-agent but says nothing
+   (`skills/odyssey/SKILL.md:209-215`) mandates synthesis-as-sub-agent but says nothing
    about CONFLICTS — contradictory findings from parallel workers get averaged or dropped
    with no trace (hyperresearch runs a dedicated contradiction-graph + source-tensions step
    pair for exactly this).

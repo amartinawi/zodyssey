@@ -38,6 +38,7 @@ This is the orchestrator's core promise. This machine has 8 plugins, ~50 skills,
 | Verify before "done" | `skill: verification-before-completion` |
 | Remember across runs | `memory` MCP (knowledge graph) |
 | Media/image/PDF | `Task: zodyssey:multimodal-looker` |
+| Review a PR/changeset line-by-line | `skill: open-code-review` (`ocr` — external install, own LLM config) |
 
 The table is the summary; `capabilities.md` is the authoritative detail. **Tell every agent you dispatch which capability to use for its activity** — don't assume they'll reach for it on their own. The whole point is that the orchestrator is the thing that *knows* to load TDD, codegraph, a premortem.
 
@@ -325,6 +326,11 @@ because the auditor cannot inherit the run's assumptions.
    - **Do NOT re-audit while a listed verify command still fails.**
    - **filter-miss signal (round N+1):** a new-round gap matching a prior round's `[refuted]` advisory
      surfaces to the operator as a filter-miss — never silently re-remediated.
+   - **gap lifecycle (row 32):** every history entry from round 2 on carries `gap_delta` (read it
+     `|| {}`) — new/persisting/resolved counts vs the previous round, computed from a deterministic
+     finding key with the `persisting_keys` recorded — the filter-miss check above can match keys
+     instead of eyeballing prose, and run-report surfaces `max_persisting_streak` (a gap persisting
+     ≥3 rounds is the non-convergence signal to surface).
    - **loop until ACCEPT — no hard cap.** Soft safety rail: every 5 rounds, AskUserQuestion to
      confirm the user wants to continue (prevents unattended infinite loops; honors "no hard cap").
    - **empty last_gaps surface rule (key on observable state, not on what emptied it):** a REJECT

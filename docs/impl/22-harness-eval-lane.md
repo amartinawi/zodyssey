@@ -315,7 +315,7 @@ retained pending an operator-side data decision.
 routed: skill:test-driven-development
 ```
 
-Non-negotiable for code in this repo (skills/odyssey/references/capabilities.md:85 routes
+Non-negotiable for code in this repo (skills/odyssey/references/capabilities.md:86 routes
 "Implement (TDD)"-class todos through the discipline; capabilities.md:41 is the routing row),
 and this run literally used it: the hermetic RED probe observed the defect on the UNMODIFIED
 tree before any edit (2026-08-20, exit 0 with the defect present, counts captured), the new
