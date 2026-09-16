@@ -52,6 +52,9 @@ Always end with this exact format:
 </next_steps>
 </results>
 
+### 4. Span-Cited Claims (required)
+Every factual claim in `<answer>` cites the `path:line` span that witnessed it (read the span before citing it). An answer claim without a span is an opinion.
+
 ## Success Criteria
 
 - **Paths** - ALL paths must be **absolute** (start with /)

@@ -39,7 +39,7 @@ compliant precedent (`env: { ...process.env, ZODYSSEY_EVAL_LANE: "synthetic" }`)
 every harness-driven baseline record landed in `results.jsonl`, the operator's trend log — the
 exact corpus-decontamination class item 05 closed for set-phase (the consumer at
 skills/odyssey/scripts/set-phase.mjs:495-498), reopened by the harness that postdates it.
-Candidate C4, docs/impl/00-INDEX.md:213-219. Proved before any edit: the hermetic RED probe of
+Candidate C4, docs/impl/00-INDEX.md:215-221. Proved before any edit: the hermetic RED probe of
 2026-08-20 (under *Paired probe*) watched one `arm:"baseline"` record land in a temp HOME's
 operator lane while the synthetic file was never created — and the probe's own success condition
 encoded that broken routing, which is what "exit 0 with the defect present" means.
@@ -256,7 +256,7 @@ Two residuals are explicitly NOT closed, stated honestly:
 ## Docs to update
 
 - **`docs/impl/00-INDEX.md`** — queue row 22 lands line-count-neutral (218 held); candidate
-  C4's paragraph (docs/impl/00-INDEX.md:213-219) takes its promotion stamp in-row, with the
+  C4's paragraph (docs/impl/00-INDEX.md:215-221) takes its promotion stamp in-row, with the
   superset consequence stated (spawns tagged AND the self-append routed; 2 polluted records
   documented, not deleted).
 - **`CHANGELOG.md`** — the `[0.6.15]` entry directly under the header, transcribing the shape
@@ -315,7 +315,7 @@ retained pending an operator-side data decision.
 routed: skill:test-driven-development
 ```
 
-Non-negotiable for code in this repo (skills/odyssey/references/capabilities.md:84 routes
+Non-negotiable for code in this repo (skills/odyssey/references/capabilities.md:85 routes
 "Implement (TDD)"-class todos through the discipline; capabilities.md:41 is the routing row),
 and this run literally used it: the hermetic RED probe observed the defect on the UNMODIFIED
 tree before any edit (2026-08-20, exit 0 with the defect present, counts captured), the new

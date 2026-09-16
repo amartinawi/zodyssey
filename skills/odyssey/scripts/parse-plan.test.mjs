@@ -424,5 +424,64 @@ console.log("parse-plan.mjs unit tests\n");
   }
 }
 
+// --- Deliverable-contract shape gate (row 33): presence-gated, vacuous-refusing ------------
+// Mirrors the routing-token rule: parse-plan cannot know the run's KIND (intent lives in
+// state, not the plan file), so PRESENCE for research plans is momus's judgment call — but
+// WHEN the section exists, lint refuses a vacuous shape (untyped register lever, empty
+// heading list). An unfilled contract looks enforced while binding nothing.
+{
+  const dir = mkdtempSync(join(tmpdir(), "pp-dc-"));
+  try {
+    mkdirSync(join(dir, ".zcode", "plans"), { recursive: true });
+    const planPath = join(dir, ".zcode", "plans", "p.md");
+    const base = (contractBlock) =>
+      `# p\n\n## Capability routing\n- \`routed: skill:prompt-master\`\n- Evidence: fixture.\n${contractBlock ? "\n" + contractBlock + "\n" : ""}\n## Todos\n\n- [ ] 1. write the report\n  - Files: [\`docs/report.md\`]\n  - Acceptance criteria:\n    - \`test -f docs/report.md\` exits 0\n\n## Final verification wave\n`;
+    const lint = () => {
+      const r = spawnSync(process.execPath, [PARSE, planPath, "--lint"], { encoding: "utf8" });
+      let out = {};
+      try { out = JSON.parse(r.stdout || "{}"); } catch {}
+      return { code: r.status, out };
+    };
+
+    // Absent section: today's behavior, byte-identical — the gate is presence-gated.
+    writeFileSync(planPath, base(""));
+    let r = lint();
+    check("contract: absent section lints clean (presence-gated)", r.code === 0,
+      JSON.stringify(r.out.problems || []).slice(0, 160));
+
+    // Valid contract: typed register + ordered literal headings + items.
+    writeFileSync(planPath, base("## Deliverable contract\n\n- register: analyze\n- format: structured\n- tier: full\n\n### Headings (ordered — literal H2s)\n\n1. ## Background\n2. ## Per-entity analysis\n3. ## Tensions and open questions\n\n### Items\n\n- Sub-questions: what each entity supports\n- Entities: Foo (required fields: version, license), Bar\n- Period-pinned: FY 2023 figures (primary source: Foo 10-K)"));
+    r = lint();
+    check("contract: typed register + ordered headings passes", r.code === 0,
+      JSON.stringify(r.out.problems || []).slice(0, 160));
+
+    // Bullet-form headings (alternate authoring shape) also count.
+    writeFileSync(planPath, base("## Deliverable contract\n- register: survey — user asked for a scan\n\n### Headings\n- ## Landscape\n- ## Winners"));
+    r = lint();
+    check("contract: bullet-form headings pass; prose tail on the register allowed", r.code === 0,
+      JSON.stringify(r.out.problems || []).slice(0, 160));
+
+    // Vacuous: headings list empty → the enforcement surface is missing.
+    writeFileSync(planPath, base("## Deliverable contract\n- register: analyze\n- format: short\n\n### Headings\n\n(none yet)"));
+    r = lint();
+    check("contract: EMPTY headings list fails, naming the section", r.code === 6 &&
+      (r.out.problems || []).some((p) => /Deliverable contract/.test(p.issue || "") && /[Hh]eadings/.test(p.issue || "")));
+
+    // Vacuous: register missing entirely.
+    writeFileSync(planPath, base("## Deliverable contract\n\n### Headings\n1. ## Background\n\n### Items\n- Sub-questions: everything"));
+    r = lint();
+    check("contract: missing register lever fails, naming the lever", r.code === 6 &&
+      (r.out.problems || []).some((p) => /register/.test(p.issue || "")));
+
+    // Vacuous: register present but untyped (not one of the four values).
+    writeFileSync(planPath, base("## Deliverable contract\n- register: balanced\n\n### Headings\n1. ## Background"));
+    r = lint();
+    check("contract: untyped register value fails", r.code === 6 &&
+      (r.out.problems || []).some((p) => /register/.test(p.issue || "")));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 console.log(`\n${pass}/${pass + fail} passed`);
 exit(fail === 0 ? 0 : 1);

@@ -76,9 +76,17 @@ Attempt to refute the plan on its surface area.
 - **Are shared-file dependencies declared?** If two todos both edit the same
   file, that dependency must be declared (the file-lock discipline depends on
   it). An undeclared shared-file conflict is a refutation.
+- **Does a research-kind plan carry a `## Deliverable contract`?** If the plan's
+  deliverable is a report/study/survey (research KIND) and the contract section
+  is absent, refute — thematic drift is unverifiable without one, and the
+  deliverable's structure is then bound to nothing. A present-but-thin contract
+  (headings not derived from the ask's entities/sub-questions; period-pinned
+  asks like "FY 2023" missing from Items) is the same refutation. parse-plan
+  lints the section's SHAPE; PRESENCE for research plans is this lens's call.
 
 REJECT this lens if a todo is missing, a file is wrongly scoped, scope creep is
-structural, or a shared-file dependency is undeclared.
+structural, a shared-file dependency is undeclared, or a research plan lacks a
+real Deliverable contract.
 
 ### Lens 3 — Verification rigor
 

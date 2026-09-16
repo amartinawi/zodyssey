@@ -405,6 +405,27 @@ if (mode === "--lint") {
   if (!routing) {
     problems.push({ todo: "-", issue: "no valid `## Capability routing` declaration — the section is missing, or no line carries a real tri-state token (`routed: skill:<name>` / `discovered: find-skills` / `generic: <reason>`). Placeholders (`<token>`, `<name>`, `<reason>`) do not count. Routing is the default and generic is the fallback; the routing decision must be declared before the plan can be approved." });
   }
+  // Row 33 (hyperresearch adaptation): deliverable-contract SHAPE gate. Presence-gated by
+  // design: whether a run is research-KIND is momus's judgment call (intent lives in state,
+  // not in this file), so absence lints clean and momus enforces presence for research plans.
+  // But WHEN the section exists it must not be vacuous — the same reasoning as the routing
+  // token above: an unfilled contract looks enforced while binding nothing. Shape = the
+  // register lever typed (teach|survey|analyze|advocate; default analyze) + a non-empty
+  // ordered list of literal headings (the grep-able verify surface). Prose tails after the
+  // typed value are fine — levers are documentation too.
+  const deliverableSection = section("Deliverable contract");
+  if (deliverableSection) {
+    const contractLines = deliverableSection.split("\n");
+    const registerLine = contractLines.find((ln) => /^\s*[-*]?\s*`?register`?\s*:/i.test(ln));
+    const registerTyped = !!registerLine && /\b(teach|survey|analyze|advocate)\b/i.test(registerLine);
+    if (!registerTyped) {
+      problems.push({ todo: "-", issue: "`## Deliverable contract` present but its `register:` lever is missing or untyped — it must be one of teach|survey|analyze|advocate (default `analyze`; an explicit user directive always wins). A vacuous contract looks enforced while binding nothing." });
+    }
+    const headingItems = contractLines.filter((ln) => /^\s*(?:[-*]|\d+[.)])\s*##\s+\S/.test(ln));
+    if (headingItems.length === 0) {
+      problems.push({ todo: "-", issue: "`## Deliverable contract` present but its Headings list is empty — the ordered literal headings are the contract's enforcement surface (grep-able acceptance criteria; the deliverable is judged heading-by-heading). Either populate them or remove the section: an empty contract binds nothing while claiming to." });
+    }
+  }
   // Todo 14 (injection hardening): EXTEND the existing lint with an untrusted-content scan.
   // Plans + notepads are agent-written and flow into dispatch prompts; an injected "ignore
   // previous instructions" in prose could drive Bash. The Bash write-gate is LIVE (pre-tool.mjs

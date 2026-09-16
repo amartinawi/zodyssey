@@ -17,7 +17,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
 
 1. **The loop's convergence claim is unmeasured.** "The remediation loop converges because
    each round shrinks the gap list — if it doesn't, the 5-round check-in surfaces it"
-   (`skills/odyssey/SKILL.md:320-322`). Nothing measures whether the gap list shrinks: the
+   (`skills/odyssey/SKILL.md:336-338`). Nothing measures whether the gap list shrinks: the
    history entry stores each round's gaps verbatim
    (`skills/odyssey/scripts/consult.mjs:1432-1444`) and the report carries only
    `consult_rounds` (`skills/odyssey/scripts/run-report.mjs:141`) — a count, blind to
@@ -26,10 +26,10 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
    is a FRESH judge — so round N+1's REJECT is indistinguishable between "new information"
    and "the same ground re-raised against a fix that didn't land or didn't address it".
 2. **The filter-miss signal is prose, not mechanism.** "a new-round gap matching a prior
-   round's `[refuted]` advisory surfaces to the operator" (`SKILL.md:310-311`) — the
+   round's `[refuted]` advisory surfaces to the operator" (`SKILL.md:326-327`) — the
    conductor eyeballs the match; no deterministic key exists to match on.
 3. **Row 29's verify gate proves the fix, not the judge's agreement.** The pre-audit verify
-   gate (`SKILL.md:303-309`) checks each gap's `verify` command exits 0 — mechanical proof
+   gate (`SKILL.md:319-325`) checks each gap's `verify` command exits 0 — mechanical proof
    a fix landed. It cannot see the case where the verify passes but the next fresh judge
    re-raises the same ground (the fix addressed the letter, not the finding). Detecting
    THAT requires finding identity across rounds — which nothing has.

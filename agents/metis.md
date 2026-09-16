@@ -184,6 +184,12 @@ Confirm:
 - MUST: Define synthesis format (how to present findings)
 - MUST NOT: Research indefinitely without convergence
 
+**Research deliverable contract (rows 33-34)** — also emit, for transcription into the plan:
+- MUST: The contract inputs — levers (`register: teach|survey|analyze|advocate`, default analyze, explicit user directive wins; `format: short|structured|argumentative`; `tier: light|full`, tier up when uncertain) + the atomic decomposition (sub-questions, entities with required fields, required formats, **period-pinned time periods with primary source named** — the top silent miss, scope conditions) + the ordered literal heading list (one per enumerated ask / flagged entity / derived sub-question) + a coverage note mapping every noun-phrase of the verbatim ask to an item (zero unmapped). This lands in the plan's `## Deliverable contract` (parse-plan lints its shape; momus rejects its absence).
+- MUST: Recommend dispatch prompts that carry the canonical question VERBATIM, block-quoted — the orchestrator adds the lens/scope AROUND it, never a paraphrase instead of it.
+- MUST: Direct that worker findings are flagged `contested:` when they conflict with another source or a prior notepad, and that synthesis emits a **Tensions** section (claim vs claim, sources, adopted resolution + why) — conflicts surface, they are never silently averaged.
+- MUST: Research notepads end with one line — `Answers the question: yes|partial|no — <why>` (the conductor's drift probe before synthesis).
+
 ---
 
 ## OUTPUT FORMAT

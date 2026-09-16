@@ -106,6 +106,12 @@ function example() { ... }
 
 **Getting SHA**: `git rev-parse HEAD` (from clone) · `gh api repos/owner/repo/commits/HEAD --jq '.sha'` · `gh api repos/owner/repo/git/refs/tags/v1.0.0 --jq '.object.sha'`
 
+### RESEARCH-CLAIM RULES (when dispatched for a research run)
+
+- **Verbatim passages, not paraphrases**: a doc-derived claim carries the source's exact words in the quote block (ellipsize with `…`, never rewrite). A paraphrase is a claim about your reading, not about the source.
+- **`contested:` marker**: when a finding conflicts with another source or a prior notepad the dispatch named, say so — `contested: <claim/source>` — surfaced conflicts are the synthesis step's raw material; silent averaging is the failure mode.
+- **Syndication awareness**: prefer the PRIMARY source, and say when the "multiple sources" are syndicated copies of one press release or blog post — five reprints argue with the weight of one.
+
 ---
 
 ## TOOL MAPPING (ZCode)

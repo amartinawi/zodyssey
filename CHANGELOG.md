@@ -2,6 +2,23 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+### Added
+- Research deliverable contract (hyperresearch adaptation, row 33): research-kind plans carry a
+  `## Deliverable contract` (register/format/tier levers — `analyze` default, explicit user
+  directive wins, tier-up-when-uncertain; ordered literal headings; atomic items incl.
+  period-pinned figures with their primary source named, plus a coverage note).
+  `parse-plan --lint` refuses a vacuous shape when the section is present (the routing-token
+  precedent); momus rejects a research plan without it; the external auditor judges the finished
+  deliverable against it (headings in order, entities covered, period figures exact). Headings
+  become grep-able acceptance criteria.
+- Research discipline pack (hyperresearch adaptation, row 34): research dispatches carry the
+  canonical question verbatim (block-quoted, from the task brief); librarian findings carry
+  verbatim quoted passages + permalinks with `contested:` and syndication markers; explore
+  answers cite `path:line` spans; research notepads end with a one-line drift check
+  (`Answers the question: yes|partial|no — why`); and research synthesis must emit a Tensions
+  section (claim vs claim, sources, adopted resolution + why). Prompt-layer only.
+
 ## [0.7.4] — 2026-09-07
 ### Added
 - Consult REJECTs now carry a complete, executable remediation surface: the auditor's gap list is

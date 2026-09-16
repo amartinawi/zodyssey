@@ -25,7 +25,7 @@ convergence — and each half optimizes against the other. Three mechanisms mult
 2. **`fix` is a one-liner with no proof.** Each gap's `fix` is one instruction line
    (`auditor-prompt.md:68`); nothing requires a runnable proof that the fix landed. The loop's
    re-verify step — "run any affected acceptance commands" (`commands/orchestrate-consult.md:30`,
-   mirrored `skills/odyssey/SKILL.md:303`) — is discretionary and unbound from the auditor's words,
+   mirrored `skills/odyssey/SKILL.md:319`) — is discretionary and unbound from the auditor's words,
    so an incomplete remediation is discovered only by spending a full external audit round, the most
    expensive possible check.
 3. **Nothing plan-shaped survives the round.** `consult.last_gaps`
@@ -152,7 +152,7 @@ cap). The anchor surface moves in two declared places: consult.mjs edits (the `:
 mirror, the `:745+` winner merge, the `:1430+` persist) shift every consult.mjs pin below `:265` —
 the INDEX C6 block's pins and `skills/odyssey/scripts/consult.mjs:593-596` (pinned from
 `docs/DELEGATE-REVIEW.md:213`) — and the SKILL.md consult-box edit shifts
-`skills/odyssey/SKILL.md:364-372` and `:374-378` (pinned from `docs/DELEGATE-REVIEW.md:71`); both
+`skills/odyssey/SKILL.md:380-388` and `:390-395` (pinned from `docs/DELEGATE-REVIEW.md:71`); both
 are inside the one mechanical re-baseline below. auditor-prompt.md needs NO re-baseline — placement
 keeps every pin `≤:57` intact, and the head-57 diff criterion proves it.
 

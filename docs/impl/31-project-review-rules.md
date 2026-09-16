@@ -28,7 +28,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
    in `auditor-prompt.md` makes them contractually ignorable. The prompt and the injection
    mechanism are one change, not two.
 3. **The F2 lane has the same blindness.** The F2 code-quality dispatch text
-   (`skills/odyssey/references/capabilities.md:101` — `Task: code-reviewer` + `skill:
+   (`skills/odyssey/references/capabilities.md:102` — `Task: code-reviewer` + `skill:
    merge-ready`) reviews with a static rubric too;
    the plan contract solved this shape for execution (executable criteria per repo);
    the audit lane never got the equivalent.
@@ -64,10 +64,10 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
    declared review criteria; treat a matched rule as a project requirement for the files
    it names, subject to the precision bar (`auditor-prompt.md:120-127` — trigger + wrong
    result, no matter who asked for the check).
-4. **F2 lane — a pointer, not a paste.** `capabilities.md:101` (the F2 detail line) gains:
+4. **F2 lane — a pointer, not a paste.** `capabilities.md:102` (the F2 detail line) gains:
    when `.zcode-review-rules.json` exists at the repo root, the conductor passes its path
    in the F2 `code-reviewer` dispatch prompt (pointer + delta per the context-economy
-   rule, `SKILL.md:374-378`) — the reviewer reads the file itself; nothing is restated.
+   rule, `SKILL.md:390-395`) — the reviewer reads the file itself; nothing is restated.
    SKILL.md is deliberately not a seam here: its only F2 text is the fixed-width phase-6
    ASCII diagram, which admits no prose clause.
 

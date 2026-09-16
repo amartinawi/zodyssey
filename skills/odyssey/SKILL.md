@@ -62,6 +62,16 @@ This is **gated, not advisory**:
 
 Because sub-agents cannot load skills (trust anchor), **the orchestrator loads the chosen skill / `find-skills` in the parent thread** — that load is what the hook observes and what the final-wave gate checks. Telling a dispatched sub-agent to "use skill X" without loading it yourself produces zero observation and fails the gate.
 
+### Research deliverables carry a contract (research-kind runs)
+
+When metis classifies the run's KIND as research (the deliverable is a report, study, or survey — not code), zodyssey:prometheus writes a `## Deliverable contract` section into the plan, transcribed from metis's directives:
+
+- **Levers** — three typed lines: `register: teach|survey|analyze|advocate` (default `analyze`; an explicit user directive always wins), `format: short|structured|argumentative`, `tier: light|full` (light = bounded lookup/comparison; full = contested topics and conflicting evidence — **when uncertain, tier up**).
+- **Headings** — an ordered list of literal H2 headings the deliverable must emit, in order: one per enumerated ask, one per discuss/analyze-flagged entity, or 4-7 derived from the sub-questions for narrative asks. Never empty — `parse-plan --lint` refuses a vacuous contract (shape), momus rejects a research plan without one (presence), and the external auditor judges the finished deliverable heading-by-heading against it.
+- **Items** — the atomic decomposition: sub-questions, entities (with required fields), required formats, **period-pinned time periods with their primary source named** (missing period-pins are the top silent miss), scope conditions — plus a coverage note mapping every noun-phrase of the verbatim ask to an item (zero unmapped phrases).
+
+Write the deliverable todo's acceptance criteria as grep-able heading checks (`grep -q "^## <Heading>" <deliverable>`), so phase 5 verifies the Deliverable contract mechanically.
+
 ## The state machine (8 phases: -1 priming → 0–6)
 
 ```
@@ -208,7 +218,11 @@ Three rules, in priority order:
 3. **Synthesis, refutation, and any "merge the fragments" step is ALWAYS a sub-agent.** The
    orchestrator's job is to dispatch and judge 3-line summaries — never to hold the bulk
    content the workers produced. If you catch yourself opening a `.zcode/notepads/<slug>/*.md`
-   file in a Read call during phases 4-6, stop: that's a sub-agent's job.
+   file in a Read call during phases 4-6, stop: that's a sub-agent's job. For research runs,
+   the synthesis sub-agent must also emit an explicit **Tensions** section — claim vs claim,
+   the source on each side, which the deliverable adopts and WHY — contested findings are
+   surfaced, never silently averaged or dropped (ask workers in their dispatch to flag
+   conflicts with prior notepads).
 
 These rules compose with (but do not replace) the anti-duplication rule: once you delegate,
 don't re-research — and once you delegate, don't re-read.
@@ -222,6 +236,8 @@ or may not write. Concretely:
 - Every dispatched `zodyssey:sisyphus-junior` writes a notepad at the path its dispatch names — what it
   changed, decisions made, gotchas, and the acceptance-command output (evidence). This is
   "inherited wisdom" for the next todo and the raw input the final wave synthesizes.
+- A RESEARCH todo's notepad ends with one drift-check line — `Answers the question: yes|partial|no — <one-line why>` —
+  the conductor's cheap probe that the fan-out is still answering THE ask before synthesis runs.
 - Downstream todos **read prior notepads by path** (the orchestrator passes the pointers), so a
   notepad is the handoff contract between fan-out executors that never share a context window.
 - The final wave (F1-F4) reads notepads through a delegated sub-agent (memory rule above) or, when
@@ -374,6 +390,7 @@ Every `Task(zodyssey:sisyphus-junior)` (or any worker) carries:
 **Dispatch prompts are POINTERS + DELTA, not restatement (context-economy rule).** Each parallel executor gets its own full copy of your dispatch text, so a 1.4K-word prompt × N executors multiplies N times. Keep a dispatch under ~300 words by pointing the executor at files it can read itself:
 - DO point at paths: "the plan is at `<repo>/.zcode/plans/<slug>.md`, read your todo block (id N) and its References first." The executor reads the full context — it does not need you to paste it.
 - DO include the delta: the specific todo scope, the must-not-do, the acceptance criteria, the output notepad path. These are the only things not derivable from the files.
+- DO block-quote the canonical research question verbatim (from `<repo>/.zcode/plans/<slug>.task.md`) in every research dispatch — the delta is the lens/scope you add AROUND it, never a paraphrase instead of it.
 - DO NOT paste the original task, the brief, the audit prompt, or prior notepads into the dispatch body — give paths to them. The executor reads what it needs.
 - DO NOT restate capability-routing tables or skill instructions — name the capability ("use `sequentialthinking` MCP for the cross-file reasoning") and trust the executor to load it.
 

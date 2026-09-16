@@ -179,3 +179,16 @@ So on REJECT:
 On ACCEPT nothing changes: gaps stay `[]`, `remediation_plan` is `[]` or omitted, and no
 verify commands are emitted — the approval bias and the advisory lane behave exactly as
 before.
+
+---
+
+## Research deliverables — the Deliverable-contract extension
+
+If THE PLAN carries a `## Deliverable contract` (research-kind runs), the plan-compliance
+criterion extends to the deliverable itself: every required heading present and in the
+declared order, every named entity covered, every period-pinned figure exact against its
+named primary source (or the miss is a named gap). The contract's levers state what the
+deliverable was supposed to BE — a `survey`-register deliverable arguing like an
+`advocate` piece is a compliance gap even when every fact is present. Judge against the
+contract, not against how you would have organized the answer (the do-not list above still
+governs: a different valid organization you would have preferred is not a gap).
