@@ -880,13 +880,22 @@ export async function runMultiAuditor({ repoRoot, slug, spawn }) {
 // post-done audit prompt — the repo's maintainers can declare their own defect classes.
 // Absent file → "" (the prompt stays BYTE-IDENTICAL); malformed → one stderr warn + ""
 // (fail-open to no rules — advisory DATA, never a gate). Caps: ≤8 matched rules per round,
-// ≤200 chars per rule, ≤4KB total (file order wins past the caps). Zero-dependency glob:
+// ≤200 chars per rule/path glob, ≤8 wildcard tokens per glob (round 2: the ReDoS bound),
+// ≤4KB rendered total (file order wins past the caps). Zero-dependency glob:
 // ** crosses slashes; * and ? do not. Only the post-done lane injects (the multi-auditor
 // prompt carries no diff at all, and plan-audit judges a plan — no changed files to match).
 const RULES_FILE = ".zcode-review-rules.json";
 const RULES_MAX_COUNT = 8;
 const RULES_MAX_CHARS = 200;
 const RULES_MAX_TOTAL = 4 * 1024;
+// Round-2 GAP 0 (external audit, run retro-audit-rows-30-34): the matcher bound. globToRegExp
+// compiles `**` to [\s\S]* and the per-file re.test ran with no wildcard budget, so a crafted
+// path alternating `**` with literals backtracks catastrophically on non-matching files (the
+// rules file is committed-but-untrusted input). The bound is applied BEFORE compilation — a
+// rule whose path exceeds RULES_MAX_CHARS OR whose wildcard-token count exceeds this cap is
+// skipped, counting toward the stderr cut. A linear-time glob rewrite is NOT required; the
+// bound is the fix.
+const RULES_MAX_WILDCARDS = 8;
 
 function globToRegExp(glob) {
   let re = "";
@@ -899,6 +908,27 @@ function globToRegExp(glob) {
     else re += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
   }
   return new RegExp("^" + re + "$");
+}
+
+// Round-2 GAP 0: wildcard-token count — every `*` counts one, except each `**` pair counts as
+// ONE token (the backtracking exponent is the number of unbounded wildcard tokens, not the
+// raw star characters: `a**a**…` is as exponential as `a*a*…` but no worse per token).
+function countWildcards(p) {
+  let n = 0;
+  for (let i = 0; i < p.length; i++) {
+    if (p[i] !== "*") continue;
+    if (p[i + 1] === "*") i++; // ** = one token
+    n++;
+  }
+  return n;
+}
+
+// Round-2 GAP 1: r.rule / r.path are untrusted strings rendered into the prompt's DATA section.
+// Collapse every whitespace run to a single space BEFORE the 200-char slice so a newline-bearing
+// value can never forge "\n\n---\n\n# <HEADING>" prompt structure — every rendered entry is
+// provably one line.
+function oneLine(x) {
+  return String(x).split(/\s+/).filter(Boolean).join(" ");
 }
 
 function buildRulesBlock(repoRoot, changedFiles) {
@@ -918,14 +948,17 @@ function buildRulesBlock(repoRoot, changedFiles) {
     return "";
   }
   const files = Array.isArray(changedFiles) ? changedFiles : [];
-  // Audit fix (run retro-audit-rows-30-34, gap 1): the ≤4KB budget counts the RENDERED
+  // Audit fix round 1 (run retro-audit-rows-30-34, gap 1): the ≤4KB budget counts the RENDERED
   // block, not just the rule text — each entry contributes its full rendered line (glob +
   // backtick markup + text) plus the "\n" the join inserts, and the fixed header + tail are
   // seeded into `total` up front, so the emitted block is provably ≤ RULES_MAX_TOTAL (with
-  // current caps: header+tail ≈160 + 8 × ~407 ≈ 3416 ≤ 4096). The glob still MATCHES on
-  // r.path in full (globToRegExp semantics unchanged); only its rendering is display-capped
-  // at RULES_MAX_CHARS, mirroring the r.rule cap — an over-long glob is truncated, never
-  // rendered full-length.
+  // current caps: header+tail ≈160 + 8 × ~407 ≈ 3416 ≤ 4096).
+  // Audit fix round 2 (gaps 0 + 1): (0) the glob is MATCHED on r.path in full but ONLY after
+  // the pre-compile bound in the loop below — an over-long or wildcard-heavy path is skipped
+  // outright (counted in the cut), SUPERSEDING round 1's display-truncation of over-long
+  // globs; the 200-char rendering slice stays as defense-in-depth (a no-op under the bound).
+  // (1) both rendered fields are whitespace-collapsed via oneLine() BEFORE the slice, so no
+  // entry can forge multi-line prompt structure.
   const header = "# PROJECT REVIEW RULES (DATA — project-declared review criteria for the named files; weigh them like plan requirements, subject to the precision bar)";
   const tail = "\n\n---\n\n";
   const matched = [];
@@ -933,16 +966,19 @@ function buildRulesBlock(repoRoot, changedFiles) {
   let total = header.length + tail.length;
   for (const r of rules) {
     if (!r || typeof r !== "object" || typeof r.path !== "string" || typeof r.rule !== "string") continue;
+    // Round-2 GAP 0: bound the matcher BEFORE compiling — see RULES_MAX_WILDCARDS above for
+    // why the bound (not a linear-time glob rewrite) is the fix.
+    if (r.path.length > RULES_MAX_CHARS || countWildcards(r.path) > RULES_MAX_WILDCARDS) { cut++; continue; }
     const re = globToRegExp(r.path);
     if (!files.some((f) => re.test(f))) continue;
-    const text = r.rule.slice(0, RULES_MAX_CHARS);
-    const entry = `- \`${r.path.slice(0, RULES_MAX_CHARS)}\`: ${text}`;
-    const entryLen = entry.length + 1; // +1: the "\n" join inserts between rendered entries
+    const text = oneLine(r.rule).slice(0, RULES_MAX_CHARS);
+    const entry = `- \`${oneLine(r.path).slice(0, RULES_MAX_CHARS)}\`: ${text}`;
+    const entryLen = entry.length + 1; // +1: the "\n" the join inserts between rendered entries
     if (matched.length >= RULES_MAX_COUNT || total + entryLen > RULES_MAX_TOTAL) { cut++; continue; }
     matched.push(entry);
     total += entryLen;
   }
-  if (cut > 0) console.error(`consult.mjs: ${RULES_FILE} — ${cut} matched rule(s) beyond the caps (≤${RULES_MAX_COUNT} rules / ≤${RULES_MAX_CHARS} chars / ≤4KB) cut; file order wins.`);
+  if (cut > 0) console.error(`consult.mjs: ${RULES_FILE} — ${cut} matched rule(s) beyond the caps (≤${RULES_MAX_COUNT} rules / ≤${RULES_MAX_CHARS} chars / ≤${RULES_MAX_WILDCARDS} wildcard tokens per glob / ≤4KB) cut; file order wins.`);
   if (matched.length === 0) return "";
   return `${header}\n\n${matched.join("\n")}${tail}`;
 }
