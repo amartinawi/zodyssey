@@ -10,8 +10,8 @@ All notable changes to ZOdyssey are documented here. The format follows [Keep a 
   file, severity-grouped reporting) in capabilities.md. Routing-only: the enforcement
   pipeline (consult/F2/F4) keeps its existing binaries; a repo without `ocr` degrades to
   today's in-session review routes.
-- Per-project review rules (open-code-review adaptation, row 31): a committed
-  `.zcode-review-rules.json` at the repo root (`{"rules":[{"path":"<glob>","rule":"<one line>"}]}`)
+- Per-project review rules (open-code-review adaptation, row 31): a
+  `.zcode-review-rules.json` at the repo root (read from the working tree whether or not it is tracked; meant to be committed) (`{"rules":[{"path":"<glob>","rule":"<one line>"}]}`)
   is glob-matched against the changed files and injected as a DATA section into the external
   auditor's prompt (post-done lane; ≤8 rules / ≤200 chars each / ≤4KB total; absent file →
   byte-identical prompt; malformed → warn + skip, never a gate). auditor-prompt.md legitimizes

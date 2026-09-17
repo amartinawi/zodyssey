@@ -231,7 +231,7 @@ if (lifecycle) { // consult_gap_lifecycle (row 32) — rendered only when consul
   const L = lifecycle.lifecycle;
   console.log(`  gap lifecycle     new ${L.last_new ?? "—"} / persisting ${L.last_persisting ?? "—"} / resolved ${L.last_resolved ?? "—"} (last round) · max persisting streak ${L.max_persisting_streak}`);
   if (L.open_at_close_gaps > 0) console.log(`  open at close     ${L.open_at_close_gaps} kept gap(s) on a terminal REJECT — open, never resolved`);
-  if (lifecycle.recurred.count > 0) console.log(`  recurred gaps     ${lifecycle.recurred.count} from prior run(s): ${lifecycle.recurred.slugs.join(", ")}`);
+  if (lifecycle.recurred.count > 0) console.log(`  recurred gap(s)   ${lifecycle.recurred.count} seen in prior run(s): ${lifecycle.recurred.slugs.join(", ")}`);
 }
 console.log(`  ${"─".repeat(48)}`);
 console.log(`  wall-clock        ${wallClockMin} min`);

@@ -29,7 +29,7 @@ convergence — and each half optimizes against the other. Three mechanisms mult
    so an incomplete remediation is discovered only by spending a full external audit round, the most
    expensive possible check.
 3. **Nothing plan-shaped survives the round.** `consult.last_gaps`
-   (`consult.mjs:1605-1608`, history push `:1526-1539`) is the only remediation surface that
+   (`consult.mjs:1605-1608`, history push `:1616-1629`) is the only remediation surface that
    persists; ordering or collision hazards ("these two gaps touch the same file") are lost, and
    `normalizeConsultVerdict` whitelists its output (`skills/odyssey/scripts/lib/verdict-schema.mjs:98-104`),
    so a new auditor-emitted `remediation_plan` field would survive only buried in `.raw` — never

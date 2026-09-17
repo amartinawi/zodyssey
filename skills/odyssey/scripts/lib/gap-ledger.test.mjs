@@ -79,5 +79,32 @@ console.log("gap-ledger.mjs unit tests\n");
   }
 }
 
+// --- scanRecurredGaps (audit r4 gap 1): count = DISTINCT recurring keys, not prior-run hits --
+{
+  const repo = mkdtempSync(join(tmpdir(), "zod-gapledger-r4-"));
+  try {
+    mkdirSync(join(repo, ".zcode", "state"), { recursive: true });
+    const g = (issue) => ({ category: "bug", severity: "major", issue, fix: "f" });
+    const same = gapKey(g("one recurring ground"));
+    const other = gapKey(g("a second recurring ground"));
+    for (const s of ["p1", "p2"]) {
+      writeFileSync(join(repo, ".zcode", "state", `${s}.json`), JSON.stringify({
+        phase: "done", consult: { rounds: 1, verdict: "REJECT", last_gaps: [g("one recurring ground")] },
+      }));
+    }
+    const r = scanRecurredGaps(repo, "me", [same]);
+    check("scanRecurredGaps: same key in two prior runs → count 1 (distinct keys), both slugs named",
+      r.count === 1 && r.slugs.length === 2 && r.slugs.includes("p1") && r.slugs.includes("p2"), JSON.stringify(r));
+    writeFileSync(join(repo, ".zcode", "state", "p3.json"), JSON.stringify({
+      phase: "done", consult: { rounds: 1, verdict: "REJECT", last_gaps: [g("a second recurring ground")] },
+    }));
+    const r2 = scanRecurredGaps(repo, "me", [same, other]);
+    check("scanRecurredGaps: two distinct recurring keys → count 2 across three prior runs",
+      r2.count === 2 && r2.slugs.length === 3, JSON.stringify(r2));
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
 console.log(`\n${pass}/${pass + fail} passed`);
 exit(fail === 0 ? 0 : 1);

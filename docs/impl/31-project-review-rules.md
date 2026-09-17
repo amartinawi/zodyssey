@@ -6,8 +6,8 @@ Commissioned from the open-code-review adaptation study (2026-09-15). The study'
 VIABLE adaptation, transplanted from OCR's rules engine: OCR resolves per-file review rules
 by layered glob→rule-doc matching (`<repo>/.opencodereview/rule.json`, first match wins,
 `merge_system_rule` — see their `skills/open-code-review/SKILL.md`, "Custom Review Rules").
-The transplant for ZOdyssey is the mechanism's minimal core: a committed, per-repo rules
-file whose glob-matched entries are injected into the external auditor's prompt as DATA, so
+The transplant for ZOdyssey is the mechanism's minimal core: a per-repo rules file, meant
+to be committed, whose glob-matched entries are injected into the external auditor's prompt as DATA, so
 a repo owner can add project-specific defect classes ("on `hooks/*.mjs`, always check X") to
 the audit that ZOdyssey runs against that repo. Every spawn-site and prompt fact below was
 ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
@@ -17,7 +17,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
 1. **The audit rubric is one-size for every repo.** `auditor-prompt.md` judges every diff
    with the same four criteria (`skills/odyssey/references/auditor-prompt.md:26-38`) and no
    per-repo customization surface exists anywhere: the post-done prompt assembly
-   (`skills/odyssey/scripts/consult.mjs:1376-1410`) composes auditor-prompt + task + plan +
+   (`skills/odyssey/scripts/consult.mjs:1340-1374`) composes auditor-prompt + task + plan +
    diff + out-of-scope — nothing repo-declared. A repo whose maintainers know their own
    defect classes (the exact knowledge OCR's rule.json encodes) has no way to hand them to
    the auditor.
@@ -35,9 +35,10 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
 
 ## What fixed means
 
-1. **A committed rules file at the repo ROOT: `.zcode-review-rules.json`** — NOT under
+1. **A rules file at the repo ROOT: `.zcode-review-rules.json`** — NOT under
    `.zcode/` (gitignored run-artifact territory; a review contract must be versioned with
-   the code it judges). Shape (an OCR-compatible subset):
+   the code it judges). The file is read from the working tree whether or not it is tracked;
+   it is meant to be committed, but trackedness is never checked. Shape (an OCR-compatible subset):
    `{ "rules": [ { "path": "<glob>", "rule": "<one-line instruction>" } ] }`. v1 scope:
    repo-root file only. EVERY rule whose glob matches a changed file (in-scope + the
    out-of-scope list) is collected — all matches, not first-match-wins (a file may need
@@ -46,7 +47,7 @@ ground-truthed against the tree 2026-09-15 (post-`eaeb427`, suite 59/59).
    Hand-rolled `*`/`**`/`?` glob matcher (zero npm deps, house rule), own test cases.
 2. **`consult.mjs` — load, match, inject (post-done lane only).** A small loader reads the
    file during the post-done gather, matches against the changed-file set, and injects one
-   section between THE PLAN and THE DIFF (the seam at `consult.mjs:1390-1395`):
+   section between THE PLAN and THE DIFF (the seam at `consult.mjs:1356`):
    `# PROJECT REVIEW RULES (DATA — project-declared review criteria for the named files)`
    followed by `- <glob>: <rule>` lines. DATA framing matches the plan/diff precedent
    (`consult.mjs:1356` — rules are untrusted repo content; the framing plus the caps
@@ -158,7 +159,7 @@ rules widen what the judge may reject for; they never touch how verdicts are com
 
 ```markdown
 ### Added
-- Per-project review rules: a committed `.zcode-review-rules.json` at the repo root
+- Per-project review rules: a `.zcode-review-rules.json` at the repo root
   (`{"rules":[{"path":"<glob>","rule":"<one line>"}]}`) is glob-matched against the changed
   files and injected as a DATA section into the external auditor's prompt (post-done lane;
   ≤8 rules / ≤200 chars each / ≤4KB total; absent file → byte-identical prompt; malformed →

@@ -19,8 +19,9 @@
 //                             gapKey (min(N,M) persisting, remainder to the longer side),
 //                             every bucket a SORTED array of keys (category, then key) so
 //                             JSON output is diffable run-to-run
-//   scanRecurredGaps(repoRoot, slug, keys) → { count, slugs } — cross-run recurrence of
-//                             the FINAL kept gaps against sibling state files
+//   scanRecurredGaps(repoRoot, slug, keys) → { count: DISTINCT recurring keys, slugs:
+//                             prior runs (≤5) holding any of them } — cross-run recurrence
+//                             of the FINAL kept gaps against sibling state files
 //                             (*.inflight.json and the run itself are never scanned);
 //                             advisory evidence only, never a gate
 //
@@ -75,13 +76,15 @@ export function compareGaps(before, after) {
  * Cross-run recurrence: which of THIS run's final kept-gap keys also appear in a PRIOR
  * run's final kept gaps? Reads <repoRoot>/.zcode/state/*.json (inflight + self skipped,
  * the mine-corrections idiom); unparseable files are skipped, never thrown. Returns
- * { count, slugs } with slugs bounded to 5 — the per-finding twin of item 25's class-level
- * recurrence; consumption by mine-corrections stays item 25's extension.
+ * { count, slugs }: count = the DISTINCT wanted keys found in ANY prior run (audit r4 gap 1
+ * — a key seen in five runs still counts once), slugs = the prior runs holding any (≤5) —
+ * the per-finding twin of item 25's class-level recurrence; mine-corrections stays 25's.
  */
 export function scanRecurredGaps(repoRoot, slug, keys) {
   const wanted = new Set(Array.isArray(keys) ? keys.filter((k) => typeof k === "string" && k) : []);
   const out = { count: 0, slugs: [] };
   if (wanted.size === 0) return out;
+  const recurred = new Set(); // distinct wanted keys found in any prior run
   let names = [];
   try {
     names = readdirSync(join(repoRoot, ".zcode", "state"));
@@ -100,11 +103,13 @@ export function scanRecurredGaps(repoRoot, slug, keys) {
     }
     const finalGaps = st?.consult?.last_gaps;
     if (!Array.isArray(finalGaps)) continue;
-    if (finalGaps.some((g) => wanted.has(gapKey(g)))) {
-      out.count += 1;
+    const hitKeys = finalGaps.map((g) => gapKey(g)).filter((k) => wanted.has(k));
+    if (hitKeys.length > 0) {
+      for (const k of hitKeys) recurred.add(k);
       out.slugs.push(other);
     }
   }
+  out.count = recurred.size;
   out.slugs = out.slugs.sort().slice(0, 5);
   return out;
 }
