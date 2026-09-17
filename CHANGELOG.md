@@ -2,7 +2,7 @@
 
 All notable changes to ZOdyssey are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.7.5] — 2026-09-17
 ### Added
 - Capability routing: "Review a PR / changeset line-by-line" now routes to the external `ocr`
   CLI (alibaba/open-code-review — Apache-2.0, npm `@alibaba-group/open-code-review` v1.12.2,
