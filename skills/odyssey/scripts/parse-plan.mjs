@@ -417,7 +417,12 @@ if (mode === "--lint") {
   if (deliverableSection) {
     const contractLines = deliverableSection.split("\n");
     const registerLine = contractLines.find((ln) => /^\s*[-*]?\s*`?register`?\s*:/i.test(ln));
-    const registerTyped = !!registerLine && /\b(teach|survey|analyze|advocate)\b/i.test(registerLine);
+    // Round-5 audit fix: the value after the first ":" must resolve to EXACTLY ONE of the
+    // four tokens — the authoring docs' own menu line ("teach|survey|analyze|advocate")
+    // contains all four and used to pass, accepting the unresolved menu as a typed lever.
+    const registerValue = registerLine ? registerLine.slice(registerLine.indexOf(":") + 1) : "";
+    const tokenHits = (registerValue.match(/\b(teach|survey|analyze|advocate)\b/gi) || []).length;
+    const registerTyped = tokenHits === 1;
     if (!registerTyped) {
       problems.push({ todo: "-", issue: "`## Deliverable contract` present but its `register:` lever is missing or untyped — it must be one of teach|survey|analyze|advocate (default `analyze`; an explicit user directive always wins). A vacuous contract looks enforced while binding nothing." });
     }

@@ -486,6 +486,13 @@ console.log("parse-plan.mjs unit tests\n");
     r = lint();
     check("contract: untyped register value fails", r.code === 6 &&
       (r.out.problems || []).some((p) => /register/.test(p.issue || "")));
+
+    // Round-5 audit gap: the UNRESOLVED menu itself ("teach|survey|analyze|advocate") must
+    // not pass as typed — the value must resolve to exactly ONE of the four tokens.
+    writeFileSync(planPath, base("## Deliverable contract\n- register: teach|survey|analyze|advocate\n\n### Headings\n1. ## Background"));
+    r = lint();
+    check("contract: the unresolved lever MENU fails (must resolve to exactly one token)", r.code === 6 &&
+      (r.out.problems || []).some((p) => /register/.test(p.issue || "")));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
